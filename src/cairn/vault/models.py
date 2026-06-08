@@ -24,6 +24,8 @@ class Relation:
 
 @dataclass
 class Note:
+    # permalink mirrors frontmatter["permalink"] and is authoritative when writing:
+    # write_note folds it into the serialized frontmatter, overriding any stale value there.
     permalink: str | None = None
     frontmatter: dict[str, Any] = field(default_factory=dict)
     body: str = ""
