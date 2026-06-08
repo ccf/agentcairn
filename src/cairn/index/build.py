@@ -81,6 +81,78 @@ def index_vault(con: duckdb.DuckDBPyConnection, vault_dir: str, embedder: Embedd
     return stats
 
 
+@dataclass
+class ReconcileStats:
+    added: int = 0
+    updated: int = 0
+    deleted: int = 0
+    rebuilt: bool = False
+
+
+def reconcile(
+    con: duckdb.DuckDBPyConnection,
+    vault_dir: str,
+    embedder: Embedder,
+    *,
+    model_id_override: str | None = None,
+) -> ReconcileStats:
+    """Bring the index in sync with the vault, re-processing only changed notes.
+    A change in embedding model/dim triggers a full rebuild (vectors from
+    different models are not comparable). Always rebuilds the FTS index when any
+    content changed."""
+    from cairn.index.schema import get_meta, set_meta
+
+    model_id = model_id_override or embedder.model_id
+    stats = ReconcileStats()
+
+    if get_meta(con, "embedding_model") != model_id or get_meta(con, "embedding_dim") != str(
+        embedder.dim
+    ):
+        con.execute("DROP TABLE IF EXISTS chunk_embeddings")
+        ddl = (
+            f"CREATE TABLE chunk_embeddings "
+            f"(chunk_id VARCHAR PRIMARY KEY, vec FLOAT[{embedder.dim}])"
+        )
+        con.execute(ddl)
+        con.execute("DELETE FROM chunks")
+        con.execute("DELETE FROM links")
+        con.execute("DELETE FROM notes")
+        set_meta(con, "embedding_model", model_id)
+        set_meta(con, "embedding_dim", str(embedder.dim))
+        stats.rebuilt = True
+
+    on_disk = {p.stem: p for p in sorted(Path(vault_dir).rglob("*.md"))}
+    # map permalink->(path, hash, mtime) currently in the index
+    indexed = {
+        row[0]: (row[1], row[2], row[3])
+        for row in con.execute("SELECT permalink, path, content_hash, mtime FROM notes").fetchall()
+    }
+
+    # process files on disk: add new, update changed
+    seen_permalinks: set[str] = set()
+    for path in on_disk.values():
+        text = path.read_text()
+        permalink = parse_note(text).permalink or path.stem
+        seen_permalinks.add(permalink)
+        prev = indexed.get(permalink)
+        cur_hash = _content_hash(text)
+        if prev is None:
+            index_note(con, path, embedder)
+            stats.added += 1
+        elif prev[1] != cur_hash:
+            index_note(con, path, embedder)
+            stats.updated += 1
+
+    # deletions: indexed notes whose file no longer exists
+    for permalink in set(indexed) - seen_permalinks:
+        _delete_note(con, permalink)
+        stats.deleted += 1
+
+    if stats.added or stats.updated or stats.deleted or stats.rebuilt:
+        build_fts(con)
+    return stats
+
+
 def build_fts(con: duckdb.DuckDBPyConnection) -> None:
     """(Re)build the BM25 full-text index over chunk text. Must be called after
     any change to `chunks` — DuckDB's FTS index does not auto-update."""
