@@ -36,8 +36,20 @@ def open_index(path: str, *, dim: int, model_id: str) -> duckdb.DuckDBPyConnecti
         "  src_permalink VARCHAR, dst_target VARCHAR, edge_type VARCHAR)"
     )
     con.execute("CREATE TABLE IF NOT EXISTS meta (key VARCHAR PRIMARY KEY, value VARCHAR)")
-    set_meta(con, "embedding_model", model_id)
-    set_meta(con, "embedding_dim", str(dim))
+    # Record the embedding model/dim ONLY on first creation (insert-if-absent).
+    # Overwriting here would hide a model/dim change from reconcile(), which
+    # relies on the STORED values to decide whether to rebuild — overwriting
+    # makes reconcile think nothing changed and skip the rebuild, leaving
+    # vectors of the wrong width/model. On an existing index the old values are
+    # kept so reconcile() detects the mismatch and rebuilds.
+    con.execute(
+        "INSERT INTO meta VALUES ('embedding_model', ?) ON CONFLICT (key) DO NOTHING",
+        [model_id],
+    )
+    con.execute(
+        "INSERT INTO meta VALUES ('embedding_dim', ?) ON CONFLICT (key) DO NOTHING",
+        [str(dim)],
+    )
     return con
 
 

@@ -63,3 +63,21 @@ def test_reconcile_indexes_same_stem_in_subdirs(tmp_path):
     r = reconcile(con, str(v), emb)
     assert r.added == 2
     assert con.execute("SELECT count(*) FROM notes").fetchone()[0] == 2
+
+
+def test_open_index_does_not_clobber_meta_so_reconcile_rebuilds(tmp_path):
+    # Simulates two CLI `reindex` invocations (open_index -> reconcile each time)
+    # with a switched embedder. open_index must NOT overwrite the stored
+    # model/dim, or reconcile would skip the rebuild and leave wrong-width vectors.
+    v = _seed(tmp_path)
+    idx = str(tmp_path / "i.duckdb")
+    con = open_index(idx, dim=8, model_id="fake-8")
+    reconcile(con, str(v), FakeEmbedder(dim=8))
+    con.close()
+    con2 = open_index(idx, dim=16, model_id="fake-16")
+    r = reconcile(con2, str(v), FakeEmbedder(dim=16))
+    assert r.rebuilt is True
+    assert (
+        con2.execute("SELECT count(*) FROM chunk_embeddings WHERE len(vec) != 16").fetchone()[0]
+        == 0
+    )
