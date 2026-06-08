@@ -48,3 +48,12 @@ def test_no_frontmatter_note_has_no_yaml_block():
     out = write_note(note)
     assert not out.startswith("---")
     assert "just plain prose" in out
+
+
+def test_write_persists_permalink_field_even_if_absent_from_frontmatter():
+    from cairn.vault import Note
+
+    note = Note(permalink="mem-123", frontmatter={"title": "X"}, body="hello")
+    out = write_note(note)
+    assert "permalink: mem-123" in out
+    assert parse_note(out).permalink == "mem-123"  # round-trips back

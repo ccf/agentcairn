@@ -13,10 +13,14 @@ from cairn.vault.models import Note
 
 
 def write_note(note: Note) -> str:
-    if not note.frontmatter:
+    fm = dict(note.frontmatter)
+    if note.permalink is not None:
+        # permalink is authoritative: fold it in (updates existing key in place, preserving order)
+        fm["permalink"] = note.permalink
+    if not fm:
         body = note.body
         return body if body.endswith("\n") else body + "\n"
-    post = frontmatter.Post(note.body, **note.frontmatter)
+    post = frontmatter.Post(note.body, **fm)
     # frontmatter.dumps emits "---\n<yaml>---\n\n<body>"; normalize trailing newline.
     # sort_keys=False preserves the order in which keys appear in the original file.
     text = frontmatter.dumps(post, sort_keys=False)
