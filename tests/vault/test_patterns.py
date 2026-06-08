@@ -4,7 +4,9 @@ from cairn.vault.patterns import OBSERVATION_RE, RELATION_RE, WIKILINK_RE
 
 def test_observation_matches_single_bracket_not_double():
     assert OBSERVATION_RE.match("- [method] pour over #brewing (manual)")
-    assert OBSERVATION_RE.match("- [[Target]]") is None  # double bracket = relation, not observation
+    assert (
+        OBSERVATION_RE.match("- [[Target]]") is None
+    )  # double bracket = relation, not observation
 
 
 def test_relation_matches_double_bracket_forms():

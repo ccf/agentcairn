@@ -53,6 +53,32 @@ cairn serve                        # on-demand MCP server for your agent harness
 
 Learning from [basic-memory](https://github.com/basicmachines-co/basic-memory) (Markdown-as-memory + rebuildable index), Simon Späti's [Obsidian RAG on DuckDB](https://www.ssp.sh/blog/obsidian-rag-duckdb-sql/), and [DuckDB](https://duckdb.org)'s VSS + FTS extensions.
 
+## Development
+
+agentcairn uses [uv](https://docs.astral.sh/uv/) exclusively for dependency management and tooling.
+
+**Do not use pip, poetry, or global virtual environments.**
+
+```bash
+# First-time setup
+uv sync                         # create .venv and install all deps (including dev)
+uv run pre-commit install       # install git hooks (ruff + pytest run on every commit)
+
+# Daily use
+uv run pytest                   # run the test suite
+uv run cairn --help             # run the CLI
+uvx agentcairn                  # run the installed tool ephemerally (as the MCP server will)
+
+# Formatting and linting
+uv run ruff format .            # format all Python files
+uv run ruff check --fix .       # lint with auto-fix
+
+# Run pre-commit manually on all files
+uv run pre-commit run --all-files
+```
+
+The future MCP server is designed to be launched via `uvx agentcairn` — no global install required.
+
 ## License
 
 [Apache License 2.0](LICENSE) — permissive, with an explicit patent grant. Copyright © 2026 Charles C. Figueiredo.

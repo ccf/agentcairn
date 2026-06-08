@@ -3,7 +3,9 @@ from cairn.vault.models import Note, Observation, Relation
 
 
 def test_observation_holds_fields():
-    obs = Observation(category="method", content="Pour over highlights flavor", tags=["brewing"], context="manual")
+    obs = Observation(
+        category="method", content="Pour over highlights flavor", tags=["brewing"], context="manual"
+    )
     assert obs.category == "method"
     assert obs.tags == ["brewing"]
     assert obs.context == "manual"

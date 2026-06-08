@@ -17,7 +17,9 @@ def test_version_flag_prints_version():
 
 def test_parse_command_outputs_json(tmp_path: Path):
     note_file = tmp_path / "coffee.md"
-    note_file.write_text("---\ntitle: Coffee\npermalink: coffee\n---\n\n- [method] pour over #brewing\n")
+    note_file.write_text(
+        "---\ntitle: Coffee\npermalink: coffee\n---\n\n- [method] pour over #brewing\n"
+    )
     result = runner.invoke(app, ["parse", str(note_file)])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
