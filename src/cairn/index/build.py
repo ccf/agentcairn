@@ -92,16 +92,19 @@ def bm25_search(
 ) -> list[tuple[str, str, float]]:
     """Return [(chunk_id, heading_path, score)] ranked by BM25. Empty if the FTS
     index has not been built."""
-    rows = con.execute(
-        """
-        WITH scored AS (
-            SELECT c.chunk_id, c.heading_path,
-                   fts_main_chunks.match_bm25(c.chunk_id, ?) AS score
-            FROM chunks c
-        )
-        SELECT chunk_id, heading_path, score FROM scored
-        WHERE score IS NOT NULL ORDER BY score DESC LIMIT ?
-        """,
-        [query, limit],
-    ).fetchall()
+    try:
+        rows = con.execute(
+            """
+            WITH scored AS (
+                SELECT c.chunk_id, c.heading_path,
+                       fts_main_chunks.match_bm25(c.chunk_id, ?) AS score
+                FROM chunks c
+            )
+            SELECT chunk_id, heading_path, score FROM scored
+            WHERE score IS NOT NULL ORDER BY score DESC LIMIT ?
+            """,
+            [query, limit],
+        ).fetchall()
+    except duckdb.CatalogException:
+        return []
     return [(r[0], r[1], float(r[2])) for r in rows]
