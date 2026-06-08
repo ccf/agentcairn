@@ -19,6 +19,11 @@ from cairn.vault.patterns import (
 
 
 def parse_observation_line(line: str) -> Observation | None:
+    """Parse "- [category] content #tag (context)" into an Observation.
+
+    Context is only recognized as a trailing ``(...)`` after any tags, per the
+    contract; a paren that precedes a trailing tag stays in content.
+    """
     m = OBSERVATION_RE.match(line)
     if not m:
         return None
@@ -47,14 +52,16 @@ def parse_relation_line(line: str) -> Relation | None:
 
 
 def parse_inline_fields(text: str) -> dict[str, str]:
-    """Extract Dataview-style inline fields from a single line of text."""
+    """Extract Dataview-style inline fields from a text string."""
     fields: dict[str, str] = {}
-    line_m = INLINE_FIELD_LINE_RE.match(text.strip())
-    if line_m:
-        fields[line_m.group(1)] = line_m.group(2).strip()
+    cleaned = text
     for rx in (INLINE_FIELD_BRACKET_RE, INLINE_FIELD_PAREN_RE):
         for key, value in rx.findall(text):
             fields[key] = value.strip()
+        cleaned = rx.sub("", cleaned)
+    line_m = INLINE_FIELD_LINE_RE.match(cleaned.strip())
+    if line_m:
+        fields[line_m.group(1)] = line_m.group(2).strip()
     return fields
 
 

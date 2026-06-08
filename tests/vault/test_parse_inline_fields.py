@@ -13,3 +13,7 @@ def test_bracket_and_paren_fields():
 
 def test_no_fields_returns_empty():
     assert parse_inline_fields("plain prose with no fields") == {}
+
+
+def test_line_field_value_not_polluted_by_embedded_field():
+    assert parse_inline_fields("rating:: 9 [extra:: yes]") == {"rating": "9", "extra": "yes"}
