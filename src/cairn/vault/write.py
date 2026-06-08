@@ -13,9 +13,13 @@ from cairn.vault.models import Note
 
 
 def write_note(note: Note) -> str:
+    if not note.frontmatter:
+        body = note.body
+        return body if body.endswith("\n") else body + "\n"
     post = frontmatter.Post(note.body, **note.frontmatter)
     # frontmatter.dumps emits "---\n<yaml>---\n\n<body>"; normalize trailing newline.
-    text = frontmatter.dumps(post)
+    # sort_keys=False preserves the order in which keys appear in the original file.
+    text = frontmatter.dumps(post, sort_keys=False)
     if not text.endswith("\n"):
         text += "\n"
     return text

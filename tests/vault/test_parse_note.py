@@ -42,3 +42,9 @@ def test_permalink_falls_back_to_none_when_absent():
     note = parse_note("---\ntitle: X\n---\nbody")
     assert note.permalink is None
     assert note.frontmatter["title"] == "X"
+
+
+def test_inline_field_on_observation_line_is_not_captured():
+    note = parse_note("---\ntitle: T\n---\n- [fact] origin [origin:: Ethiopia]\n")
+    assert note.observations[0].category == "fact"
+    assert "origin" not in note.inline_fields
