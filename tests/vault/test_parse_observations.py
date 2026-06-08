@@ -33,3 +33,9 @@ def test_context_must_trail_tags():
     assert obs2.context is None
     assert "(slow)" in obs2.content
     assert obs2.tags == ["brewing"]
+
+
+def test_gfm_task_checkboxes_are_not_observations():
+    assert parse_observation_line("- [ ] do a thing") is None
+    assert parse_observation_line("- [x] done") is None
+    assert parse_observation_line("- [X] done") is None

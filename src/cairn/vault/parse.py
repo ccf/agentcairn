@@ -28,6 +28,9 @@ def parse_observation_line(line: str) -> Observation | None:
     if not m:
         return None
     category = m.group(1).strip()
+    # GFM task-list items ("- [ ]", "- [x]", "- [X]") are not observations.
+    if not category or category in {"x", "X"}:
+        return None
     remainder = m.group(2).strip()
 
     context: str | None = None
@@ -52,7 +55,10 @@ def parse_relation_line(line: str) -> Relation | None:
 
 
 def parse_inline_fields(text: str) -> dict[str, str]:
-    """Extract Dataview-style inline fields from a text string."""
+    """Extract Dataview-style inline fields from a text string.
+
+    Duplicate keys are last-wins in v1 (known limitation; no deduplication).
+    """
     fields: dict[str, str] = {}
     cleaned = text
     for rx in (INLINE_FIELD_BRACKET_RE, INLINE_FIELD_PAREN_RE):
@@ -66,7 +72,11 @@ def parse_inline_fields(text: str) -> dict[str, str]:
 
 
 def parse_note(text: str) -> Note:
-    """Parse a full markdown document into a Note."""
+    """Parse a full markdown document into a Note.
+
+    Inline fields are parsed from prose lines only; lines classified as
+    observations or relations are not also scanned for inline fields.
+    """
     post = frontmatter.loads(text)
     fm = dict(post.metadata)
     body = post.content

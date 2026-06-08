@@ -35,3 +35,16 @@ def test_write_preserves_frontmatter_keys():
     assert "title: Coffee" in out
     assert "permalink: coffee" in out
     assert out.startswith("---")
+
+
+def test_write_preserves_frontmatter_key_order():
+    note = parse_note("---\ntitle: T\ntype: note\npermalink: t\n---\nbody\n")
+    out = write_note(note)
+    assert out.index("title:") < out.index("type:") < out.index("permalink:")
+
+
+def test_no_frontmatter_note_has_no_yaml_block():
+    note = parse_note("just plain prose, no frontmatter\n")
+    out = write_note(note)
+    assert not out.startswith("---")
+    assert "just plain prose" in out
