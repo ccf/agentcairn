@@ -22,6 +22,9 @@ def open_index(path: str, *, dim: int, model_id: str) -> duckdb.DuckDBPyConnecti
         "  chunk_id VARCHAR PRIMARY KEY, note_permalink VARCHAR,"
         "  heading_path VARCHAR, ordinal INTEGER, text VARCHAR)"
     )
+    # NOTE: IF NOT EXISTS keeps an existing vec column's width. A change in
+    # embedding dimension is handled by reconcile() (which recreates this
+    # table), not here — re-calling open_index with a new dim does NOT widen it.
     con.execute(
         f"CREATE TABLE IF NOT EXISTS chunk_embeddings ("
         f"  chunk_id VARCHAR PRIMARY KEY, vec FLOAT[{dim}])"

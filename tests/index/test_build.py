@@ -44,3 +44,11 @@ def test_fts_bm25_finds_chunk(tmp_path):
     hits = bm25_search(con, "pour over brewing", limit=5)
     assert hits, "expected at least one BM25 hit"
     assert any("Brewing" in h[1] for h in hits)  # (chunk_id, heading_path, score)
+
+
+def test_bm25_search_returns_empty_before_fts_built(tmp_path):
+    v = _vault(tmp_path)
+    emb = FakeEmbedder(dim=8)
+    con = open_index(str(tmp_path / "i.duckdb"), dim=emb.dim, model_id=emb.model_id)
+    index_vault(con, str(v), emb)
+    assert bm25_search(con, "anything", 5) == []  # FTS not built yet
