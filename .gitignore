@@ -1,8 +1,47 @@
+# Python bytecode
 __pycache__/
-*.pyc
-.venv/
-.pytest_cache/
-dist/
-build/
+*.py[cod]
+*.pyo
+
+# Distribution / packaging
 *.egg-info/
-.duckdb
+build/
+dist/
+.eggs/
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# uv — keep uv.lock committed for a reproducible tool (do NOT ignore it)
+
+# Test & coverage artefacts
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+nosetests.xml
+
+# Linter / type-checker caches
+.ruff_cache/
+.mypy_cache/
+
+# IDE / editor artefacts
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+Thumbs.db
+
+# agentcairn: the rebuildable DuckDB index is disposable — ignore it
+# Note: the vault Markdown files are NEVER ignored (they are the source of truth)
+*.duckdb
+*.duckdb.wal

@@ -25,6 +25,17 @@ Build order: `cairn.vault → cairn.index → cairn.embed → cairn.search → c
 ## The wedge (keep it crisp)
 Closest competitor is `rohitg00/agentmemory` (it already has hybrid+graph, local embeddings, decay, Obsidian *export*). Our narrow-but-real edge: **vault-as-truth (not export) · disposable/rebuildable index · non-lossy by construction · free wikilink graph · daemonless, zero external DB.** If a change blurs this, reconsider it.
 
+## Tooling (uv — exclusive)
+
+**Always use `uv`; never use pip, poetry, or global venvs.**
+
+- Install / sync deps: `uv sync`
+- Run any command: `uv run <cmd>` (e.g. `uv run pytest`, `uv run cairn --help`)
+- Ephemeral tool runs: `uvx <tool>` — the MCP server will be launched as `uvx agentcairn`
+- Contributor setup: `uv sync` then `uv run pre-commit install`
+
+`uv.lock` is **committed** — it keeps the tool reproducible across machines.
+
 ## Conventions
 - Specs/designs → `docs/specs/` (date-prefixed `YYYY-MM-DD-<topic>-design.md`). No `superpowers/` segment.
 - `README.md` is the public positioning doc — advantages framed as design goals until validated.

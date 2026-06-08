@@ -12,7 +12,9 @@ import typer
 from cairn import __version__
 from cairn.vault import parse_note
 
-app = typer.Typer(no_args_is_help=True, add_completion=False, help="agentcairn — local-first agent memory.")
+app = typer.Typer(
+    no_args_is_help=True, add_completion=False, help="agentcairn — local-first agent memory."
+)
 
 
 def _version_callback(value: bool) -> None:
@@ -31,7 +33,9 @@ def main(
 
 
 @app.command()
-def parse(file: Path = typer.Argument(..., exists=True, readable=True, help="Markdown note to parse.")) -> None:
+def parse(
+    file: Path = typer.Argument(..., exists=True, readable=True, help="Markdown note to parse."),
+) -> None:
     """Parse a markdown note and print its structured form as JSON."""
     note = parse_note(file.read_text())
     typer.echo(json.dumps(dataclasses.asdict(note), indent=2, default=str))
