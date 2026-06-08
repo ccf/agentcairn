@@ -25,3 +25,16 @@ def test_parse_command_outputs_json(tmp_path: Path):
     data = json.loads(result.stdout)
     assert data["permalink"] == "coffee"
     assert data["observations"][0]["category"] == "method"
+
+
+def test_reindex_and_status(tmp_path):
+    v = tmp_path / "vault"
+    v.mkdir()
+    (v / "a.md").write_text("---\ntitle: A\npermalink: a\n---\nalpha [[B]]\n")
+    idx = tmp_path / "i.duckdb"
+    r = runner.invoke(app, ["reindex", str(v), "--index", str(idx), "--embedder", "fake"])
+    assert r.exit_code == 0, r.output
+    assert "1 note" in r.output
+    s = runner.invoke(app, ["index-status", "--index", str(idx)])
+    assert s.exit_code == 0
+    assert "notes: 1" in s.output
