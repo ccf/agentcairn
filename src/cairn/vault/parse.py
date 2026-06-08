@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
-from cairn.vault.models import Observation, Relation
+import frontmatter
+
+from cairn.vault.models import Note, Observation, Relation
 from cairn.vault.patterns import (
     CONTEXT_RE,
     INLINE_FIELD_BRACKET_RE,
@@ -12,6 +14,7 @@ from cairn.vault.patterns import (
     OBSERVATION_RE,
     RELATION_RE,
     TAG_RE,
+    WIKILINK_RE,
 )
 
 
@@ -53,3 +56,41 @@ def parse_inline_fields(text: str) -> dict[str, str]:
         for key, value in rx.findall(text):
             fields[key] = value.strip()
     return fields
+
+
+def parse_note(text: str) -> Note:
+    """Parse a full markdown document into a Note."""
+    post = frontmatter.loads(text)
+    fm = dict(post.metadata)
+    body = post.content
+
+    observations: list[Observation] = []
+    relations: list[Relation] = []
+    inline_fields: dict[str, str] = {}
+
+    for line in body.splitlines():
+        if (obs := parse_observation_line(line)) is not None:
+            observations.append(obs)
+            continue
+        if (rel := parse_relation_line(line)) is not None:
+            relations.append(rel)
+            continue
+        inline_fields.update(parse_inline_fields(line))
+
+    # De-duplicated body wikilinks in first-seen order.
+    seen: set[str] = set()
+    wikilinks: list[str] = []
+    for target in WIKILINK_RE.findall(body):
+        if target not in seen:
+            seen.add(target)
+            wikilinks.append(target)
+
+    return Note(
+        permalink=fm.get("permalink"),
+        frontmatter=fm,
+        body=body,
+        observations=observations,
+        relations=relations,
+        wikilinks=wikilinks,
+        inline_fields=inline_fields,
+    )

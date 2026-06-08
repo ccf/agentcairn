@@ -24,7 +24,7 @@ class Relation:
 
 @dataclass
 class Note:
-    permalink: str
+    permalink: str | None = None
     frontmatter: dict[str, Any] = field(default_factory=dict)
     body: str = ""
     observations: list[Observation] = field(default_factory=list)
