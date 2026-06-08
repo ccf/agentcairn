@@ -2,7 +2,7 @@
 from pathlib import Path
 
 from cairn.embed import FakeEmbedder
-from cairn.index import index_vault, open_index
+from cairn.index import bm25_search, build_fts, index_vault, open_index
 
 
 def _vault(tmp_path: Path) -> Path:
@@ -33,3 +33,14 @@ def test_index_vault_populates_rows_and_embeddings(tmp_path):
     ).fetchall()
     assert ("coffee", "Tea", "links_to") in edges
     assert ("coffee", "Tea", "pairs_with") in edges
+
+
+def test_fts_bm25_finds_chunk(tmp_path):
+    v = _vault(tmp_path)
+    emb = FakeEmbedder(dim=8)
+    con = open_index(str(tmp_path / "i.duckdb"), dim=emb.dim, model_id=emb.model_id)
+    index_vault(con, str(v), emb)
+    build_fts(con)
+    hits = bm25_search(con, "pour over brewing", limit=5)
+    assert hits, "expected at least one BM25 hit"
+    assert any("Brewing" in h[1] for h in hits)  # (chunk_id, heading_path, score)
