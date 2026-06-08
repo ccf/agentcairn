@@ -48,3 +48,25 @@ def test_inline_field_on_observation_line_is_not_captured():
     note = parse_note("---\ntitle: T\n---\n- [fact] origin [origin:: Ethiopia]\n")
     assert note.observations[0].category == "fact"
     assert "origin" not in note.inline_fields
+
+
+def test_code_blocks_are_not_parsed_as_structure():
+    md = (
+        "---\ntitle: T\n---\n"
+        "Real prose links to [[RealTarget]] and (env:: prod).\n\n"
+        "```python\n"
+        "x = '- [method] fake observation'\n"
+        "link = '[[FakeLink]]'\n"
+        "cfg = 'retries:: 3'\n"
+        "rel = '- uses [[FakeRel]]'\n"
+        "```\n\n"
+        "- uses [[RealRel]]\n"
+        "Inline `[[InlineFake]]` should be ignored too.\n"
+    )
+    note = parse_note(md)
+    assert note.wikilinks == ["RealTarget", "RealRel"]  # no FakeLink/FakeRel/InlineFake
+    assert all("Fake" not in r.target for r in note.relations)  # FakeRel not a relation
+    assert any(r.target == "RealRel" and r.rel_type == "uses" for r in note.relations)
+    assert "retries" not in note.inline_fields  # code-block field ignored
+    assert note.inline_fields.get("env") == "prod"  # real prose field kept
+    assert note.observations == []  # fake observation in code ignored

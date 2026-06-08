@@ -8,6 +8,7 @@ import frontmatter
 from cairn.vault.models import Note, Observation, Relation
 from cairn.vault.patterns import (
     CONTEXT_RE,
+    INLINE_CODE_RE,
     INLINE_FIELD_BRACKET_RE,
     INLINE_FIELD_LINE_RE,
     INLINE_FIELD_PAREN_RE,
@@ -74,6 +75,11 @@ def parse_inline_fields(text: str) -> dict[str, str]:
 def parse_note(text: str) -> Note:
     """Parse a full markdown document into a Note.
 
+    Structure (observations, relations, inline fields, wikilinks) is parsed
+    from prose and list lines only.  Fenced code blocks (``` or ~~~) and
+    inline code spans (``...``) are excluded so that code examples do not
+    produce spurious wikilinks, relations, observations, or inline fields.
+
     Inline fields are parsed from prose lines only; lines classified as
     observations or relations are not also scanned for inline fields.
     """
@@ -85,7 +91,35 @@ def parse_note(text: str) -> Note:
     relations: list[Relation] = []
     inline_fields: dict[str, str] = {}
 
-    for line in body.splitlines():
+    # De-duplicated wikilinks in first-seen order, collected per non-fenced
+    # line after inline-code spans are stripped.
+    seen: set[str] = set()
+    wikilinks: list[str] = []
+
+    in_fence = False
+    for raw_line in body.splitlines():
+        # Detect fence open/close.  A line whose stripped form starts with
+        # ``` or ~~~ toggles the fence state; the fence marker line itself
+        # is skipped (it contributes no structure).
+        stripped = raw_line.lstrip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            in_fence = not in_fence
+            continue
+
+        if in_fence:
+            continue
+
+        # Strip inline code spans before any structural parsing so that
+        # content like `[[FakeLink]]` is not matched.
+        line = INLINE_CODE_RE.sub("", raw_line)
+
+        # Collect wikilinks from this (cleaned) line.
+        for target in WIKILINK_RE.findall(line):
+            if target not in seen:
+                seen.add(target)
+                wikilinks.append(target)
+
+        # Dispatch: observation > relation > inline fields.
         if (obs := parse_observation_line(line)) is not None:
             observations.append(obs)
             continue
@@ -93,14 +127,6 @@ def parse_note(text: str) -> Note:
             relations.append(rel)
             continue
         inline_fields.update(parse_inline_fields(line))
-
-    # De-duplicated body wikilinks in first-seen order.
-    seen: set[str] = set()
-    wikilinks: list[str] = []
-    for target in WIKILINK_RE.findall(body):
-        if target not in seen:
-            seen.add(target)
-            wikilinks.append(target)
 
     return Note(
         permalink=fm.get("permalink"),
