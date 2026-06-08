@@ -29,7 +29,7 @@ def test_index_vault_populates_rows_and_embeddings(tmp_path):
     assert n_emb == n_chunks
     # link graph captured (coffee -> tea, both wikilink and pairs_with)
     edges = con.execute(
-        "SELECT src_permalink, dst_permalink, edge_type FROM links ORDER BY edge_type"
+        "SELECT src_permalink, dst_target, edge_type FROM links ORDER BY edge_type"
     ).fetchall()
     assert ("coffee", "Tea", "links_to") in edges
     assert ("coffee", "Tea", "pairs_with") in edges

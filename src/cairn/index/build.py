@@ -65,6 +65,8 @@ def index_note(con: duckdb.DuckDBPyConnection, path: Path, embedder: Embedder) -
                 [c.chunk_id, permalink, c.heading_path, c.ordinal, c.text],
             )
             con.execute("INSERT INTO chunk_embeddings VALUES (?, ?)", [c.chunk_id, vec])
+    # dst_target holds the raw (unresolved) link target; resolution to a permalink
+    # will happen in Plan 3 during graph-join queries.
     for t in note.wikilinks:
         con.execute("INSERT INTO links VALUES (?, ?, ?)", [permalink, t, "links_to"])
     for rel in note.relations:
@@ -121,7 +123,6 @@ def reconcile(
         set_meta(con, "embedding_dim", str(embedder.dim))
         stats.rebuilt = True
 
-    on_disk = {p.stem: p for p in sorted(Path(vault_dir).rglob("*.md"))}
     # map permalink->(path, hash, mtime) currently in the index
     indexed = {
         row[0]: (row[1], row[2], row[3])
@@ -129,8 +130,10 @@ def reconcile(
     }
 
     # process files on disk: add new, update changed
+    # Iterate the rglob list directly (not a stem-keyed dict) so that notes in
+    # different subdirectories with the same filename are each processed.
     seen_permalinks: set[str] = set()
-    for path in on_disk.values():
+    for path in sorted(Path(vault_dir).rglob("*.md")):
         text = path.read_text()
         permalink = parse_note(text).permalink or path.stem
         seen_permalinks.add(permalink)

@@ -31,7 +31,9 @@ def open_index(path: str, *, dim: int, model_id: str) -> duckdb.DuckDBPyConnecti
     )
     con.execute(
         "CREATE TABLE IF NOT EXISTS links ("
-        "  src_permalink VARCHAR, dst_permalink VARCHAR, edge_type VARCHAR)"
+        # dst_target is the raw, unresolved link target (e.g. display text from
+        # a wikilink or relation). Plan 3 will resolve it to a permalink for joins.
+        "  src_permalink VARCHAR, dst_target VARCHAR, edge_type VARCHAR)"
     )
     con.execute("CREATE TABLE IF NOT EXISTS meta (key VARCHAR PRIMARY KEY, value VARCHAR)")
     set_meta(con, "embedding_model", model_id)

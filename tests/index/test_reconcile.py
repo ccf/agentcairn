@@ -51,3 +51,15 @@ def test_reconcile_rebuilds_on_dimension_change(tmp_path):
     assert (
         con.execute("SELECT count(*) FROM chunk_embeddings WHERE len(vec) != 16").fetchone()[0] == 0
     )
+
+
+def test_reconcile_indexes_same_stem_in_subdirs(tmp_path):
+    v = tmp_path / "vault"
+    (v / "sub").mkdir(parents=True)
+    (v / "note.md").write_text("---\ntitle: Top\npermalink: top\n---\ntop body\n")
+    (v / "sub" / "note.md").write_text("---\ntitle: Sub\npermalink: sub\n---\nsub body\n")
+    emb = FakeEmbedder(dim=8)
+    con = open_index(str(tmp_path / "i.duckdb"), dim=emb.dim, model_id=emb.model_id)
+    r = reconcile(con, str(v), emb)
+    assert r.added == 2
+    assert con.execute("SELECT count(*) FROM notes").fetchone()[0] == 2
