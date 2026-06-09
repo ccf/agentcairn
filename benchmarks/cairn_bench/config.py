@@ -41,7 +41,9 @@ class ArmConfig:
 ARMS: list[ArmConfig] = [
     ArmConfig(
         "bm25-only",
-        lambda con, q, e, pool, k: _from_hits(search(con, q, embedder=None, k=k, pool=pool)),
+        lambda con, q, e, pool, k: _from_hits(
+            search(con, q, embedder=None, k=k, pool=pool, graph_boost=False)
+        ),
     ),
     ArmConfig("vector-only", _vector_only),
     ArmConfig(

@@ -143,6 +143,44 @@ def test_graph_boost_toggle_changes_score(tmp_path):
     assert default["tea"] == on["tea"]  # default is graph_boost=True
 
 
+def test_bm25_only_graph_boost_toggle(tmp_path):
+    from cairn.embed import FakeEmbedder
+    from cairn.index import open_index, reconcile
+    from cairn.search import open_search, search
+
+    vault = tmp_path / "v"
+    vault.mkdir()
+    # note "tea" is a link target of "coffee" -> graph-boost applies to tea
+    (vault / "coffee.md").write_text(
+        "---\ntitle: Coffee\npermalink: coffee\n---\nbrewing tea methods. See [[tea]].\n"
+    )
+    (vault / "tea.md").write_text(
+        "---\ntitle: Tea\npermalink: tea\n---\nbrewing tea steeping methods.\n"
+    )
+    idx = tmp_path / "i.duckdb"
+    emb = FakeEmbedder(dim=8)
+    con0 = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
+    reconcile(con0, str(vault), emb)
+    con0.close()
+
+    con = open_search(str(idx))
+    try:
+        on = {
+            h.permalink: h.score
+            for h in search(con, "brewing tea", embedder=None, graph_boost=True)
+        }
+        off = {
+            h.permalink: h.score
+            for h in search(con, "brewing tea", embedder=None, graph_boost=False)
+        }
+        default = {h.permalink: h.score for h in search(con, "brewing tea", embedder=None)}
+    finally:
+        con.close()
+    # tea is a link target -> boosted when on, not when off
+    assert on["tea"] > off["tea"]
+    assert default["tea"] == on["tea"]  # default is graph_boost=True
+
+
 def test_rerank_fetches_at_least_k_candidates_when_k_exceeds_20(tmp_path, monkeypatch):
     """When rerank=True and k>20, the engine must fetch max(20, k) candidates so the
     reranker sees all k candidates and the 20-cap no longer throttles a larger k.

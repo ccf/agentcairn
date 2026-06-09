@@ -81,7 +81,7 @@ def _hybrid_sql(dim: int, graph_boost: bool = True) -> str:
     # BM25 arm + brute-force cosine arm, each ranked, fused by rrf(), then an
     # optional graph-boost (x1.2 when the note is the target of any link). pool >> limit.
     boost = (
-        "* (CASE WHEN EXISTS (SELECT 1 FROM links l WHERE l.dst_target = c.note_permalink) "
+        " * (CASE WHEN EXISTS (SELECT 1 FROM links l WHERE l.dst_target = c.note_permalink) "
         "THEN 1.2 ELSE 1.0 END)"
         if graph_boost
         else ""
@@ -108,14 +108,20 @@ def _hybrid_sql(dim: int, graph_boost: bool = True) -> str:
             FROM fts FULL OUTER JOIN vec ON fts.chunk_id = vec.chunk_id
         )
         SELECT f.chunk_id, c.note_permalink, c.heading_path, left(c.text, 240) AS snippet,
-               f.rrf_score {boost} AS score
+               f.rrf_score{boost} AS score
         FROM fused f JOIN chunks c ON c.chunk_id = f.chunk_id
         ORDER BY score DESC LIMIT ?
     """
 
 
-def _bm25_only_sql() -> str:
-    return """
+def _bm25_only_sql(graph_boost: bool = True) -> str:
+    boost = (
+        " * (CASE WHEN EXISTS (SELECT 1 FROM links l WHERE l.dst_target = c.note_permalink) "
+        "THEN 1.2 ELSE 1.0 END)"
+        if graph_boost
+        else ""
+    )
+    return f"""
         WITH fts AS (
             SELECT chunk_id, rank() OVER (ORDER BY score DESC) AS r
             FROM (
@@ -125,18 +131,21 @@ def _bm25_only_sql() -> str:
             ORDER BY score DESC LIMIT ?
         )
         SELECT c.chunk_id, c.note_permalink, c.heading_path, left(c.text, 240) AS snippet,
-               rrf(f.r)
-               * (CASE WHEN EXISTS (SELECT 1 FROM links l WHERE l.dst_target = c.note_permalink)
-                       THEN 1.2 ELSE 1.0 END) AS score
+               rrf(f.r){boost} AS score
         FROM fts f JOIN chunks c ON c.chunk_id = f.chunk_id
         ORDER BY score DESC LIMIT ?
     """
 
 
 def bm25_only(
-    con: duckdb.DuckDBPyConnection, query: str, *, limit: int = 10, pool: int = 200
+    con: duckdb.DuckDBPyConnection,
+    query: str,
+    *,
+    limit: int = 10,
+    pool: int = 200,
+    graph_boost: bool = True,
 ) -> list[dict]:
-    rows = con.execute(_bm25_only_sql(), [query, pool, limit]).fetchall()
+    rows = con.execute(_bm25_only_sql(graph_boost), [query, pool, limit]).fetchall()
     return [
         {
             "chunk_id": r[0],
@@ -197,7 +206,9 @@ def search(
             graph_boost=graph_boost,
         )
     else:
-        rows = bm25_only(con, query, limit=(max(20, k) if rerank else k), pool=pool)
+        rows = bm25_only(
+            con, query, limit=(max(20, k) if rerank else k), pool=pool, graph_boost=graph_boost
+        )
     if rerank and rows:
         # Hydrate full text for a precise rerank, then map back to compact Hits.
         # Hit.score is set to the cross-encoder score so the list remains sorted
