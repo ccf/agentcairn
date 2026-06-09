@@ -13,7 +13,7 @@ uv run pytest benchmarks/tests/      # offline, no keys, exact-recall regression
 ## Real datasets (manual)
 
 ```bash
-# retrieval only (downloads + SHA-verifies into ~/.cache/agentcairn/bench)
+# retrieval only (downloads revision/commit-pinned; SHA256 verified on/after first fetch)
 uv run --group bench python -m cairn_bench.run --dataset longmemeval-s --limit 50
 uv run --group bench python -m cairn_bench.run --dataset locomo
 ```

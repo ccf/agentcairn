@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Fetch the pinned real datasets into ~/.cache/agentcairn/bench, SHA-verified against
-manifest.toml. LoCoMo is CC BY-NC 4.0 and is NEVER vendored — only cached locally.
+"""Fetch the pinned real datasets into ~/.cache/agentcairn/bench, revision/commit-pinned
+via manifest.toml; SHA256 recorded and verified on/after first fetch. LoCoMo is CC BY-NC 4.0
+and is NEVER vendored — only cached locally.
 
 Uses `tomllib` (stdlib 3.12) to read manifest.toml. `huggingface_hub` is imported
 lazily inside `fetch` so the base install (without the bench dependency group) can

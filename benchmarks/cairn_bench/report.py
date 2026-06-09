@@ -24,7 +24,7 @@ def _mean(xs: list[float]) -> float:
     return sum(xs) / len(xs) if xs else 0.0
 
 
-def aggregate(per_query: list[dict], *, ks: list[int]) -> dict:
+def aggregate(per_query: list[dict]) -> dict:
     """per_query rows: {arm, category, turn:{metric:val}, session:{...}}. Returns
     {arm: {granularity: {metric: macro-mean}}}."""
     buckets: dict = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
