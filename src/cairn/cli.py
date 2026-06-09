@@ -124,12 +124,18 @@ def recall(
 def serve(
     vault: Path = typer.Option(None, "--vault", help="Vault root (enables `remember`)."),
     index: Path = typer.Option(None, "--index", help="Index .duckdb path."),
+    embedder: str = typer.Option(
+        None, "--embedder", help="'fastembed' or 'fake'; defaults to CAIRN_EMBEDDER or fastembed."
+    ),
 ) -> None:
     """Launch the agentcairn MCP server (stdio)."""
     from cairn.mcp.server import build_server
 
-    idx = str(index) if index else str(_default_index())
-    build_server(vault=str(vault) if vault else None, index=idx).run()
+    build_server(
+        vault=str(vault) if vault else None,
+        index=str(index) if index else None,
+        embedder=embedder,
+    ).run()
 
 
 @app.command()
