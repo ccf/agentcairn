@@ -56,14 +56,16 @@ def search_tool(
     finally:
         con.close()
     # Dedup by permalink, keeping the highest-scoring chunk per note, up to k notes.
+    # Check the cap at the top so k<=0 yields an empty result (not every note).
     seen_perms: set[str] = set()
     deduped = []
     for h in hits:
-        if h.permalink not in seen_perms:
-            seen_perms.add(h.permalink)
-            deduped.append(h)
-            if len(deduped) == k:
-                break
+        if len(deduped) >= k:
+            break
+        if h.permalink in seen_perms:
+            continue
+        seen_perms.add(h.permalink)
+        deduped.append(h)
     return {
         "query": query,
         "hits": [
@@ -96,6 +98,8 @@ def recall_tool(
         seen: set[str] = set()
         notes: list[dict] = []
         for h in hits:
+            if len(notes) >= k:
+                break
             if h.permalink in seen:
                 continue
             seen.add(h.permalink)
@@ -103,8 +107,6 @@ def recall_tool(
             if note is not None:
                 note["score"] = round(h.score, 4)
                 notes.append(note)
-            if len(notes) == k:
-                break
     finally:
         con.close()
     return {"query": query, "notes": notes}
