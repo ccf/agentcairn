@@ -182,10 +182,10 @@ def search(
     if embedder is not None:
         qvec = embedder.embed_query(query)
         rows = hybrid_search(
-            con, query, qvec, dim=embedder.dim, limit=(20 if rerank else k), pool=pool
+            con, query, qvec, dim=embedder.dim, limit=(max(20, k) if rerank else k), pool=pool
         )
     else:
-        rows = bm25_only(con, query, limit=(20 if rerank else k), pool=pool)
+        rows = bm25_only(con, query, limit=(max(20, k) if rerank else k), pool=pool)
     if rerank and rows:
         # Hydrate full text for a precise rerank, then map back to compact Hits.
         # Hit.score is set to the cross-encoder score so the list remains sorted

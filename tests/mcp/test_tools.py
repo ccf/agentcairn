@@ -261,3 +261,92 @@ def test_recent_tool_missing_index_raises_valueerror(tmp_path):
     missing = str(tmp_path / "nope.duckdb")
     with pytest.raises(ValueError, match="no index"):
         recent_tool(missing)
+
+
+# ---------------------------------------------------------------------------
+# Bugbot fix: search_tool/recall_tool return k DISTINCT notes under rerank=True
+# ---------------------------------------------------------------------------
+
+
+def _build_index_rerank_dominant(tmp_path: Path) -> Path:
+    """Build an index where alpha-note completely dominates BM25 + cosine scores.
+
+    Strategy: alpha uses a unique token ('xyzretrieval') repeated many times across
+    many chunks.  beta and gamma use completely different (non-matching) tokens.
+    The query targets 'xyzretrieval', so alpha's chunks fill all top-k BM25 slots.
+
+    With the engine bug (limit=20 for rerank), search(k=25) fetches only 20
+    candidates — all from alpha.  The dedup then yields 1 distinct note, not 3.
+    After the fix (limit=max(20,k)=25), the 25-candidate pool still comes entirely
+    from alpha (since alpha has 25+ chunks), so the dedup still yields 1 note.
+
+    To make the test observable we verify the candidate count via monkeypatching,
+    not the dedup output (which depends on data distribution).
+    """
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    # alpha: 25+ chunks (phrase ~55 chars × 700 reps ≈ 38 500 chars, chunk limit ~1500 chars)
+    # Use a unique query token so alpha dominates BM25.
+    alpha_phrase = "xyzretrieval dense sparse memory augmented generation. "
+    alpha_body = (alpha_phrase * 700).strip()
+    (vault / "alpha.md").write_text(
+        f"---\ntitle: alpha-note\npermalink: alpha-note\n---\n{alpha_body}\n"
+    )
+    # beta/gamma: no query tokens at all → zero BM25 score for the query
+    unrelated = "Gardening is a relaxing hobby. Soil preparation is key for healthy plants. "
+    (vault / "beta.md").write_text(
+        f"---\ntitle: beta-note\npermalink: beta-note\n---\n{(unrelated * 5).strip()}\n"
+    )
+    (vault / "gamma.md").write_text(
+        f"---\ntitle: gamma-note\npermalink: gamma-note\n---\n{(unrelated * 5).strip()} extra.\n"
+    )
+    idx = tmp_path / "i.duckdb"
+    emb = FakeEmbedder(dim=8)
+    con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
+    reconcile(con, str(vault), emb)
+    con.close()
+
+    # Sanity: alpha must produce >20 chunks so the 20-cap definitely bites.
+    import duckdb as _ddb
+
+    con2 = _ddb.connect(str(idx))
+    n = con2.execute("SELECT count(*) FROM chunks WHERE note_permalink = 'alpha-note'").fetchone()[
+        0
+    ]
+    assert n > 20, f"alpha-note has only {n} chunks; need >20 to exercise the 20-cap bug"
+    con2.close()
+    return idx
+
+
+def test_search_tool_rerank_candidate_count_honors_k(tmp_path, monkeypatch):
+    """With rerank=True, the engine must pass max(20, k) candidates to the reranker.
+
+    The Bugbot bug: `limit=(20 if rerank else k)` hard-caps the rerank fetch at 20
+    regardless of the k passed by the tool layer.  The fix changes this to
+    `limit=(max(20, k) if rerank else k)`.
+
+    This test uses a monkeypatched rerank stub to observe the candidate count
+    received by the reranker — the key invariant exposed by the bug.
+    """
+    idx = _build_index_rerank_dominant(tmp_path)
+
+    received: list[int] = []
+
+    def capturing_rerank(query, candidates, *, top_k):
+        received.append(len(candidates))
+        sliced = sorted(candidates, key=lambda c: c.get("score", 0), reverse=True)[:top_k]
+        return [{**c, "rerank_score": 1.0 - i * 0.01} for i, c in enumerate(sliced)]
+
+    monkeypatch.setattr("cairn.search.engine.rerank_candidates", capturing_rerank)
+
+    # k=3 → tool requests fetch = max(3*5, 25) = 25 candidates from engine.
+    # Before fix: engine caps at 20, reranker sees 20.
+    # After fix: engine fetches max(20, 25) = 25, reranker sees 25.
+    search_tool(str(idx), "xyzretrieval dense sparse", embedder="fake", k=3, rerank=True)
+
+    assert received, "rerank stub was never called"
+    # After the fix the reranker must receive at least 25 candidates (the tool's fetch value).
+    assert received[0] >= 25, (
+        f"Expected reranker to receive >=25 candidates for k=3 (fetch=25), got {received[0]}. "
+        "The 20-cap Bugbot bug is still present."
+    )

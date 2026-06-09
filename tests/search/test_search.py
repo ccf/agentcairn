@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
+from pathlib import Path
+
 import pytest
 
 from cairn.embed import FakeEmbedder
@@ -79,3 +81,64 @@ def test_rerank_hit_scores_reflect_reranker_order(tmp_path, monkeypatch):
     assert scores[0] == pytest.approx(0.9)
     # (b) the list is non-increasing
     assert scores == sorted(scores, reverse=True)
+
+
+def _build_large_index(tmp_path: Path, emb) -> str:
+    """Build an index with >20 chunks to exercise the 20-cap rerank bug.
+
+    Generates notes whose bodies span multiple chunks (chunk size ~1500 chars).
+    Each note shares the query token 'coffee' so they all surface in BM25.
+    """
+    from cairn.index import build_fts, index_vault, open_index
+
+    v = tmp_path / "large_vault"
+    v.mkdir()
+    phrase = "coffee brewing extraction techniques for optimal flavor. "
+    # 5 notes × ~5 chunks each ≈ 25 chunks; phrase ~57 chars × 130 reps ≈ 7400 chars ≈ 5 chunks
+    for i in range(5):
+        body = (phrase * 130).strip() + f" note-variant-{i}."
+        (v / f"note{i}.md").write_text(f"---\ntitle: Note{i}\npermalink: note{i}\n---\n{body}\n")
+    idx = str(tmp_path / "large.duckdb")
+    con = open_index(idx, dim=emb.dim, model_id=emb.model_id)
+    index_vault(con, str(v), emb)
+    build_fts(con)
+    con.close()
+    return idx
+
+
+def test_rerank_fetches_at_least_k_candidates_when_k_exceeds_20(tmp_path, monkeypatch):
+    """When rerank=True and k>20, the engine must fetch max(20, k) candidates so the
+    reranker sees all k candidates and the 20-cap no longer throttles a larger k.
+
+    This is the Bugbot fix: `limit=(20 if rerank else k)` → `limit=(max(20, k) if rerank else k)`.
+    """
+    emb = FakeEmbedder(dim=8)
+    # Build a large index (>20 chunks) so the 20-cap visibly throttles a k=30 request.
+    idx = _build_large_index(tmp_path, emb)
+    con = open_search(idx)
+
+    # Verify the index has enough chunks for the test to be meaningful.
+    total_chunks = con.execute("SELECT count(*) FROM chunks").fetchone()[0]
+    assert total_chunks > 20, (
+        f"fixture produced only {total_chunks} chunks; need >20 to exercise the rerank cap"
+    )
+
+    received_candidate_count: list[int] = []
+
+    def counting_rerank(query, candidates, *, top_k):
+        received_candidate_count.append(len(candidates))
+        # Identity-style reranker: return first top_k candidates with a score.
+        sliced = candidates[:top_k]
+        return [{**c, "rerank_score": 1.0 - i * 0.1} for i, c in enumerate(sliced)]
+
+    monkeypatch.setattr("cairn.search.engine.rerank_candidates", counting_rerank)
+
+    # k=30 is larger than the old hard-coded 20 cap.  After the fix, the reranker
+    # must receive all available chunks (bounded only by the pool, not a 20 cap).
+    search(con, "coffee brewing", embedder=emb, k=30, rerank=True)
+    assert received_candidate_count, "rerank stub was never called"
+    # The stub must have received MORE than 20 candidates (old cap), proving the fix.
+    assert received_candidate_count[0] > 20, (
+        f"Expected >20 candidates passed to reranker for k=30, got {received_candidate_count[0]}. "
+        "The 20-cap bug is still present."
+    )
