@@ -176,8 +176,13 @@ def remember_tool(
     body_text = red.text.strip()
     h = content_hash(body_text)
     slug = f"{_slugify(body_text)}-{h[:8]}"
-    safe_title = redact(title or body_text.splitlines()[0]).text[:80]
-    safe_tags = [redact(t).text for t in (tags or ["remembered"])]
+    title_red = redact(title or body_text.splitlines()[0])
+    tag_reds = [redact(t) for t in (tags or ["remembered"])]
+    safe_title = title_red.text[:80]
+    safe_tags = [tr.text for tr in tag_reds]
+    # Count redactions across ALL written fields (body + title + tags), not just
+    # the body — else a secret only in title/tags reports 0 and misrepresents.
+    total_redactions = red.count + title_red.count + sum(tr.count for tr in tag_reds)
     note = Note(
         permalink=slug,
         frontmatter={
@@ -193,6 +198,6 @@ def remember_tool(
     return {
         "permalink": slug,
         "path": str(path),
-        "redactions": red.count,
+        "redactions": total_redactions,
         "note": "written; run `cairn sweep` or `cairn reindex` to make it searchable",
     }

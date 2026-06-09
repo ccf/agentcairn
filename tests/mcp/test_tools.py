@@ -128,6 +128,20 @@ def test_remember_redacts_secret_in_tags(tmp_path):
     assert "[REDACTED" in body
 
 
+def test_remember_redaction_count_includes_title_and_tags(tmp_path):
+    """The reported `redactions` count must include title + tag redactions, not
+    just the body — else a secret only in the title reports 0 (misrepresents)."""
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    secret = "ghp_16C7e42F292c6912E7710c838347Ae178B4a"
+    # secret ONLY in title (body is clean) -> count must still be >= 1
+    out = remember_tool(str(vault), "harmless body text here", title=f"key {secret}")
+    assert out["redactions"] >= 1
+    # secret only in a tag -> counted too
+    out2 = remember_tool(str(vault), "another harmless body", tags=[secret])
+    assert out2["redactions"] >= 1
+
+
 # ---------------------------------------------------------------------------
 # Fix D: search_tool must not return duplicate permalinks
 # ---------------------------------------------------------------------------
