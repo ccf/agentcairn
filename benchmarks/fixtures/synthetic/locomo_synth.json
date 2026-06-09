@@ -1,0 +1,27 @@
+[
+  {
+    "sample_id": "conv-synth-1",
+    "conversation": {
+      "speaker_a": "Alex",
+      "speaker_b": "Sam",
+      "session_1_date_time": "1:56 pm on 8 May, 2023",
+      "session_1": [
+        {"speaker": "Alex", "dia_id": "D1:1", "text": "I adopted a cat named Mochi."},
+        {"speaker": "Sam", "dia_id": "D1:2", "text": "How old is Mochi?"},
+        {"speaker": "Alex", "dia_id": "D1:3", "text": "Mochi is two years old."}
+      ],
+      "session_2_date_time": "10:00 am on 20 June, 2023",
+      "session_2": [
+        {"speaker": "Sam", "dia_id": "D2:1", "text": "Did you move recently?"},
+        {"speaker": "Alex", "dia_id": "D2:2", "text": "Yes, I moved to Portland in June."}
+      ]
+    },
+    "qa": [
+      {"question": "What is the name of Alex's cat?", "answer": "Mochi", "category": 4, "evidence": ["D1:1"]},
+      {"question": "How old is the cat Alex adopted?", "answer": "two years old", "category": 1, "evidence": ["D1:02", "D1:3"]},
+      {"question": "When did Alex move to Portland?", "answer": "June 2023", "category": 2, "evidence": ["D2:2"]},
+      {"question": "What city does Alex live in now?", "answer": "Portland", "category": 3, "evidence": ["D2:2"]},
+      {"question": "What car does Alex drive?", "answer": "No information available.", "category": 5, "evidence": []}
+    ]
+  }
+]
