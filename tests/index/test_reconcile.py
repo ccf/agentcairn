@@ -65,6 +65,35 @@ def test_reconcile_indexes_same_stem_in_subdirs(tmp_path):
     assert con.execute("SELECT count(*) FROM notes").fetchone()[0] == 2
 
 
+def test_no_permalink_same_stem_subdirs_do_not_collide(tmp_path):
+    v = tmp_path / "vault"
+    (v / "a").mkdir(parents=True)
+    (v / "b").mkdir(parents=True)
+    (v / "a" / "note.md").write_text("# A\nalpha\n")  # NO frontmatter permalink
+    (v / "b" / "note.md").write_text("# B\nbeta\n")
+    emb = FakeEmbedder(dim=8)
+    con = open_index(str(tmp_path / "i.duckdb"), dim=emb.dim, model_id=emb.model_id)
+    r = reconcile(con, str(v), emb)
+    assert r.added == 2
+    perms = {row[0] for row in con.execute("SELECT permalink FROM notes").fetchall()}
+    assert perms == {"a/note", "b/note"}
+
+
+def test_reconcile_updates_path_on_move(tmp_path):
+    v = tmp_path / "vault"
+    (v / "sub").mkdir(parents=True)
+    (v / "a.md").write_text("---\ntitle: A\npermalink: a\n---\nalpha\n")
+    emb = FakeEmbedder(dim=8)
+    con = open_index(str(tmp_path / "i.duckdb"), dim=emb.dim, model_id=emb.model_id)
+    reconcile(con, str(v), emb)
+    old = con.execute("SELECT path FROM notes WHERE permalink='a'").fetchone()[0]
+    (v / "a.md").rename(v / "sub" / "a.md")  # move, same content + permalink
+    reconcile(con, str(v), emb)
+    new = con.execute("SELECT path FROM notes WHERE permalink='a'").fetchone()[0]
+    assert new != old and new.endswith("a.md") and "sub" in new
+    assert con.execute("SELECT count(*) FROM notes").fetchone()[0] == 1
+
+
 def test_open_index_does_not_clobber_meta_so_reconcile_rebuilds(tmp_path):
     # Simulates two CLI `reindex` invocations (open_index -> reconcile each time)
     # with a switched embedder. open_index must NOT overwrite the stored

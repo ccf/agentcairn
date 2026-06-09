@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 from pathlib import Path
 
+import pytest
+
 from cairn.embed import FakeEmbedder
-from cairn.index import bm25_search, build_fts, index_vault, open_index
+from cairn.index import bm25_search, build_fts, index_note, index_vault, open_index
 
 
 def _vault(tmp_path: Path) -> Path:
@@ -52,3 +54,25 @@ def test_bm25_search_returns_empty_before_fts_built(tmp_path):
     con = open_index(str(tmp_path / "i.duckdb"), dim=emb.dim, model_id=emb.model_id)
     index_vault(con, str(v), emb)
     assert bm25_search(con, "anything", 5) == []  # FTS not built yet
+
+
+def test_index_note_raises_on_embedder_count_mismatch(tmp_path):
+    class Broken:
+        model_id = "broken"
+
+        @property
+        def dim(self):
+            return 8
+
+        def embed(self, texts):
+            return [[0.0] * 8]  # always 1 vector regardless of input
+
+        def embed_query(self, t):
+            return [0.0] * 8
+
+    v = tmp_path / "v"
+    v.mkdir()
+    (v / "a.md").write_text("---\ntitle: A\npermalink: a\n---\nintro\n\n## S1\nx\n\n## S2\ny\n")
+    con = open_index(str(tmp_path / "i.duckdb"), dim=8, model_id="broken")
+    with pytest.raises(ValueError):
+        index_note(con, v / "a.md", Broken(), vault_dir=str(v))
