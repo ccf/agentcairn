@@ -32,4 +32,4 @@ def __getattr__(name: str) -> object:
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-__all__ = ["Embedder", "FakeEmbedder", "FastEmbedEmbedder", "OllamaEmbedder", "get_embedder"]
+__all__ = ["Embedder", "FakeEmbedder", "get_embedder"]

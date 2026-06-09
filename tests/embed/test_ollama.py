@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from cairn.embed.ollama_embedder import OllamaEmbedder
@@ -83,3 +85,16 @@ def test_empty_embeddings_raises():
     emb = OllamaEmbedder(post=FakePost(embeddings=[]))
     with pytest.raises(RuntimeError):
         emb.embed(["x"])
+
+
+@pytest.mark.skipif(
+    not os.environ.get("CAIRN_OLLAMA_LIVE"),
+    reason="set CAIRN_OLLAMA_LIVE=1 with a running Ollama server to enable",
+)
+def test_ollama_live_embed():
+    from cairn.embed import get_embedder
+
+    emb = get_embedder("ollama")
+    assert emb.dim > 0
+    v = emb.embed_query("hello world")
+    assert len(v) == emb.dim

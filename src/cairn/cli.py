@@ -137,7 +137,10 @@ def serve(
     vault: Path = typer.Option(None, "--vault", help="Vault root (enables `remember`)."),
     index: Path = typer.Option(None, "--index", help="Index .duckdb path."),
     embedder: str = typer.Option(
-        None, "--embedder", help="'fastembed' or 'fake'; defaults to CAIRN_EMBEDDER or fastembed."
+        None,
+        "--embedder",
+        help="'fastembed', 'fake', or 'ollama' (CAIRN_EMBED_MODEL/OLLAMA_HOST); "
+        "defaults to CAIRN_EMBEDDER or fastembed.",
     ),
 ) -> None:
     """Launch the agentcairn MCP server (stdio)."""
