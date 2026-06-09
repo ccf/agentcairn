@@ -188,6 +188,47 @@ def test_sweep_command(tmp_path):
     assert "reindex" in result.output.lower() or "indexed" in result.output.lower()
 
 
+def test_sweep_closes_index_when_reconcile_fails(tmp_path, monkeypatch):
+    # If reconcile raises, the writable index connection must still be closed
+    # (try/finally) — not leaked.
+    projects = tmp_path / "projects"
+    cwd = "/Users/x/proj"
+    _seed_transcript(projects, cwd, "s1", [("user", "We decided to always do the thing well.")])
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    idx = tmp_path / "i.duckdb"
+    closed = {"v": False}
+
+    class _FakeCon:
+        def close(self):
+            closed["v"] = True
+
+    monkeypatch.setattr("cairn.cli.open_index", lambda *a, **k: _FakeCon())
+
+    def _boom(*a, **k):
+        raise RuntimeError("reconcile blew up")
+
+    monkeypatch.setattr("cairn.cli.reconcile", _boom)
+    result = runner.invoke(
+        app,
+        [
+            "sweep",
+            "--vault",
+            str(vault),
+            "--transcripts-dir",
+            str(projects),
+            "--project",
+            cwd,
+            "--index",
+            str(idx),
+            "--embedder",
+            "fake",
+        ],
+    )
+    assert result.exit_code != 0
+    assert closed["v"] is True, "sweep leaked the index connection on failure"
+
+
 def test_doctor_command_healthy(tmp_path):
     # build a small index via reindex --embedder fake
     vault = tmp_path / "vault"

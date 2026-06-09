@@ -65,7 +65,10 @@ def reindex(
     idx.parent.mkdir(parents=True, exist_ok=True)
     emb = get_embedder(embedder)
     con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
-    stats = reconcile(con, str(vault), emb)
+    try:
+        stats = reconcile(con, str(vault), emb)
+    finally:
+        con.close()  # release the write lock even if reconcile fails
     typer.echo(
         f"reindexed: {stats.added} note(s) added, {stats.updated} updated, "
         f"{stats.deleted} removed{' (full rebuild)' if stats.rebuilt else ''}"
@@ -177,8 +180,10 @@ def sweep(
     idx.parent.mkdir(parents=True, exist_ok=True)
     emb = get_embedder(embedder)
     con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
-    stats = reconcile(con, str(vault), emb)
-    con.close()
+    try:
+        stats = reconcile(con, str(vault), emb)
+    finally:
+        con.close()  # release the write lock even if reconcile fails
     typer.echo(
         f"swept: {written} memory note(s) written; reindexed "
         f"{stats.added} added, {stats.updated} updated, {stats.deleted} removed"

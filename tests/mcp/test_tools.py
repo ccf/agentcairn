@@ -38,6 +38,17 @@ def test_search_tool_returns_compact_hits(tmp_path):
     assert "text" not in h
 
 
+def test_search_tool_k_zero_returns_empty(tmp_path):
+    # k=0 must return no hits, not collect every distinct note.
+    idx = _build_index(tmp_path)
+    assert search_tool(str(idx), "coffee", embedder="fake", k=0)["hits"] == []
+
+
+def test_recall_tool_k_zero_returns_empty(tmp_path):
+    idx = _build_index(tmp_path)
+    assert recall_tool(str(idx), "coffee", embedder="fake", k=0)["notes"] == []
+
+
 def test_recall_tool_hydrates_full_notes(tmp_path):
     idx = _build_index(tmp_path)
     out = recall_tool(str(idx), "coffee brewing", embedder="fake", k=2)
