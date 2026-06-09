@@ -41,3 +41,16 @@ def test_ndcg_monotonic():
 def test_ndcg_any_binary():
     # ndcg_any uses binary relevance; multiple gold contribute
     assert ndcg_any_at_k(["a", "b"], {"a", "b"}, 2) > 0.0
+
+
+def test_aggregate_macro_average():
+    from cairn_bench.report import aggregate, wilson_ci
+
+    per_query = [
+        {"arm": "hybrid-rrf", "category": "multi-session", "turn": {"recall@5": 1.0, "mrr": 1.0}},
+        {"arm": "hybrid-rrf", "category": "multi-session", "turn": {"recall@5": 0.0, "mrr": 0.0}},
+    ]
+    agg = aggregate(per_query, ks=[5])
+    assert agg["hybrid-rrf"]["turn"]["recall@5"] == 0.5
+    lo, hi = wilson_ci(1, 2)
+    assert 0.0 <= lo <= 0.5 <= hi <= 1.0
