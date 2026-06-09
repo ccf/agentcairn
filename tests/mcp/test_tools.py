@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 from pathlib import Path
 
+import pytest
+
 from cairn.embed import FakeEmbedder
 from cairn.index import open_index, reconcile
-from cairn.mcp.tools import build_context_tool, recall_tool, recent_tool, search_tool
+from cairn.mcp.tools import build_context_tool, recall_tool, recent_tool, remember_tool, search_tool
+from cairn.vault import parse_note
 
 
 def _build_index(tmp_path: Path) -> Path:
@@ -66,3 +69,33 @@ def test_recent_tool_lists_notes(tmp_path):
     perms = {r["permalink"] for r in out["notes"]}
     assert {"coffee", "tea"} <= perms
     assert all({"permalink", "title", "path"} <= set(r) for r in out["notes"])
+
+
+def test_remember_writes_redacted_note(tmp_path):
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    out = remember_tool(
+        str(vault),
+        "Always pin the store path. The old key was ghp_16C7e42F292c6912E7710c838347Ae178B4a.",
+        title="store path rule",
+        tags=["ops"],
+    )
+    assert out["permalink"]
+    path = Path(out["path"])
+    assert vault in path.resolve().parents
+    assert out["redactions"] >= 1
+    body = path.read_text()
+    # secret never lands on disk; redaction marker present
+    assert "ghp_16C7e42F292c6912E7710c838347Ae178B4a" not in body
+    assert "[REDACTED" in body
+    # round-trips through the real parser
+    parsed = parse_note(body)
+    assert parsed.frontmatter["type"] == "memory"
+    assert "ops" in parsed.frontmatter["tags"]
+
+
+def test_remember_rejects_empty_text(tmp_path):
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    with pytest.raises(ValueError):
+        remember_tool(str(vault), "   ")
