@@ -9,6 +9,7 @@ from cairn.search.engine import (
     search,
     vector_search,
 )
+from cairn.search.rerank import rerank_candidates
 
 __all__ = [
     "Hit",
@@ -17,6 +18,7 @@ __all__ = [
     "get_note",
     "hybrid_search",
     "open_search",
+    "rerank_candidates",
     "search",
     "vector_search",
 ]
