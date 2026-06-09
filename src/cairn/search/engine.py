@@ -77,9 +77,15 @@ def vector_search(
     return [(r[0], float(r[1])) for r in con.execute(sql, [qvec, pool]).fetchall()]
 
 
-def _hybrid_sql(dim: int) -> str:
-    # BM25 arm + brute-force cosine arm, each ranked, fused by rrf(), then a
-    # graph-boost (x1.2 when the note is the target of any link). pool >> limit.
+def _hybrid_sql(dim: int, graph_boost: bool = True) -> str:
+    # BM25 arm + brute-force cosine arm, each ranked, fused by rrf(), then an
+    # optional graph-boost (x1.2 when the note is the target of any link). pool >> limit.
+    boost = (
+        "* (CASE WHEN EXISTS (SELECT 1 FROM links l WHERE l.dst_target = c.note_permalink) "
+        "THEN 1.2 ELSE 1.0 END)"
+        if graph_boost
+        else ""
+    )
     return f"""
         WITH fts AS (
             SELECT chunk_id, rank() OVER (ORDER BY score DESC) AS r
@@ -102,9 +108,7 @@ def _hybrid_sql(dim: int) -> str:
             FROM fts FULL OUTER JOIN vec ON fts.chunk_id = vec.chunk_id
         )
         SELECT f.chunk_id, c.note_permalink, c.heading_path, left(c.text, 240) AS snippet,
-               f.rrf_score
-               * (CASE WHEN EXISTS (SELECT 1 FROM links l WHERE l.dst_target = c.note_permalink)
-                       THEN 1.2 ELSE 1.0 END) AS score
+               f.rrf_score {boost} AS score
         FROM fused f JOIN chunks c ON c.chunk_id = f.chunk_id
         ORDER BY score DESC LIMIT ?
     """
@@ -153,9 +157,10 @@ def hybrid_search(
     dim: int,
     limit: int = 10,
     pool: int = 200,
+    graph_boost: bool = True,
 ) -> list[dict]:
-    """Hybrid BM25 + cosine via RRF, graph-boosted. Returns compact dict rows."""
-    rows = con.execute(_hybrid_sql(dim), [query, pool, qvec, pool, limit]).fetchall()
+    """Hybrid BM25 + cosine via RRF, optionally graph-boosted. Returns compact dict rows."""
+    rows = con.execute(_hybrid_sql(dim, graph_boost), [query, pool, qvec, pool, limit]).fetchall()
     return [
         {
             "chunk_id": r[0],
@@ -176,13 +181,20 @@ def search(
     k: int = 10,
     pool: int = 200,
     rerank: bool = False,
+    graph_boost: bool = True,
 ) -> list[Hit]:
     """Top-level retrieval (degradation ladder): hybrid when an embedder is given
     (auto-degrades to BM25 if no embeddings exist), else BM25-only."""
     if embedder is not None:
         qvec = embedder.embed_query(query)
         rows = hybrid_search(
-            con, query, qvec, dim=embedder.dim, limit=(max(20, k) if rerank else k), pool=pool
+            con,
+            query,
+            qvec,
+            dim=embedder.dim,
+            limit=(max(20, k) if rerank else k),
+            pool=pool,
+            graph_boost=graph_boost,
         )
     else:
         rows = bm25_only(con, query, limit=(max(20, k) if rerank else k), pool=pool)
