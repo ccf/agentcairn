@@ -8,8 +8,9 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from cairn.mcp import tools
 from mcp.server.fastmcp import FastMCP
+
+from cairn.mcp import tools
 
 _DEFAULT_INDEX = str(Path.home() / ".cache" / "agentcairn" / "index.duckdb")
 
@@ -36,7 +37,7 @@ def build_server(*, vault: str | None = None, index: str | None = None) -> FastM
 
     @mcp.tool()
     def recent(n: int = 10) -> dict:
-        """List the most-recently-modified memory notes."""
+        """List the most-recently-modified notes."""
         return tools.recent_tool(index, n=n)
 
     @mcp.tool()
