@@ -160,3 +160,90 @@ def test_search_tool_no_duplicate_permalinks(tmp_path):
     out = search_tool(str(idx), "chunking retrieval", embedder="fake", k=20)
     perms = [h["permalink"] for h in out["hits"]]
     assert len(perms) == len(set(perms)), f"Duplicate permalinks in hits: {perms}"
+
+
+# ---------------------------------------------------------------------------
+# Fix 1+4: search_tool & recall_tool return up to k DISTINCT notes
+# (over-fetch chunks, dedup by permalink)
+# ---------------------------------------------------------------------------
+
+
+def _build_index_multi_chunky(tmp_path: Path) -> Path:
+    """Build an index where one note monopolises the top-k chunk slots.
+
+    alpha-note has ~4 chunks (body ~4500 chars) and is highly relevant to
+    the test query; beta-note and gamma-note are short (1 chunk each) with
+    completely unrelated content (gardening).  Searching for the alpha topic
+    with k=3 causes the naive implementation to return all 3 slots from
+    alpha-note, collapsing to 1 distinct note after dedup.  The fix must
+    over-fetch and then dedup to surface all 3 notes.
+    """
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    alpha_phrase = "retrieval augmented generation combines dense and sparse methods for memory. "
+    # alpha: ~4500 chars → 4 chunks (chunk limit is 1500 chars)
+    alpha_body = (alpha_phrase * 60).strip()
+    (vault / "alpha.md").write_text(
+        f"---\ntitle: alpha-note\npermalink: alpha-note\n---\n{alpha_body}\n"
+    )
+    # beta and gamma: completely unrelated content — one chunk each, will rank below alpha
+    unrelated = "Gardening is a relaxing hobby. Soil preparation is key for healthy plants. "
+    unrelated_body = (unrelated * 3).strip()
+    (vault / "beta.md").write_text(
+        f"---\ntitle: beta-note\npermalink: beta-note\n---\n{unrelated_body}\n"
+    )
+    (vault / "gamma.md").write_text(
+        f"---\ntitle: gamma-note\npermalink: gamma-note\n---\n{unrelated_body} extra content\n"
+    )
+    idx = tmp_path / "i.duckdb"
+    emb = FakeEmbedder(dim=8)
+    con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
+    reconcile(con, str(vault), emb)
+    con.close()
+    # Sanity: alpha must have ≥3 chunks for the naive top-3 to be all-alpha.
+    import duckdb as _ddb
+
+    con2 = _ddb.connect(str(idx))
+    alpha_chunks = con2.execute(
+        "SELECT count(*) FROM chunks WHERE note_permalink = 'alpha-note'"
+    ).fetchone()[0]
+    con2.close()
+    assert alpha_chunks >= 3, f"alpha-note has {alpha_chunks} chunks; increase alpha_body"
+    return idx
+
+
+def test_search_tool_returns_k_distinct_notes(tmp_path):
+    """search_tool(k=3) must return 3 DISTINCT notes even when one note has ≥3 chunks."""
+    idx = _build_index_multi_chunky(tmp_path)
+    out = search_tool(str(idx), "retrieval augmented generation", embedder="fake", k=3)
+    perms = [h["permalink"] for h in out["hits"]]
+    assert len(set(perms)) == 3, f"Expected 3 distinct notes, got: {perms}"
+    assert len(perms) == len(set(perms)), f"Duplicate permalinks: {perms}"
+
+
+def test_recall_tool_returns_k_distinct_notes(tmp_path):
+    """recall_tool(k=3) must hydrate 3 DISTINCT notes even when one note has ≥3 chunks."""
+    idx = _build_index_multi_chunky(tmp_path)
+    out = recall_tool(str(idx), "retrieval augmented generation", embedder="fake", k=3)
+    perms = [n["permalink"] for n in out["notes"]]
+    assert len(set(perms)) == 3, f"Expected 3 distinct notes, got: {perms}"
+    assert len(perms) == len(set(perms)), f"Duplicate permalinks: {perms}"
+
+
+# ---------------------------------------------------------------------------
+# Fix 5: read tools raise clean ValueError when index is missing
+# ---------------------------------------------------------------------------
+
+
+def test_search_tool_missing_index_raises_valueerror(tmp_path):
+    """search_tool must raise ValueError (not a cryptic crash) when index is absent."""
+    missing = str(tmp_path / "nope.duckdb")
+    with pytest.raises(ValueError, match="no index"):
+        search_tool(missing, "anything")
+
+
+def test_recent_tool_missing_index_raises_valueerror(tmp_path):
+    """recent_tool must raise ValueError when index is absent."""
+    missing = str(tmp_path / "nope.duckdb")
+    with pytest.raises(ValueError, match="no index"):
+        recent_tool(missing)

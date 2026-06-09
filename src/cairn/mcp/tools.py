@@ -16,9 +16,20 @@ from cairn.ingest.redact import redact
 from cairn.search import get_note, open_search, search
 from cairn.vault import Note
 
+# Over-fetch this many chunk candidates per requested note, then dedup by
+# permalink so that a note with many chunks cannot consume all k slots.
+_FETCH_FACTOR = 5
+
 
 def _embedder(name: str | None):
     return None if name in (None, "none") else get_embedder(name)
+
+
+def _open(index_path: str):
+    """Open the index READ-ONLY, raising a clean ValueError if absent."""
+    if not Path(index_path).exists():
+        raise ValueError(f"no index at {index_path} — run `cairn reindex <vault>` first")
+    return open_search(index_path)
 
 
 def search_tool(
@@ -30,17 +41,21 @@ def search_tool(
     rerank: bool = False,
 ) -> dict:
     """Progressive-disclosure hybrid search: compact id + snippet index."""
-    con = open_search(index_path)
+    fetch = max(k * _FETCH_FACTOR, 25)
+    con = _open(index_path)
     try:
-        hits = search(con, query, embedder=_embedder(embedder), k=k, rerank=rerank)
+        hits = search(con, query, embedder=_embedder(embedder), k=fetch, rerank=rerank)
     finally:
         con.close()
+    # Dedup by permalink, keeping the highest-scoring chunk per note, up to k notes.
     seen_perms: set[str] = set()
     deduped = []
     for h in hits:
         if h.permalink not in seen_perms:
             seen_perms.add(h.permalink)
             deduped.append(h)
+            if len(deduped) == k:
+                break
     return {
         "query": query,
         "hits": [
@@ -64,9 +79,10 @@ def recall_tool(
     rerank: bool = False,
 ) -> dict:
     """Search then hydrate the top-k notes' full text (one-shot content)."""
-    con = open_search(index_path)
+    fetch = max(k * _FETCH_FACTOR, 25)
+    con = _open(index_path)
     try:
-        hits = search(con, query, embedder=_embedder(embedder), k=k, rerank=rerank)
+        hits = search(con, query, embedder=_embedder(embedder), k=fetch, rerank=rerank)
         seen: set[str] = set()
         notes: list[dict] = []
         for h in hits:
@@ -77,6 +93,8 @@ def recall_tool(
             if note is not None:
                 note["score"] = round(h.score, 4)
                 notes.append(note)
+            if len(notes) == k:
+                break
     finally:
         con.close()
     return {"query": query, "notes": notes}
@@ -86,7 +104,7 @@ def build_context_tool(index_path: str, permalink: str) -> dict:
     """Return a note plus its 1-hop graph neighbors from the links table.
     `dst_target` is raw/unresolved (Plan 3 caveat): a neighbor resolves when the
     target equals a note permalink or title; otherwise it is reported raw."""
-    con = open_search(index_path)
+    con = _open(index_path)
     try:
         root = get_note(con, permalink)
         if root is None:
@@ -126,7 +144,7 @@ def build_context_tool(index_path: str, permalink: str) -> dict:
 
 def recent_tool(index_path: str, *, n: int = 10) -> dict:
     """Most-recently-modified notes (notes table has mtime, not created)."""
-    con = open_search(index_path)
+    con = _open(index_path)
     try:
         rows = con.execute(
             "SELECT permalink, title, path, type FROM notes ORDER BY mtime DESC LIMIT ?",
