@@ -39,3 +39,22 @@ def test_judge_abstention_routes_to_refusal_prompt():
         provider=p,
     )
     assert "unanswerable" in last["p"].lower()
+
+
+def test_judge_integer_question_type_does_not_crash():
+    """LoCoMo passes numeric category (int 1–4) as question_type; judge must not AttributeError."""
+    p = FakeProvider(reply="yes")
+    # int category should fall through to base binary prompt and return True
+    result = judge("Q?", gold="x", response="x", question_type=1, provider=p)
+    assert result is True
+
+    p2 = FakeProvider(reply="no")
+    result2 = judge("Q?", gold="x", response="other", question_type=3, provider=p2)
+    assert result2 is False
+
+
+def test_judge_none_question_type_still_works():
+    """question_type=None must fall through to base prompt without error."""
+    p = FakeProvider(reply="yes")
+    result = judge("Q?", gold="x", response="x", question_type=None, provider=p)
+    assert result is True

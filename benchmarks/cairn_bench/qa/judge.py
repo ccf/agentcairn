@@ -39,7 +39,7 @@ _ABS = (
 def _prompt(q: str, gold: str, resp: str, question_type: str | None, is_abstention: bool) -> str:
     if is_abstention:
         return _ABS.format(q=q, resp=resp)
-    qt = (question_type or "").lower()
+    qt = str(question_type or "").lower()
     if "temporal" in qt:
         return _TEMPORAL.format(q=q, gold=gold, resp=resp)
     if "update" in qt:
