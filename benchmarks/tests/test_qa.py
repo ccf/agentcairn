@@ -58,3 +58,19 @@ def test_judge_none_question_type_still_works():
     p = FakeProvider(reply="yes")
     result = judge("Q?", gold="x", response="x", question_type=None, provider=p)
     assert result is True
+
+
+def test_judge_robust_yes_parse():
+    """'yes' must only match as a word boundary at the start; false positives must be rejected."""
+    # True positives: starts with "yes" (bare, sentence, padded, qualified).
+    for reply in ("yes", "Yes.", "Yes, correct.", "  yes"):
+        p = FakeProvider(reply=reply)
+        assert judge("Q?", gold="x", response="x", provider=p) is True, (
+            f"expected True for reply={reply!r}"
+        )
+    # False positives that the old substring match incorrectly accepted.
+    for reply in ("no", "not yes", "yesterday they met", ""):
+        p = FakeProvider(reply=reply)
+        assert judge("Q?", gold="x", response="x", provider=p) is False, (
+            f"expected False for reply={reply!r}"
+        )

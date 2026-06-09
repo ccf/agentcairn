@@ -89,6 +89,31 @@ def test_score_query_dedup_shared_window():
     )
 
 
+def test_run_arm_overfetches_for_unique_turns():
+    """run_arm must request more chunks than max(ks) so dedup yields ≥ max(ks) unique turns."""
+    from cairn_bench.ablation import run_arm
+    from cairn_bench.config import ArmConfig
+    from cairn_bench.models import Query
+
+    seen = {}
+
+    def recording_rank(con, q, e, pool, k):
+        seen["k"] = k
+        return []
+
+    arm = ArmConfig("rec", recording_rank)
+    run_arm(
+        None,
+        arm,
+        Query(qid="q", question="?", answer="", gold_turns={"t"}),
+        None,
+        ks=[5],
+        pool=200,
+    )
+    assert seen["k"] > 5, f"expected k > 5 (overfetch), got {seen['k']}"
+    assert seen["k"] <= 200, f"expected k ≤ pool=200, got {seen['k']}"
+
+
 def test_aggregate_macro_average():
     from cairn_bench.report import aggregate, wilson_ci
 

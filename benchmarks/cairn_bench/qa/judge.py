@@ -16,6 +16,8 @@ the routing path.
 
 from __future__ import annotations
 
+import re
+
 _BASE = (
     "You are grading an answer. Question: {q}\nReference answer: {gold}\n"
     "Model response: {resp}\nReply 'yes' if the response contains the correct "
@@ -82,4 +84,4 @@ def judge(
         max_tokens=10,
         temperature=0.0,
     )
-    return "yes" in out.lower()
+    return re.match(r"\s*yes\b", out, re.IGNORECASE) is not None

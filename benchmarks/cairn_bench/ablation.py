@@ -12,6 +12,11 @@ from cairn_bench.retrieval_metrics import ndcg_at_k, recall_all_at_k, recall_at_
 # We split on " > " (the separator) and take the first whitespace-delimited token of the
 # section portion to recover the bare turn id (e.g. "s_a_1" or "D1:2").
 
+# Over-fetch multiplier: fetch this many chunks per desired unique turn so that dedup
+# still yields ≥ max(ks) unique turn/session ids even when turns span multiple chunks.
+# Capped at `pool` in run_arm. Consistent with the spec's pool caveat.
+_OVERFETCH = 10
+
 
 def _turn_id(heading_path: str) -> str:
     """Extract the turn id from a heading_path like 's_a > s_a_1  (user, 2024-01-05)'."""
@@ -60,5 +65,8 @@ def score_query(rows: list[RankedRow], query: Query, ks: list[int]) -> dict:
 
 
 def run_arm(con, arm: ArmConfig, query: Query, embedder, *, ks: list[int], pool: int) -> dict:
-    rows = arm.rank(con, query.question, embedder, pool, max(ks))
+    # Over-fetch so that dedup still yields ≥ max(ks) unique turn ids even when turns span
+    # multiple chunks. fetch is capped at pool (pool-caveat from spec).
+    fetch = min(pool, max(ks) * _OVERFETCH)
+    rows = arm.rank(con, query.question, embedder, pool, fetch)
     return score_query(rows, query, ks)
