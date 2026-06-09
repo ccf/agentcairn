@@ -38,3 +38,15 @@ def test_reindex_and_status(tmp_path):
     s = runner.invoke(app, ["index-status", "--index", str(idx)])
     assert s.exit_code == 0
     assert "notes: 1" in s.output
+
+
+def test_recall_command(tmp_path):
+    v = tmp_path / "vault"
+    v.mkdir()
+    (v / "a.md").write_text("---\ntitle: A\npermalink: a\n---\nalpha apple brewing\n")
+    idx = tmp_path / "i.duckdb"
+    r = runner.invoke(app, ["reindex", str(v), "--index", str(idx), "--embedder", "fake"])
+    assert r.exit_code == 0, r.output
+    s = runner.invoke(app, ["recall", "apple brewing", "--index", str(idx), "--embedder", "fake"])
+    assert s.exit_code == 0, s.output
+    assert "a" in s.output  # the permalink shows up in results

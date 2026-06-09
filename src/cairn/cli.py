@@ -12,6 +12,7 @@ import typer
 from cairn import __version__
 from cairn.embed import get_embedder
 from cairn.index import get_meta, open_index, reconcile
+from cairn.search import open_search, search
 from cairn.vault import parse_note
 
 app = typer.Typer(
@@ -85,3 +86,31 @@ def index_status(
     typer.echo(f"model: {get_meta(con, 'embedding_model')} (dim {get_meta(con, 'embedding_dim')})")
     typer.echo(f"notes: {n}")
     typer.echo(f"chunks: {c}")
+
+
+@app.command()
+def recall(
+    query: str = typer.Argument(..., help="What to search for."),
+    index: Path = typer.Option(None, "--index", help="Index .duckdb path."),
+    embedder: str = typer.Option(
+        "fastembed", "--embedder", help="'fastembed' (hybrid) or 'fake'; 'none' = BM25-only."
+    ),
+    k: int = typer.Option(10, "--k", help="Number of results."),
+    rerank: bool = typer.Option(
+        False, "--rerank", help="Rerank top candidates with a cross-encoder."
+    ),
+) -> None:
+    """Hybrid recall over the index (semantic + BM25 + graph-boost)."""
+    idx = index or _default_index()
+    if not idx.exists():
+        typer.echo(f"no index at {idx} — run `cairn reindex <vault>` first")
+        raise typer.Exit(1)
+    emb = None if embedder == "none" else get_embedder(embedder)
+    con = open_search(str(idx))
+    hits = search(con, query, embedder=emb, k=k, rerank=rerank)
+    if not hits:
+        typer.echo("(no results)")
+        return
+    for h in hits:
+        typer.echo(f"[{h.score:.3f}] {h.permalink}  ·  {h.heading_path}")
+        typer.echo(f"        {h.snippet.strip()[:160]}")
