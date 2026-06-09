@@ -27,11 +27,32 @@ from cairn_bench.ablation import run_arm
 from cairn_bench.adapters import locomo, longmemeval
 from cairn_bench.build import build_scoped_index
 from cairn_bench.config import ARMS
-from cairn_bench.report import aggregate, to_markdown
+from cairn_bench.report import (
+    aggregate,
+    aggregate_by_category,
+    aggregate_qa,
+    qa_to_markdown,
+    to_markdown,
+)
 
 KS = [1, 3, 5, 10, 20]
 
 _QA_ARM_NAME = "hybrid+graph-boost"
+
+
+def _print_category_retrieval(cat_agg: dict) -> None:
+    """Print a per-category retrieval table from aggregate_by_category output."""
+    print("\n### Per-category retrieval — turn-level (macro-avg)\n")
+    print("| arm | category | recall@5 | recall@10 | ndcg@10 | mrr |")
+    print("|---|---|---|---|---|---|")
+    for arm, cats in sorted(cat_agg.items()):
+        for cat, grans in sorted(cats.items(), key=lambda x: str(x[0])):
+            m = grans.get("turn", {})
+            print(
+                f"| {arm} | {cat} | {m.get('recall@5', 0):.3f} | "
+                f"{m.get('recall@10', 0):.3f} | {m.get('ndcg@10', 0):.3f} | "
+                f"{m.get('mrr', 0):.3f} |"
+            )
 
 
 def main() -> None:
@@ -59,8 +80,9 @@ def main() -> None:
         "--qa",
         action="store_true",
         help=(
-            "Run QA accuracy on the hybrid+graph-boost arm for answerable queries. "
-            "Requires ANTHROPIC_API_KEY."
+            "Run QA accuracy on the hybrid+graph-boost arm for answerable AND abstention "
+            "queries. Requires ANTHROPIC_API_KEY. Answerable and abstention accuracy are "
+            "reported separately."
         ),
     )
     ap.add_argument(
@@ -84,9 +106,8 @@ def main() -> None:
     # Locate the QA arm once (used only when --qa is set).
     qa_arm = next((a for a in ARMS if a.name == _QA_ARM_NAME), None)
 
-    # QA accumulator: (correct_count, total_count).
-    qa_correct = 0
-    qa_total = 0
+    # QA accumulators: rows list for aggregate_qa, plus simple per-type counters.
+    qa_rows: list[dict] = []
     provider = None
 
     if args.qa:
@@ -104,15 +125,18 @@ def main() -> None:
             con, chunks = build_scoped_index(notes, Path(d), emb)
             try:
                 for q in queries:
+                    # Retrieval pass: skip abstention/empty-gold queries (Zep invariant).
                     if not q.gold_turns and not q.gold_sessions:
-                        continue
-                    for arm in ARMS:
-                        res = run_arm(con, arm, q, emb, ks=KS, pool=max(200, chunks))
-                        per_query.append({"arm": arm.name, "category": q.category, **res})
+                        pass  # fall through to QA abstention path below
+                    else:
+                        for arm in ARMS:
+                            res = run_arm(con, arm, q, emb, ks=KS, pool=max(200, chunks))
+                            per_query.append({"arm": arm.name, "category": q.category, **res})
 
-                    # QA pass — one arm, answerable queries only.
+                    # QA pass — answerable and abstention queries, one arm each.
                     if args.qa and provider is not None and qa_arm is not None:
-                        if not q.is_abstention and q.answer:
+                        run_qa = (not q.is_abstention and bool(q.answer)) or q.is_abstention
+                        if run_qa:
                             from cairn.search import search as cairn_search
                             from cairn_bench.qa import generate as qa_generate
                             from cairn_bench.qa import judge as qa_judge
@@ -136,9 +160,13 @@ def main() -> None:
                                 is_abstention=q.is_abstention,
                                 provider=provider,
                             )
-                            if correct:
-                                qa_correct += 1
-                            qa_total += 1
+                            qa_rows.append(
+                                {
+                                    "category": q.category,
+                                    "is_abstention": q.is_abstention,
+                                    "correct": correct,
+                                }
+                            )
             finally:
                 con.close()
 
@@ -148,12 +176,15 @@ def main() -> None:
     if args.qa:
         if provider is None:
             print("QA skipped: ANTHROPIC_API_KEY not available.")
+        elif qa_rows:
+            qa_agg = aggregate_qa(qa_rows)
+            print(qa_to_markdown(qa_agg, judge_model=args.qa_model))
+            # Also print per-category retrieval breakdown.
+            if per_query:
+                cat_agg = aggregate_by_category(per_query)
+                _print_category_retrieval(cat_agg)
         else:
-            pct = 100.0 * qa_correct / qa_total if qa_total else 0.0
-            print(
-                f"\nQA accuracy (judge={args.qa_model}, NOT comparable to published "
-                f"leaderboards): {qa_correct}/{qa_total} = {pct:.1f}%"
-            )
+            print("QA skipped: no qualifying queries processed.")
 
 
 if __name__ == "__main__":

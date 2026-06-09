@@ -60,6 +60,37 @@ def test_judge_none_question_type_still_works():
     assert result is True
 
 
+def test_locomo_cat5_abstention_query_routes_to_refusal_prompt(locomo_samples):
+    """A LoCoMo cat-5 query (is_abstention=True) must be judged via the refusal prompt.
+
+    The refusal prompt contains 'unanswerable'; we assert it is used by capturing
+    the prompt via FakeProvider.on_prompt. This confirms that abstention queries
+    produced by the new locomo.adapt() model flow correctly to the judge.
+    """
+    from cairn_bench.adapters import locomo
+
+    _notes, queries = locomo.adapt(locomo_samples[0])
+    cat5 = next(q for q in queries if q.category == 5)
+    assert cat5.is_abstention is True
+
+    p = FakeProvider(reply="yes")
+    last: dict = {}
+    p.on_prompt = lambda prompt: last.setdefault("p", prompt)
+
+    judge(
+        cat5.question,
+        gold=cat5.answer,
+        response="I don't have that information.",
+        question_type=cat5.category,
+        is_abstention=cat5.is_abstention,
+        provider=p,
+    )
+    assert "p" in last, "on_prompt was never called"
+    assert "unanswerable" in last["p"].lower(), (
+        f"abstention prompt must contain 'unanswerable', got: {last['p']!r}"
+    )
+
+
 def test_judge_robust_yes_parse():
     """'yes' must only match as a word boundary at the start; false positives must be rejected."""
     # True positives: starts with "yes" (bare, sentence, padded, qualified).
