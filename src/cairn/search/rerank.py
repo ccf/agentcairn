@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Optional cross-encoder reranker (fastembed, ONNX, torch-free). OFF by default:
-ms-marco cross-encoders can underperform on markdown/code (domain shift), so
-enable per corpus only after validating. Lazy singleton — never on the hot path."""
+"""Cross-encoder reranker (fastembed, ONNX, torch-free). ON by default since v1.1:
+the LoCoMo benchmark showed it is the largest retrieval lever (+0.11 recall@5 over
+hybrid). Validated on conversational/prose data; ms-marco is tuned for short passages,
+so code-heavy vaults are unvalidated — disable with CAIRN_RERANK=0 if it underperforms.
+Lazy singleton; only constructed when a rerank actually runs."""
 
 from __future__ import annotations
 

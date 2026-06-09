@@ -71,7 +71,7 @@ QA-accuracy numbers (LLM-judged) are available too, but use an Anthropic judge r
 
 - **v1 — done.** The core loop: transcript ingestion → redaction → Markdown → rebuildable DuckDB index → hybrid recall; MCP server + CLI; secret redaction; local embeddings; reproducible benchmark harness.
 - **v1.1 — next, prioritized by the benchmark above:**
-  - **Reranker on by default** — the largest measured retrieval lever, and the domain-shift concern is disproven on conversational data.
+  - ✅ **Reranker on by default** — the largest measured retrieval lever; `CAIRN_RERANK=0` to disable. *(shipped)*
   - **Cloud / Ollama embedding tiers** — `bge-small` vector-only trails BM25; a stronger embedder lifts the vector and hybrid arms.
   - **Bi-temporal validity** (frontmatter `valid_from`/`valid_until`/`superseded_by`) — temporal questions retrieve the right turns but answer poorly today; the gap is reasoning-over-time, not retrieval.
   - In-memory HNSW for large-vault retrieval latency.
