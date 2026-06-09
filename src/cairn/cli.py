@@ -133,6 +133,53 @@ def serve(
 
 
 @app.command()
+def sweep(
+    vault: Path = typer.Option(..., "--vault", help="Vault root."),
+    transcripts_dir: Path = typer.Option(
+        None, "--transcripts-dir", help="Override the ~/.claude/projects root."
+    ),
+    project: str = typer.Option(None, "--project", help="Absolute cwd filter (default: all)."),
+    threshold: float = typer.Option(0.5, "--threshold", help="Importance keep-threshold."),
+    index: Path = typer.Option(
+        None, "--index", help="Index .duckdb path (default ~/.cache/agentcairn/index.duckdb)."
+    ),
+    embedder: str = typer.Option("fastembed", "--embedder", help="'fastembed' or 'fake'."),
+    ledger: Path = typer.Option(
+        None,
+        "--ledger",
+        help="Dedup ledger path (default: ~/.cache/agentcairn/ledgers/<hash>.sha256).",
+    ),
+) -> None:
+    """Batch-ingest transcripts into the vault, then reindex (cron maintenance)."""
+    if ledger is not None:
+        led_path = ledger
+    else:
+        vault_key = hashlib.sha256(str(vault.resolve()).encode()).hexdigest()[:16]
+        led_path = Path.home() / ".cache" / "agentcairn" / "ledgers" / f"{vault_key}.sha256"
+    led = DedupLedger(led_path)
+    paths = find_transcripts(root=transcripts_dir, project=project)
+    written = 0
+    for tp in paths:
+        rep = ingest_transcript(
+            parse_transcript(tp),
+            vault_root=vault,
+            ledger=led,
+            threshold=threshold,
+        )
+        written += len(rep.written)
+    idx = index or _default_index()
+    idx.parent.mkdir(parents=True, exist_ok=True)
+    emb = get_embedder(embedder)
+    con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
+    stats = reconcile(con, str(vault), emb)
+    con.close()
+    typer.echo(
+        f"swept: {written} memory note(s) written; reindexed "
+        f"{stats.added} added, {stats.updated} updated, {stats.deleted} removed"
+    )
+
+
+@app.command()
 def ingest(
     vault: Path = typer.Option(..., "--vault", help="Vault root to write derived notes into."),
     transcripts_dir: Path = typer.Option(
