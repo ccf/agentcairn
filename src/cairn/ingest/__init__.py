@@ -8,6 +8,7 @@ from cairn.ingest.models import (
     Transcript,
     Turn,
 )
+from cairn.ingest.pipeline import ingest_transcript
 
 __all__ = [
     "Candidate",
@@ -17,5 +18,6 @@ __all__ = [
     "Turn",
     "encode_cwd",
     "find_transcripts",
+    "ingest_transcript",
     "parse_transcript",
 ]
