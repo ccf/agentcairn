@@ -87,6 +87,16 @@ def test_empty_embeddings_raises():
         emb.embed(["x"])
 
 
+def test_dim_cached_by_real_embed_no_extra_probe():
+    """A real embed call populates _dim as a side effect; dim must NOT issue a probe."""
+    post = FakePost()  # returns 3-d vectors
+    emb = OllamaEmbedder(post=post)
+    emb.embed_query("q")  # 1 call; should cache dim
+    assert len(post.calls) == 1
+    assert emb.dim == 3  # must NOT issue a probe
+    assert len(post.calls) == 1  # still exactly 1 — redundant probe eliminated
+
+
 @pytest.mark.skipif(
     not os.environ.get("CAIRN_OLLAMA_LIVE"),
     reason="set CAIRN_OLLAMA_LIVE=1 with a running Ollama server to enable",
