@@ -17,6 +17,7 @@ dependencies = [
 
 [project.scripts]
 cairn = "cairn.cli:app"
+agentcairn = "cairn.mcp.server:main"
 
 [dependency-groups]
 dev = ["pytest>=8.0", "ruff>=0.6", "pre-commit>=3.8"]
