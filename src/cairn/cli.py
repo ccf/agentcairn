@@ -59,7 +59,11 @@ def reindex(
     index: Path = typer.Option(
         None, "--index", help="Index .duckdb path (default ~/.cache/agentcairn/index.duckdb)."
     ),
-    embedder: str = typer.Option("fastembed", "--embedder", help="'fastembed' or 'fake'."),
+    embedder: str = typer.Option(
+        "fastembed",
+        "--embedder",
+        help="'fastembed' or 'fake'; 'ollama' (CAIRN_EMBED_MODEL/OLLAMA_HOST).",
+    ),
 ) -> None:
     """Reconcile the DuckDB index with the vault (incremental)."""
     idx = index or _default_index()
@@ -101,7 +105,9 @@ def recall(
     query: str = typer.Argument(..., help="What to search for."),
     index: Path = typer.Option(None, "--index", help="Index .duckdb path."),
     embedder: str = typer.Option(
-        "fastembed", "--embedder", help="'fastembed' (hybrid) or 'fake'; 'none' = BM25-only."
+        "fastembed",
+        "--embedder",
+        help="'fastembed' (hybrid) or 'fake'; 'none' = BM25-only; 'ollama' (CAIRN_EMBED_MODEL/OLLAMA_HOST).",  # noqa: E501
     ),
     k: int = typer.Option(10, "--k", help="Number of results."),
     rerank: bool | None = typer.Option(
@@ -155,7 +161,11 @@ def sweep(
     index: Path = typer.Option(
         None, "--index", help="Index .duckdb path (default ~/.cache/agentcairn/index.duckdb)."
     ),
-    embedder: str = typer.Option("fastembed", "--embedder", help="'fastembed' or 'fake'."),
+    embedder: str = typer.Option(
+        "fastembed",
+        "--embedder",
+        help="'fastembed' or 'fake'; 'ollama' (CAIRN_EMBED_MODEL/OLLAMA_HOST).",
+    ),
     ledger: Path = typer.Option(
         None,
         "--ledger",

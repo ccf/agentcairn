@@ -72,7 +72,7 @@ QA-accuracy numbers (LLM-judged) are available too, but use an Anthropic judge r
 - **v1 — done.** The core loop: transcript ingestion → redaction → Markdown → rebuildable DuckDB index → hybrid recall; MCP server + CLI; secret redaction; local embeddings; reproducible benchmark harness.
 - **v1.1 — next, prioritized by the benchmark above:**
   - ✅ **Reranker on by default** — the largest measured retrieval lever; `CAIRN_RERANK=0` to disable. *(shipped)*
-  - **Cloud / Ollama embedding tiers** — `bge-small` vector-only trails BM25; a stronger embedder lifts the vector and hybrid arms.
+  - **Ollama embedding tier** — ✅ local models via `CAIRN_EMBEDDER=ollama` (`CAIRN_EMBED_MODEL`/`OLLAMA_HOST`); cloud (OpenAI/Voyage) still pending.
   - **Bi-temporal validity** (frontmatter `valid_from`/`valid_until`/`superseded_by`) — temporal questions retrieve the right turns but answer poorly today; the gap is reasoning-over-time, not retrieval.
   - In-memory HNSW for large-vault retrieval latency.
 - **v2** — Obsidian plugin surface, MotherDuck cloud sync, optional LLM entity extraction.

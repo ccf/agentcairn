@@ -29,6 +29,8 @@ def resolve_config(
       vault    — explicit arg → CAIRN_VAULT env → None
       index    — explicit arg → CAIRN_INDEX env → ~/.cache/agentcairn/index.duckdb
       embedder — explicit arg → CAIRN_EMBEDDER env → "fastembed"
+                 valid values: "fastembed", "fake", "ollama"
+                 (ollama: model via CAIRN_EMBED_MODEL, host via OLLAMA_HOST)
     """
     resolved_vault = vault or os.environ.get("CAIRN_VAULT")
     resolved_index = index or os.environ.get("CAIRN_INDEX") or _DEFAULT_INDEX
