@@ -144,3 +144,45 @@ def test_recall_command(tmp_path):
     s = runner.invoke(app, ["recall", "apple brewing", "--index", str(idx), "--embedder", "fake"])
     assert s.exit_code == 0, s.output
     assert "a" in s.output  # the permalink shows up in results
+
+
+# add to tests/test_cli.py  (reuses _seed_transcript from test_ingest_command)
+def test_sweep_command(tmp_path):
+    projects = tmp_path / "projects"
+    cwd = "/Users/x/proj"
+    _seed_transcript(
+        projects,
+        cwd,
+        "sess-1",
+        [
+            ("user", "We decided to always escape the ATTACH path before interpolating it."),
+        ],
+    )
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    idx = tmp_path / "i.duckdb"
+    result = runner.invoke(
+        app,
+        [
+            "sweep",
+            "--vault",
+            str(vault),
+            "--transcripts-dir",
+            str(projects),
+            "--project",
+            cwd,
+            "--index",
+            str(idx),
+            "--embedder",
+            "fake",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    # a memory note was written AND the index now contains it
+    assert list(vault.rglob("*.md"))
+    assert idx.exists()
+    import duckdb
+
+    n = duckdb.connect(str(idx)).execute("SELECT count(*) FROM notes").fetchone()[0]
+    assert n >= 1
+    assert "reindex" in result.output.lower() or "indexed" in result.output.lower()
