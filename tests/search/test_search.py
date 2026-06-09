@@ -28,3 +28,24 @@ def test_hybrid_search_survives_single_arm(tmp_path):
     qvec = emb.embed_query("zzzznomatch")
     hits = hybrid_search(con, "zzzznomatch", qvec, dim=emb.dim, limit=5)
     assert hits, "vector arm should still return results when BM25 matches nothing"
+
+
+from cairn.search import Hit, search  # noqa: E402
+
+
+def test_search_hybrid_with_embedder(tmp_path):
+    emb = FakeEmbedder(dim=8)
+    idx = build_index(tmp_path, emb)
+    con = open_search(idx)
+    hits = search(con, "coffee brewing", embedder=emb, k=5)
+    assert hits and isinstance(hits[0], Hit)
+    assert hits[0].snippet and hits[0].permalink
+    assert any(h.permalink == "coffee" for h in hits[:3])
+
+
+def test_search_bm25_only_without_embedder(tmp_path):
+    emb = FakeEmbedder(dim=8)
+    idx = build_index(tmp_path, emb)
+    con = open_search(idx)
+    hits = search(con, "tea steeping", embedder=None, k=5)  # no embedder -> BM25-only
+    assert hits and any(h.permalink == "tea" for h in hits)

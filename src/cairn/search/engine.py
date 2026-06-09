@@ -91,6 +91,41 @@ def _hybrid_sql(dim: int) -> str:
     """
 
 
+def _bm25_only_sql() -> str:
+    return """
+        WITH fts AS (
+            SELECT chunk_id, rank() OVER (ORDER BY score DESC) AS r
+            FROM (
+                SELECT chunk_id, fts_main_chunks.match_bm25(chunk_id, ?, fields := 'text') AS score
+                FROM chunks
+            ) WHERE score IS NOT NULL
+            ORDER BY score DESC LIMIT ?
+        )
+        SELECT c.chunk_id, c.note_permalink, c.heading_path, left(c.text, 240) AS snippet,
+               rrf(f.r)
+               * (CASE WHEN EXISTS (SELECT 1 FROM links l WHERE l.dst_target = c.note_permalink)
+                       THEN 1.2 ELSE 1.0 END) AS score
+        FROM fts f JOIN chunks c ON c.chunk_id = f.chunk_id
+        ORDER BY score DESC LIMIT ?
+    """
+
+
+def bm25_only(
+    con: duckdb.DuckDBPyConnection, query: str, *, limit: int = 10, pool: int = 200
+) -> list[dict]:
+    rows = con.execute(_bm25_only_sql(), [query, pool, limit]).fetchall()
+    return [
+        {
+            "chunk_id": r[0],
+            "note_permalink": r[1],
+            "heading_path": r[2],
+            "snippet": r[3],
+            "score": float(r[4]),
+        }
+        for r in rows
+    ]
+
+
 def hybrid_search(
     con: duckdb.DuckDBPyConnection,
     query: str,
@@ -110,5 +145,32 @@ def hybrid_search(
             "snippet": r[3],
             "score": float(r[4]),
         }
+        for r in rows
+    ]
+
+
+def search(
+    con: duckdb.DuckDBPyConnection,
+    query: str,
+    *,
+    embedder=None,
+    k: int = 10,
+    pool: int = 200,
+) -> list[Hit]:
+    """Top-level retrieval (degradation ladder): hybrid when an embedder is given
+    (auto-degrades to BM25 if no embeddings exist), else BM25-only."""
+    if embedder is not None:
+        qvec = embedder.embed_query(query)
+        rows = hybrid_search(con, query, qvec, dim=embedder.dim, limit=k, pool=pool)
+    else:
+        rows = bm25_only(con, query, limit=k, pool=pool)
+    return [
+        Hit(
+            chunk_id=r["chunk_id"],
+            permalink=r["note_permalink"],
+            heading_path=r["heading_path"],
+            snippet=r["snippet"],
+            score=r["score"],
+        )
         for r in rows
     ]
