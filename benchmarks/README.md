@@ -14,8 +14,8 @@ uv run pytest benchmarks/tests/      # offline, no keys, exact-recall regression
 
 ```bash
 # retrieval only (downloads revision/commit-pinned; SHA256 verified on/after first fetch)
-uv run --group bench python -m cairn_bench.run --dataset longmemeval-s --limit 50
-uv run --group bench python -m cairn_bench.run --dataset locomo
+PYTHONPATH=benchmarks uv run --group bench python -m cairn_bench.run --dataset longmemeval-s --limit 50
+PYTHONPATH=benchmarks uv run --group bench python -m cairn_bench.run --dataset locomo
 ```
 
 - **LongMemEval-S**: HuggingFace `xiaowu0162/longmemeval-cleaned` (MIT), revision-pinned.
