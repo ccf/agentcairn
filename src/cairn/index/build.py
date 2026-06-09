@@ -25,6 +25,21 @@ def _content_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _permalink_for(permalink_field: str | None, path: Path, vault_dir: str | None) -> str:
+    """Derive a stable, unique permalink for a note.
+
+    If the frontmatter supplies one, use it as-is.  Otherwise fall back to a
+    vault-relative slug (``subdir/stem``) so that two notes with the same
+    filename in different subdirectories never share a primary key.  When
+    ``vault_dir`` is not available the bare stem is returned as a last resort.
+    """
+    if permalink_field:
+        return permalink_field
+    if vault_dir is not None:
+        return Path(path).relative_to(vault_dir).with_suffix("").as_posix()  # e.g. "a/note"
+    return Path(path).stem
+
+
 def _delete_note(con: duckdb.DuckDBPyConnection, permalink: str) -> None:
     con.execute(
         "DELETE FROM chunk_embeddings WHERE chunk_id IN "
@@ -36,12 +51,22 @@ def _delete_note(con: duckdb.DuckDBPyConnection, permalink: str) -> None:
     con.execute("DELETE FROM notes WHERE permalink = ?", [permalink])
 
 
-def index_note(con: duckdb.DuckDBPyConnection, path: Path, embedder: Embedder) -> int:
-    """(Re)index a single note file. Returns number of chunks. Permalink falls
-    back to the file stem when frontmatter omits it."""
+def index_note(
+    con: duckdb.DuckDBPyConnection,
+    path: Path,
+    embedder: Embedder,
+    *,
+    vault_dir: str | None = None,
+) -> int:
+    """(Re)index a single note file. Returns number of chunks.
+
+    Permalink falls back to a vault-relative slug when frontmatter omits it,
+    ensuring uniqueness across subdirectories.  Pass ``vault_dir`` so the
+    fallback is relative to the vault root rather than the bare file stem.
+    """
     text = path.read_text()
     note = parse_note(text)
-    permalink = note.permalink or path.stem
+    permalink = _permalink_for(note.permalink, path, vault_dir)
     note.permalink = permalink  # ensure downstream rows are keyed consistently
 
     _delete_note(con, permalink)
@@ -59,7 +84,9 @@ def index_note(con: duckdb.DuckDBPyConnection, path: Path, embedder: Embedder) -
     chunks = chunk_note(note)
     if chunks:
         vecs = embedder.embed([c.text for c in chunks])
-        for c, vec in zip(chunks, vecs, strict=False):
+        # strict=True raises ValueError when the embedder returns a different
+        # number of vectors than there are chunks (silent partial indexing).
+        for c, vec in zip(chunks, vecs, strict=True):
             con.execute(
                 "INSERT INTO chunks VALUES (?, ?, ?, ?, ?)",
                 [c.chunk_id, permalink, c.heading_path, c.ordinal, c.text],
@@ -78,7 +105,7 @@ def index_note(con: duckdb.DuckDBPyConnection, path: Path, embedder: Embedder) -
 def index_vault(con: duckdb.DuckDBPyConnection, vault_dir: str, embedder: Embedder) -> IndexStats:
     stats = IndexStats()
     for path in sorted(Path(vault_dir).rglob("*.md")):
-        stats.chunks += index_note(con, path, embedder)
+        stats.chunks += index_note(con, path, embedder, vault_dir=vault_dir)
         stats.notes += 1
     return stats
 
@@ -129,22 +156,26 @@ def reconcile(
         for row in con.execute("SELECT permalink, path, content_hash, mtime FROM notes").fetchall()
     }
 
-    # process files on disk: add new, update changed
+    # process files on disk: add new, update changed, or fix stale path on move
     # Iterate the rglob list directly (not a stem-keyed dict) so that notes in
     # different subdirectories with the same filename are each processed.
     seen_permalinks: set[str] = set()
     for path in sorted(Path(vault_dir).rglob("*.md")):
         text = path.read_text()
-        permalink = parse_note(text).permalink or path.stem
+        permalink = _permalink_for(parse_note(text).permalink, path, vault_dir)
         seen_permalinks.add(permalink)
         prev = indexed.get(permalink)
         cur_hash = _content_hash(text)
         if prev is None:
-            index_note(con, path, embedder)
+            index_note(con, path, embedder, vault_dir=vault_dir)
             stats.added += 1
         elif prev[1] != cur_hash:
-            index_note(con, path, embedder)
+            index_note(con, path, embedder, vault_dir=vault_dir)
             stats.updated += 1
+        elif prev[0] != str(path):
+            # content unchanged but file moved: update stored path only,
+            # no re-embedding and no FTS rebuild required.
+            con.execute("UPDATE notes SET path = ? WHERE permalink = ?", [str(path), permalink])
 
     # deletions: indexed notes whose file no longer exists
     for permalink in set(indexed) - seen_permalinks:
