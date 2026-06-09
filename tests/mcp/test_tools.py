@@ -99,3 +99,64 @@ def test_remember_rejects_empty_text(tmp_path):
     vault.mkdir()
     with pytest.raises(ValueError):
         remember_tool(str(vault), "   ")
+
+
+# ---------------------------------------------------------------------------
+# Fix B: title and tags must be redacted before write
+# ---------------------------------------------------------------------------
+
+
+def test_remember_redacts_secret_in_title(tmp_path):
+    """A token in the caller-supplied title must NOT reach the written file."""
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    secret = "ghp_16C7e42F292c6912E7710c838347Ae178B4a"
+    out = remember_tool(str(vault), "harmless body text here", title=f"key {secret}")
+    body = Path(out["path"]).read_text()
+    assert secret not in body, "secret in title leaked to disk"
+    assert "[REDACTED" in body
+
+
+def test_remember_redacts_secret_in_tags(tmp_path):
+    """A token passed as a tag must NOT reach the written file."""
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    secret = "ghp_16C7e42F292c6912E7710c838347Ae178B4a"
+    out = remember_tool(str(vault), "harmless body text here", tags=[secret])
+    body = Path(out["path"]).read_text()
+    assert secret not in body, "secret in tags leaked to disk"
+    assert "[REDACTED" in body
+
+
+# ---------------------------------------------------------------------------
+# Fix D: search_tool must not return duplicate permalinks
+# ---------------------------------------------------------------------------
+
+
+def _build_index_chunky(tmp_path: Path) -> tuple[Path, Path]:
+    """Build an index with a note long enough to produce >=2 chunks (>1500 chars)."""
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    paragraph = (
+        "Chunking is important for retrieval. "
+        "Each paragraph adds content to ensure this note exceeds the chunk size limit. "
+    )
+    # Repeat to exceed 1500 chars so the note produces multiple chunks.
+    long_body = (paragraph * 20).strip()
+    (vault / "long.md").write_text(
+        f"---\ntitle: Long Note\npermalink: long-note\n---\n{long_body}\n"
+    )
+    idx = tmp_path / "i.duckdb"
+    emb = FakeEmbedder(dim=8)
+    con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
+    reconcile(con, str(vault), emb)
+    con.close()
+    return idx, vault
+
+
+def test_search_tool_no_duplicate_permalinks(tmp_path):
+    """search_tool must return at most one hit per permalink (deduped by best score)."""
+    idx, _vault = _build_index_chunky(tmp_path)
+    out = search_tool(str(idx), "chunking retrieval", embedder="fake", k=20)
+    perms = [h["permalink"] for h in out["hits"]]
+    assert len(perms) == len(set(perms)), f"Duplicate permalinks in hits: {perms}"

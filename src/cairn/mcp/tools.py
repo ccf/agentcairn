@@ -35,6 +35,12 @@ def search_tool(
         hits = search(con, query, embedder=_embedder(embedder), k=k, rerank=rerank)
     finally:
         con.close()
+    seen_perms: set[str] = set()
+    deduped = []
+    for h in hits:
+        if h.permalink not in seen_perms:
+            seen_perms.add(h.permalink)
+            deduped.append(h)
     return {
         "query": query,
         "hits": [
@@ -44,7 +50,7 @@ def search_tool(
                 "snippet": h.snippet.strip()[:240],
                 "score": round(h.score, 4),
             }
-            for h in hits
+            for h in deduped
         ],
     }
 
@@ -152,13 +158,15 @@ def remember_tool(
     body_text = red.text.strip()
     h = content_hash(body_text)
     slug = f"{_slugify(body_text)}-{h[:8]}"
+    safe_title = redact(title or body_text.splitlines()[0]).text[:80]
+    safe_tags = [redact(t).text for t in (tags or ["remembered"])]
     note = Note(
         permalink=slug,
         frontmatter={
-            "title": (title or body_text.splitlines()[0])[:80],
+            "title": safe_title,
             "type": "memory",
             "permalink": slug,
-            "tags": list(tags or ["remembered"]),
+            "tags": safe_tags,
             "source": "memory://agent/remember",
         },
         body=f"- [context] {body_text} #remembered\n",
