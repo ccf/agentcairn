@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from cairn.config import parse_bool, resolve_rerank
+from cairn.config import ollama_config, parse_bool, resolve_rerank
 
 
 @pytest.mark.parametrize("val", ["1", "true", "TRUE", "yes", "on", "On"])
@@ -38,3 +38,12 @@ def test_resolve_rerank_default_on_when_unset():
 def test_resolve_rerank_junk_env_defaults_true():
     # a typo'd env var must not crash a query
     assert resolve_rerank(None, env={"CAIRN_RERANK": "maybe"}) is True
+
+
+def test_ollama_config_defaults():
+    assert ollama_config(env={}) == ("nomic-embed-text", "http://localhost:11434")
+
+
+def test_ollama_config_env_override():
+    env = {"CAIRN_EMBED_MODEL": "mxbai-embed-large", "OLLAMA_HOST": "http://box:11434"}
+    assert ollama_config(env=env) == ("mxbai-embed-large", "http://box:11434")

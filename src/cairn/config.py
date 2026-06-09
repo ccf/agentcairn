@@ -21,6 +21,20 @@ def parse_bool(value: str) -> bool:
     raise ValueError(f"not a boolean: {value!r}")
 
 
+_DEFAULT_OLLAMA_MODEL = "nomic-embed-text"
+_DEFAULT_OLLAMA_HOST = "http://localhost:11434"
+
+
+def ollama_config(env: Mapping[str, str] | None = None) -> tuple[str, str]:
+    """Resolve (model, host) for the Ollama embedder from env, with defaults.
+    model ← CAIRN_EMBED_MODEL or 'nomic-embed-text'; host ← OLLAMA_HOST or localhost."""
+    if env is None:
+        env = os.environ
+    model = env.get("CAIRN_EMBED_MODEL") or _DEFAULT_OLLAMA_MODEL
+    host = env.get("OLLAMA_HOST") or _DEFAULT_OLLAMA_HOST
+    return model, host
+
+
 def resolve_rerank(explicit: bool | None = None, env: Mapping[str, str] | None = None) -> bool:
     """Resolve the reranker on/off setting: explicit arg → CAIRN_RERANK env → True.
     An unparseable CAIRN_RERANK falls back to the default (True) rather than raising,
