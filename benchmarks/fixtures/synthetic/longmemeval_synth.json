@@ -1,0 +1,67 @@
+[
+  {
+    "question_id": "synth_multi_1",
+    "question_type": "multi-session",
+    "question": "What pet did Alex adopt and what did they name it?",
+    "answer": "a cat named Mochi",
+    "question_date": "2024-03-10",
+    "haystack_session_ids": ["s_a", "s_b", "s_distract"],
+    "haystack_dates": ["2024-01-05", "2024-02-01", "2024-01-20"],
+    "answer_session_ids": ["s_a", "s_b"],
+    "haystack_sessions": [
+      [
+        {"role": "user", "content": "I adopted a cat last week.", "has_answer": true},
+        {"role": "assistant", "content": "Congrats on the new cat!"}
+      ],
+      [
+        {"role": "user", "content": "I named my cat Mochi.", "has_answer": true},
+        {"role": "assistant", "content": "Mochi is a lovely name."}
+      ],
+      [
+        {"role": "user", "content": "The weather has been rainy."},
+        {"role": "assistant", "content": "Hope it clears up."}
+      ]
+    ]
+  },
+  {
+    "question_id": "synth_update_1",
+    "question_type": "knowledge-update",
+    "question": "Where does Alex currently work?",
+    "answer": "Globex",
+    "question_date": "2024-04-01",
+    "haystack_session_ids": ["s_old", "s_new"],
+    "haystack_dates": ["2024-01-01", "2024-03-01"],
+    "answer_session_ids": ["s_new"],
+    "haystack_sessions": [
+      [{"role": "user", "content": "I work at Initech.", "has_answer": true}],
+      [{"role": "user", "content": "I switched jobs; I now work at Globex.", "has_answer": true}]
+    ]
+  },
+  {
+    "question_id": "synth_temporal_1",
+    "question_type": "temporal-reasoning",
+    "question": "In which month did Alex start running?",
+    "answer": "February 2024",
+    "question_date": "2024-05-01",
+    "haystack_session_ids": ["s_run", "s_noise"],
+    "haystack_dates": ["2024-02-15", "2024-03-15"],
+    "answer_session_ids": ["s_run"],
+    "haystack_sessions": [
+      [{"role": "user", "content": "I started running this month.", "has_answer": true}],
+      [{"role": "user", "content": "I bought new shoes."}]
+    ]
+  },
+  {
+    "question_id": "synth_unanswerable_1_abs",
+    "question_type": "single-session-user",
+    "question": "What is the name of Alex's brother?",
+    "answer": "(unanswerable - no sibling mentioned)",
+    "question_date": "2024-05-02",
+    "haystack_session_ids": ["s_only"],
+    "haystack_dates": ["2024-04-10"],
+    "answer_session_ids": [],
+    "haystack_sessions": [
+      [{"role": "user", "content": "I went hiking with friends."}]
+    ]
+  }
+]
