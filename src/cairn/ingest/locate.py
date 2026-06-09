@@ -76,9 +76,9 @@ def parse_transcript(path: Path) -> Transcript:
             continue  # partial/corrupt line — transcripts are append-only
         if not isinstance(obj, dict):
             continue
-        session_id = obj.get("sessionId") or session_id
         if obj.get("type") not in _CONTENT_TYPES:
             continue
+        session_id = obj.get("sessionId") or session_id
         msg = obj.get("message")
         if not isinstance(msg, dict):
             continue
