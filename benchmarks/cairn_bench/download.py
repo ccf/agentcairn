@@ -46,6 +46,19 @@ def _manifest() -> dict:
     return tomllib.loads(MANIFEST.read_text())
 
 
+def _dest_path(dataset: str, entry: dict) -> Path:
+    """Return a cache path that encodes the manifest pin so a pin change → re-fetch.
+
+    The pin is the ``revision`` (for HF entries) or the ``url`` (for URL entries).
+    A SHA-256 prefix of the pin is embedded in the filename so that updating
+    manifest.toml automatically routes to a new, uncached file.
+    Old stale files under the cache are orphaned (not cleaned up).
+    """
+    pin = entry.get("revision") or entry.get("url", "")
+    tag = hashlib.sha256(pin.encode()).hexdigest()[:8]
+    return CACHE / f"{dataset}_{tag}.json"
+
+
 def fetch(dataset: str) -> Path:
     """Download (if absent) and SHA-verify a dataset; return the cached path.
 
@@ -55,26 +68,28 @@ def fetch(dataset: str) -> Path:
     Returns:
         Path to the locally cached file.
 
+    The cache path is pin-aware (via ``_dest_path``): changing ``revision`` or ``url``
+    in manifest.toml routes to a new cache file, preventing stale-data reuse.
+
     The `huggingface_hub` import for "hf" entries is lazy — only activated when needed,
     so the base install (without the bench dependency group) can import this module.
     """
     entry = _manifest()[dataset]
     CACHE.mkdir(parents=True, exist_ok=True)
+    dest = _dest_path(dataset, entry)
     if entry["kind"] == "url":
-        dest = CACHE / f"{dataset}.json"
         if not dest.exists():
             urllib.request.urlretrieve(entry["url"], dest)  # noqa: S310 (pinned https)
     elif entry["kind"] == "hf":
         from huggingface_hub import hf_hub_download  # lazy — bench dep group only
 
-        src = hf_hub_download(
-            repo_id=entry["repo_id"],
-            filename=entry["filename"],
-            revision=entry["revision"],
-            repo_type="dataset",
-        )
-        dest = CACHE / entry["filename"]
         if not dest.exists():
+            src = hf_hub_download(
+                repo_id=entry["repo_id"],
+                filename=entry["filename"],
+                revision=entry["revision"],
+                repo_type="dataset",
+            )
             dest.write_bytes(Path(src).read_bytes())
     else:
         raise ValueError(f"unknown manifest kind: {entry['kind']}")
