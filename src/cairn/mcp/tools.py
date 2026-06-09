@@ -76,7 +76,7 @@ def recall_tool(
     return {"query": query, "notes": notes}
 
 
-def build_context_tool(index_path: str, permalink: str, *, depth: int = 1) -> dict:
+def build_context_tool(index_path: str, permalink: str) -> dict:
     """Return a note plus its 1-hop graph neighbors from the links table.
     `dst_target` is raw/unresolved (Plan 3 caveat): a neighbor resolves when the
     target equals a note permalink or title; otherwise it is reported raw."""

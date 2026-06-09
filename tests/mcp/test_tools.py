@@ -68,7 +68,7 @@ def test_recent_tool_lists_notes(tmp_path):
     out = recent_tool(str(idx), n=10)
     perms = {r["permalink"] for r in out["notes"]}
     assert {"coffee", "tea"} <= perms
-    assert all({"permalink", "title", "path"} <= set(r) for r in out["notes"])
+    assert all({"permalink", "title", "path", "type"} <= set(r) for r in out["notes"])
 
 
 def test_remember_writes_redacted_note(tmp_path):
