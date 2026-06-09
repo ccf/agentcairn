@@ -12,6 +12,9 @@ import typer
 from cairn import __version__
 from cairn.embed import get_embedder
 from cairn.index import get_meta, open_index, reconcile
+from cairn.ingest import find_transcripts, parse_transcript
+from cairn.ingest.dedup import DedupLedger
+from cairn.ingest.pipeline import ingest_transcript
 from cairn.search import open_search, search
 from cairn.vault import parse_note
 
@@ -114,3 +117,53 @@ def recall(
     for h in hits:
         typer.echo(f"[{h.score:.3f}] {h.permalink}  ·  {h.heading_path}")
         typer.echo(f"        {h.snippet.strip()[:160]}")
+
+
+@app.command()
+def ingest(
+    vault: Path = typer.Option(..., "--vault", help="Vault root to write derived notes into."),
+    transcripts_dir: Path = typer.Option(
+        None, "--transcripts-dir", help="Override the ~/.claude/projects root."
+    ),
+    project: str = typer.Option(
+        None, "--project", help="Absolute cwd to filter transcripts to (default: all)."
+    ),
+    threshold: float = typer.Option(0.5, "--threshold", help="Importance keep-threshold."),
+    ledger: Path = typer.Option(
+        None, "--ledger", help="Dedup ledger path (default: <vault>/.cairn/ingested.sha256)."
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Report without writing."),
+) -> None:
+    """Ingest Claude Code transcripts into non-lossy derived memory notes."""
+    led_path = ledger if ledger is not None else vault / ".cairn" / "ingested.sha256"
+    led = DedupLedger(led_path)
+    paths = find_transcripts(root=transcripts_dir, project=project)
+    if not paths:
+        typer.echo("No transcripts found.")
+        return
+    totals: dict[str, int] = {
+        "candidates": 0,
+        "redactions": 0,
+        "deduped": 0,
+        "gated_out": 0,
+        "written": 0,
+    }
+    for tp in paths:
+        rep = ingest_transcript(
+            parse_transcript(tp),
+            vault_root=vault,
+            ledger=led,
+            threshold=threshold,
+            dry_run=dry_run,
+        )
+        totals["candidates"] += rep.candidates
+        totals["redactions"] += rep.redactions
+        totals["deduped"] += rep.deduped
+        totals["gated_out"] += rep.gated_out
+        totals["written"] += len(rep.written)
+    prefix = "[dry-run] " if dry_run else ""
+    typer.echo(
+        f"{prefix}{totals['candidates']} candidates · {totals['redactions']} redactions · "
+        f"{totals['deduped']} deduped · {totals['gated_out']} gated · "
+        f"{totals['written']} written"
+    )

@@ -9,6 +9,60 @@ from cairn.cli import app
 runner = CliRunner()
 
 
+def _seed_transcript(projects_root, cwd, session, turns):
+    enc = cwd.replace("/", "-")
+    d = projects_root / enc
+    d.mkdir(parents=True)
+    lines = []
+    for role, text in turns:
+        lines.append(
+            json.dumps(
+                {
+                    "type": role,
+                    "sessionId": session,
+                    "message": {"role": role, "content": text},
+                    "cwd": cwd,
+                    "timestamp": "2026-06-08T10:00:00Z",
+                    "gitBranch": "main",
+                }
+            )
+        )
+    (d / f"{session}.jsonl").write_text("\n".join(lines) + "\n")
+
+
+def test_ingest_command(tmp_path):
+    projects = tmp_path / "projects"
+    cwd = "/Users/x/proj"
+    _seed_transcript(
+        projects,
+        cwd,
+        "sess-1",
+        [
+            ("user", "thanks!"),
+            ("user", "We decided to always escape the ATTACH path before interpolating it."),
+        ],
+    )
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    result = runner.invoke(
+        app,
+        [
+            "ingest",
+            "--vault",
+            str(vault),
+            "--transcripts-dir",
+            str(projects),
+            "--project",
+            cwd,
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    written = list(vault.rglob("*.md"))
+    assert len(written) == 1
+    assert "escape the ATTACH path" in written[0].read_text()
+    assert "1 written" in result.output or "written: 1" in result.output.lower()
+
+
 def test_version_flag_prints_version():
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
