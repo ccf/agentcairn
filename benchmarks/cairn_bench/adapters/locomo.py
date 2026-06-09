@@ -68,7 +68,21 @@ def adapt(sample: dict) -> tuple[list[Note], list[Query]]:
     for i, qa in enumerate(sample.get("qa", [])):
         cat = qa.get("category")
         if cat == 5:
-            continue  # adversarial: excluded from retrieval
+            # Adversarial (unanswerable) query: emit as abstention with empty gold so
+            # the retrieval loop skips it (empty gold → no metric contribution, Zep
+            # invariant preserved) while the QA path can judge it via the refusal prompt.
+            queries.append(
+                Query(
+                    qid=f"{sample_id}_q{i}",
+                    question=qa["question"],
+                    answer=str(qa.get("answer", "")),
+                    gold_sessions=set(),
+                    gold_turns=set(),
+                    category=5,
+                    is_abstention=True,
+                )
+            )
+            continue
         gold_turns = _evidence_turns(qa.get("evidence", []))
         gold_sessions = {f"{sample_id}_session_{t.split(':')[0][1:]}" for t in gold_turns}
         queries.append(

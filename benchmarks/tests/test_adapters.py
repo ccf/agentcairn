@@ -27,12 +27,21 @@ def test_longmemeval_abstention_flag(lme_instances):
 def test_locomo_adapter_notes_queries_and_normalization(locomo_samples):
     notes, queries = locomo.adapt(locomo_samples[0])
     assert {n.permalink for n in notes} == {"conv-synth-1_session_1", "conv-synth-1_session_2"}
-    # category 5 (adversarial) is excluded from retrieval queries
+    # category 5 (adversarial) is present as an abstention query, not absent
     cats = {q.category for q in queries}
-    assert 5 not in cats
-    # malformed dia_id "D1:02" normalizes and matches the header-embedded "D1:2"
+    assert 5 in cats, "cat-5 query must be present (is_abstention=True)"
+    # all 5 qa items produce a query now (4 retrieval + 1 abstention)
+    assert len(queries) == 5
+    # cat-5 query has is_abstention=True and empty gold sets
+    cat5 = next(q for q in queries if q.category == 5)
+    assert cat5.is_abstention is True
+    assert cat5.gold_turns == set()
+    assert cat5.gold_sessions == set()
+    # cat 1-4 queries still have gold turns (retrieval queries unchanged)
     q_age = next(q for q in queries if q.category == 1)
     assert q_age.gold_turns == {"D1:2", "D1:3"}
+    assert q_age.gold_sessions != set(), "cat 1-4 queries must have non-empty gold"
+    # malformed dia_id "D1:02" normalizes and matches the header-embedded "D1:2"
     body = next(n for n in notes if n.permalink == "conv-synth-1_session_1").body
     assert "D1:2" in body
 
