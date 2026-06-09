@@ -41,7 +41,13 @@ def _dcg(rels: list[float]) -> float:
 def ndcg_at_k(ranked: list[str], gold: set[str], k: int) -> float:
     if not gold:
         return 0.0
-    rels = [1.0 if rid in gold else 0.0 for rid in ranked[:k]]
+    seen: set[str] = set()
+    dedup: list[str] = []
+    for rid in ranked:
+        if rid not in seen:
+            seen.add(rid)
+            dedup.append(rid)
+    rels = [1.0 if rid in gold else 0.0 for rid in dedup[:k]]
     ideal = [1.0] * min(len(gold), k)
     idcg = _dcg(ideal)
     return _dcg(rels) / idcg if idcg else 0.0

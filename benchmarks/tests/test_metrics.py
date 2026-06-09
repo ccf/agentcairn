@@ -43,6 +43,22 @@ def test_ndcg_any_binary():
     assert ndcg_any_at_k(["a", "b"], {"a", "b"}, 2) > 0.0
 
 
+def test_ndcg_dedup_no_exceed_one():
+    """nDCG must stay in [0, 1] even when the ranked list contains duplicate ids.
+
+    A chunk-granular ranker can return the same gold id multiple times (e.g. once per
+    chunk from that turn), which previously inflated DCG above IDCG → nDCG > 1.0.
+    After deduplication, nDCG must equal 1.0 when the single gold item sits at rank 1.
+    """
+    # Three copies of the same gold turn id — without dedup this produces nDCG ≈ 2.13.
+    assert ndcg_at_k(["t", "t", "t"], {"t"}, 20) == 1.0
+    # Any ranked list should stay ≤ 1.0.
+    assert ndcg_at_k(["a", "b", "a", "c", "a"], {"a", "b"}, 5) <= 1.0
+    # The original monotonic property must still hold (gold at rank 1 > gold at rank 3).
+    gold = {"a"}
+    assert ndcg_at_k(["a", "x", "y"], gold, 3) > ndcg_at_k(["x", "y", "a"], gold, 3)
+
+
 def test_aggregate_macro_average():
     from cairn_bench.report import aggregate, wilson_ci
 
@@ -50,7 +66,7 @@ def test_aggregate_macro_average():
         {"arm": "hybrid-rrf", "category": "multi-session", "turn": {"recall@5": 1.0, "mrr": 1.0}},
         {"arm": "hybrid-rrf", "category": "multi-session", "turn": {"recall@5": 0.0, "mrr": 0.0}},
     ]
-    agg = aggregate(per_query, ks=[5])
+    agg = aggregate(per_query)
     assert agg["hybrid-rrf"]["turn"]["recall@5"] == 0.5
     lo, hi = wilson_ci(1, 2)
     assert 0.0 <= lo <= 0.5 <= hi <= 1.0
