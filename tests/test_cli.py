@@ -251,3 +251,43 @@ def test_doctor_command_missing_index(tmp_path):
     result = runner.invoke(app, ["doctor", "--index", str(tmp_path / "nope.duckdb")])
     assert result.exit_code == 1
     assert "no index" in result.output.lower()
+
+
+def _spy_recall(tmp_path, monkeypatch, argv_extra, env=None):
+    """Run `recall` with search() spied; return the captured rerank kwarg."""
+    idx = tmp_path / "i.duckdb"
+    idx.write_text("")  # make idx.exists() true so the command proceeds
+    captured = {}
+
+    monkeypatch.setattr("cairn.cli.open_search", lambda p: object())
+
+    def _spy(con, query, **kw):
+        captured.update(kw)
+        return []
+
+    monkeypatch.setattr("cairn.cli.search", _spy)
+    monkeypatch.delenv("CAIRN_RERANK", raising=False)
+    if env:
+        for k, v in env.items():
+            monkeypatch.setenv(k, v)
+    result = runner.invoke(
+        app, ["recall", "q", "--index", str(idx), "--embedder", "fake", *argv_extra]
+    )
+    assert result.exit_code == 0, result.output
+    return captured.get("rerank")
+
+
+def test_recall_rerank_default_on(tmp_path, monkeypatch):
+    assert _spy_recall(tmp_path, monkeypatch, []) is True
+
+
+def test_recall_no_rerank_flag(tmp_path, monkeypatch):
+    assert _spy_recall(tmp_path, monkeypatch, ["--no-rerank"]) is False
+
+
+def test_recall_env_off(tmp_path, monkeypatch):
+    assert _spy_recall(tmp_path, monkeypatch, [], env={"CAIRN_RERANK": "0"}) is False
+
+
+def test_recall_flag_overrides_env(tmp_path, monkeypatch):
+    assert _spy_recall(tmp_path, monkeypatch, ["--rerank"], env={"CAIRN_RERANK": "0"}) is True
