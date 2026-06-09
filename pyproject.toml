@@ -21,6 +21,7 @@ agentcairn = "cairn.mcp.server:main"
 
 [dependency-groups]
 dev = ["pytest>=8.0", "ruff>=0.6", "pre-commit>=3.8"]
+bench = ["anthropic>=0.40", "huggingface-hub>=0.25"]
 
 [build-system]
 requires = ["hatchling"]
