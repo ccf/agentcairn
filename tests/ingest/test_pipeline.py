@@ -58,3 +58,7 @@ def test_pipeline_dry_run_writes_nothing(tmp_path):
     assert list(vault.rglob("*.md")) == []
     # dry-run must not poison the ledger
     assert report.deduped == 0
+
+    # dry-run left the ledger clean: a real run now actually writes.
+    real = ingest_transcript(_transcript(tmp_path), vault_root=vault, ledger=ledger)
+    assert len(real.written) == 1

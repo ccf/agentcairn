@@ -6,6 +6,7 @@ unredacted secret is ever hashed or written."""
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 from cairn.ingest.dedup import DedupLedger, content_hash
@@ -47,26 +48,20 @@ def ingest_transcript(
         # 1. REDACT FIRST — everything downstream sees only redacted text.
         red = redact(cand.text)
         report.redactions += red.count
-        cand = Candidate(
-            text=red.text,
-            session_id=cand.session_id,
-            cwd=cand.cwd,
-            git_branch=cand.git_branch,
-            timestamp=cand.timestamp,
-            source_path=cand.source_path,
-        )
-        # 2. IMPORTANCE GATE (before counting as a candidate).
+        cand = replace(cand, text=red.text)
+
+        # 2. DEDUP on the redacted content (spec §9: dedup before gate).
+        h = content_hash(cand.text)
+        if ledger.seen(h):
+            report.deduped += 1
+            continue
+
+        # 3. IMPORTANCE GATE.
         if not is_important(cand.text, threshold=threshold):
             report.gated_out += 1
             continue
 
         report.candidates += 1
-
-        # 3. DEDUP on the redacted content.
-        h = content_hash(cand.text)
-        if ledger.seen(h):
-            report.deduped += 1
-            continue
 
         # 4. DISTILL (non-lossy).
         note = distiller.distill(cand)
