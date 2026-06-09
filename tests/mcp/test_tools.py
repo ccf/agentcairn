@@ -350,3 +350,87 @@ def test_search_tool_rerank_candidate_count_honors_k(tmp_path, monkeypatch):
         f"Expected reranker to receive >=25 candidates for k=3 (fetch=25), got {received[0]}. "
         "The 20-cap Bugbot bug is still present."
     )
+
+
+# ---------------------------------------------------------------------------
+# Bugbot Fix 1: _embedder must cache — same instance returned across calls
+# ---------------------------------------------------------------------------
+
+
+def test_embedder_returns_cached_instance():
+    """_embedder("fake") must return the SAME object on repeated calls (lru_cache)."""
+    from cairn.mcp.tools import _embedder
+
+    a = _embedder("fake")
+    b = _embedder("fake")
+    assert a is b, (
+        "Expected _embedder to return the same cached instance; got two different objects"
+    )
+
+
+def test_embedder_none_returns_none():
+    """_embedder(None) and _embedder('none') must return None (bypass cache)."""
+    from cairn.mcp.tools import _embedder
+
+    assert _embedder(None) is None
+    assert _embedder("none") is None
+
+
+# ---------------------------------------------------------------------------
+# Bugbot Fix 2: search_tool/recall_tool must pass pool >= fetch to search()
+# ---------------------------------------------------------------------------
+
+
+def test_search_tool_passes_pool_ge_fetch(tmp_path, monkeypatch):
+    """search_tool must pass pool >= fetch (k*_FETCH_FACTOR, min 25) to search().
+
+    With k=100, fetch = max(100*5, 25) = 500.  The default pool=200 is less than
+    500, so the CTE LIMITs would cap candidates below the over-fetch target.
+    After the fix, pool=max(200, fetch)=500 is forwarded so the pool matches.
+    """
+    idx = _build_index(tmp_path)
+
+    recorded: list[dict] = []
+
+    def spy(con, query, **kw):
+        recorded.append(dict(kw))
+        return []
+
+    monkeypatch.setattr("cairn.mcp.tools.search", spy)
+
+    from cairn.mcp.tools import search_tool
+
+    search_tool(str(idx), "q", embedder="fake", k=100)
+
+    assert recorded, "search() spy was never called"
+    kw = recorded[0]
+    fetch = kw.get("k", 0)
+    pool = kw.get("pool", 200)  # 200 is search()'s default — failing if not passed
+    assert pool >= fetch, (
+        f"pool={pool} < fetch={fetch}: search_tool does not widen pool to match over-fetch"
+    )
+
+
+def test_recall_tool_passes_pool_ge_fetch(tmp_path, monkeypatch):
+    """recall_tool must pass pool >= fetch to search(), same invariant as search_tool."""
+    idx = _build_index(tmp_path)
+
+    recorded: list[dict] = []
+
+    def spy(con, query, **kw):
+        recorded.append(dict(kw))
+        return []
+
+    monkeypatch.setattr("cairn.mcp.tools.search", spy)
+
+    from cairn.mcp.tools import recall_tool
+
+    recall_tool(str(idx), "q", embedder="fake", k=100)
+
+    assert recorded, "search() spy was never called"
+    kw = recorded[0]
+    fetch = kw.get("k", 0)
+    pool = kw.get("pool", 200)  # 200 is search()'s default — failing if not passed
+    assert pool >= fetch, (
+        f"pool={pool} < fetch={fetch}: recall_tool does not widen pool to match over-fetch"
+    )

@@ -7,6 +7,7 @@ file lock across a reindex (Plan 3 connection-lifecycle guidance)."""
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 from pathlib import Path
 
 from cairn.embed import get_embedder
@@ -21,8 +22,13 @@ from cairn.vault import Note
 _FETCH_FACTOR = 5
 
 
+@lru_cache(maxsize=8)
+def _cached_embedder(name: str):
+    return get_embedder(name)
+
+
 def _embedder(name: str | None):
-    return None if name in (None, "none") else get_embedder(name)
+    return None if name in (None, "none") else _cached_embedder(name)
 
 
 def _open(index_path: str):
@@ -44,7 +50,9 @@ def search_tool(
     fetch = max(k * _FETCH_FACTOR, 25)
     con = _open(index_path)
     try:
-        hits = search(con, query, embedder=_embedder(embedder), k=fetch, rerank=rerank)
+        hits = search(
+            con, query, embedder=_embedder(embedder), k=fetch, rerank=rerank, pool=max(200, fetch)
+        )
     finally:
         con.close()
     # Dedup by permalink, keeping the highest-scoring chunk per note, up to k notes.
@@ -82,7 +90,9 @@ def recall_tool(
     fetch = max(k * _FETCH_FACTOR, 25)
     con = _open(index_path)
     try:
-        hits = search(con, query, embedder=_embedder(embedder), k=fetch, rerank=rerank)
+        hits = search(
+            con, query, embedder=_embedder(embedder), k=fetch, rerank=rerank, pool=max(200, fetch)
+        )
         seen: set[str] = set()
         notes: list[dict] = []
         for h in hits:
