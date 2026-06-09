@@ -33,3 +33,23 @@ def test_open_search_and_vector_search(tmp_path):
     assert all(isinstance(h[0], str) for h in hits)
     sims = [h[1] for h in hits]
     assert sims == sorted(sims, reverse=True)  # higher sim first
+
+
+from cairn.search import get_chunks, get_note, search  # noqa: E402
+
+
+def test_progressive_disclosure_hydration(tmp_path):
+    emb = FakeEmbedder(dim=8)
+    idx = build_index(tmp_path, emb)
+    con = open_search(idx)
+    hits = search(con, "coffee", embedder=emb, k=3)
+    ids = [h.chunk_id for h in hits]
+    full = get_chunks(con, ids)  # list-cast hydration
+    assert {f["chunk_id"] for f in full} == set(ids)
+    assert all(
+        "text" in f
+        and len(f["text"]) >= len(next(h.snippet for h in hits if h.chunk_id == f["chunk_id"]))
+        for f in full
+    )
+    note = get_note(con, "coffee")
+    assert note["permalink"] == "coffee" and note["title"] == "Coffee"

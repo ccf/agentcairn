@@ -156,14 +156,32 @@ def search(
     embedder=None,
     k: int = 10,
     pool: int = 200,
+    rerank: bool = False,
 ) -> list[Hit]:
     """Top-level retrieval (degradation ladder): hybrid when an embedder is given
     (auto-degrades to BM25 if no embeddings exist), else BM25-only."""
     if embedder is not None:
         qvec = embedder.embed_query(query)
-        rows = hybrid_search(con, query, qvec, dim=embedder.dim, limit=k, pool=pool)
+        rows = hybrid_search(
+            con, query, qvec, dim=embedder.dim, limit=(20 if rerank else k), pool=pool
+        )
     else:
-        rows = bm25_only(con, query, limit=k, pool=pool)
+        rows = bm25_only(con, query, limit=(20 if rerank else k), pool=pool)
+    if rerank and rows:
+        # hydrate full text for a precise rerank, then map back to compact Hits
+        from cairn.search.rerank import rerank_candidates
+
+        text_by_id = {
+            c["chunk_id"]: c["text"] for c in get_chunks(con, [r["chunk_id"] for r in rows])
+        }
+        cands = [{**r, "text": text_by_id.get(r["chunk_id"], r["snippet"])} for r in rows]
+        ranked = rerank_candidates(query, cands, top_k=k)
+        rows = [
+            {kk: c[kk] for kk in ("chunk_id", "note_permalink", "heading_path", "snippet", "score")}
+            for c in ranked
+        ]
+    else:
+        rows = rows[:k]
     return [
         Hit(
             chunk_id=r["chunk_id"],
@@ -174,3 +192,44 @@ def search(
         )
         for r in rows
     ]
+
+
+def get_chunks(con: duckdb.DuckDBPyConnection, chunk_ids: list[str]) -> list[dict]:
+    """Hydrate full chunk text by id. The bound list MUST be cast (`?::VARCHAR[]`)
+    or DuckDB raises 'Cannot deduce template type T'."""
+    if not chunk_ids:
+        return []
+    rows = con.execute(
+        "SELECT chunk_id, note_permalink, heading_path, ordinal, text "
+        "FROM chunks WHERE chunk_id = ANY(?::VARCHAR[])",
+        [chunk_ids],
+    ).fetchall()
+    return [
+        {
+            "chunk_id": r[0],
+            "note_permalink": r[1],
+            "heading_path": r[2],
+            "ordinal": r[3],
+            "text": r[4],
+        }
+        for r in rows
+    ]
+
+
+def get_note(con: duckdb.DuckDBPyConnection, permalink: str) -> dict | None:
+    """Hydrate full note text and metadata by permalink."""
+    row = con.execute(
+        "SELECT permalink, path, title, type FROM notes WHERE permalink = ?", [permalink]
+    ).fetchone()
+    if not row:
+        return None
+    chunks = con.execute(
+        "SELECT text FROM chunks WHERE note_permalink = ? ORDER BY ordinal", [permalink]
+    ).fetchall()
+    return {
+        "permalink": row[0],
+        "path": row[1],
+        "title": row[2],
+        "type": row[3],
+        "text": "\n\n".join(c[0] for c in chunks),
+    }
