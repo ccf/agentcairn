@@ -72,3 +72,27 @@ def test_resolve_config_embedder_explicit_wins(monkeypatch):
     monkeypatch.setenv("CAIRN_EMBEDDER", "fake")
     _, _, embedder = resolve_config(embedder="none")
     assert embedder == "none"
+
+
+def _tool_rerank_default(mcp, name):
+    tools = asyncio.run(mcp.list_tools())
+    t = next(t for t in tools if t.name == name)
+    return t.inputSchema["properties"]["rerank"]["default"]
+
+
+def test_server_rerank_default_on(monkeypatch):
+    from cairn.mcp.server import build_server
+
+    monkeypatch.delenv("CAIRN_RERANK", raising=False)
+    mcp = build_server(index="/tmp/i.duckdb")
+    assert _tool_rerank_default(mcp, "search") is True
+    assert _tool_rerank_default(mcp, "recall") is True
+
+
+def test_server_rerank_env_off(monkeypatch):
+    from cairn.mcp.server import build_server
+
+    monkeypatch.setenv("CAIRN_RERANK", "0")
+    mcp = build_server(index="/tmp/i.duckdb")
+    assert _tool_rerank_default(mcp, "search") is False
+    assert _tool_rerank_default(mcp, "recall") is False

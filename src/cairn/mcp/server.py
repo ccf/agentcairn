@@ -10,6 +10,7 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
+from cairn.config import resolve_rerank
 from cairn.mcp import tools
 
 _DEFAULT_INDEX = str(Path.home() / ".cache" / "agentcairn" / "index.duckdb")
@@ -42,17 +43,20 @@ def build_server(
     embedder: str | None = None,
 ) -> FastMCP:
     vault, index, embedder = resolve_config(vault=vault, index=index, embedder=embedder)
+    rerank_default = resolve_rerank(None, os.environ)
     mcp = FastMCP("agentcairn")
 
     @mcp.tool()
-    def search(query: str, k: int = 10, rerank: bool = False) -> dict:
-        """Hybrid search over memory; returns a compact id+snippet index."""
+    def search(query: str, k: int = 10, rerank: bool = rerank_default) -> dict:
+        """Hybrid search over memory; returns a compact id+snippet index.
+        Reranks by default (set CAIRN_RERANK=0 to disable, or pass rerank=false)."""
         return tools.search_tool(index, query, embedder=embedder, k=k, rerank=rerank)
 
     @mcp.tool()
-    def recall(query: str, k: int = 5) -> dict:
-        """Search then hydrate the top-k notes' full text."""
-        return tools.recall_tool(index, query, embedder=embedder, k=k)
+    def recall(query: str, k: int = 5, rerank: bool = rerank_default) -> dict:
+        """Search then hydrate the top-k notes' full text.
+        Reranks by default (set CAIRN_RERANK=0 to disable, or pass rerank=false)."""
+        return tools.recall_tool(index, query, embedder=embedder, k=k, rerank=rerank)
 
     @mcp.tool()
     def build_context(permalink: str) -> dict:
