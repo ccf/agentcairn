@@ -63,3 +63,97 @@ def test_high_entropy_token_redacted():
     result = redact(text)
     assert result.count >= 1
     assert "high_entropy" in result.kinds
+
+
+# ---------------------------------------------------------------------------
+# Gap 1 — long hex secrets bypass _looks_secret (only 7–40 char hex are SHAs)
+# ---------------------------------------------------------------------------
+
+_HEX64_LOWER = "3d7e1a9c4b2f8e0d5a6c1b9e3f2d4a7b8c0e1f5a2d3c4b5a6e7f8c9d0b1e2a3f"
+_HEX64_UPPER = _HEX64_LOWER.upper()
+
+
+def test_long_lowercase_hex_secret_is_redacted():
+    """64-char lowercase hex (signing secret) must be caught by entropy heuristic."""
+    text = f"signing_secret: {_HEX64_LOWER}"
+    result = redact(text)
+    assert result.count >= 1, "64-char lowercase hex secret was not redacted"
+    assert _HEX64_LOWER not in result.text, "64-char lowercase hex secret leaked"
+
+
+def test_long_uppercase_hex_secret_is_redacted():
+    """64-char UPPERCASE hex must also be redacted."""
+    text = f"signing_secret: {_HEX64_UPPER}"
+    result = redact(text)
+    assert result.count >= 1, "64-char UPPERCASE hex secret was not redacted"
+    assert _HEX64_UPPER not in result.text, "64-char UPPERCASE hex secret leaked"
+
+
+def test_long_hyphenated_slug_survives():
+    """A long human-readable hyphenated slug must NOT be over-redacted."""
+    slug = "feature-request-for-the-new-cli-interface-v2"
+    result = redact(slug)
+    assert result.text == slug, f"Slug was wrongly redacted: {result.text!r}"
+    assert result.count == 0
+
+
+def test_40_char_git_sha_survives():
+    """A 40-char git SHA must survive unchanged (known-safe allowlist)."""
+    sha = "f3d17de96b66ad5f56a3f29cf8bcb57b7aed83fe"
+    text = f"commit {sha} on main"
+    result = redact(text)
+    assert sha in result.text, "40-char git SHA was wrongly redacted"
+    assert result.count == 0
+
+
+# ---------------------------------------------------------------------------
+# Gap 2 — compound key-name assignments bypass secret_assignment pattern
+# ---------------------------------------------------------------------------
+
+
+def test_signing_secret_compound_key_redacted():
+    """signing_secret=... must be caught (keyword is a suffix of a compound name)."""
+    text = "signing_secret=hunter2xyz"
+    result = redact(text)
+    assert result.count >= 1, "signing_secret= was not redacted"
+    assert "hunter2xyz" not in result.text, "signing_secret value leaked"
+
+
+def test_stripe_secret_key_screaming_snake_redacted():
+    """STRIPE_SECRET_KEY=... (SCREAMING_SNAKE) must be redacted."""
+    text = "STRIPE_SECRET_KEY=sk_live_abc123def456"
+    result = redact(text)
+    assert result.count >= 1, "STRIPE_SECRET_KEY= was not redacted"
+    assert "sk_live_abc123def456" not in result.text, "STRIPE_SECRET_KEY value leaked"
+
+
+def test_database_password_compound_key_redacted():
+    """DATABASE_PASSWORD=... must be redacted."""
+    text = "DATABASE_PASSWORD=mypass99x"
+    result = redact(text)
+    assert result.count >= 1, "DATABASE_PASSWORD= was not redacted"
+    assert "mypass99x" not in result.text, "DATABASE_PASSWORD value leaked"
+
+
+def test_secretary_prose_survives():
+    """'secretary' contains 'secret' but must not trigger false-positive redaction."""
+    text = "my secretary scheduled the meeting"
+    result = redact(text)
+    assert result.text == text, f"'secretary' prose was wrongly redacted: {result.text!r}"
+    assert result.count == 0
+
+
+def test_existing_password_assign_still_redacted():
+    """Regression: the original password = '...' golden case must still redact."""
+    text = 'password = "hunter2-not-a-real-pw-zzz"'
+    result = redact(text)
+    assert result.count >= 1
+    assert "hunter2-not-a-real-pw-zzz" not in result.text
+
+
+def test_existing_aws_secret_access_key_still_redacted():
+    """Regression: aws_secret_access_key=... golden case must still redact."""
+    text = "aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+    result = redact(text)
+    assert result.count >= 1
+    assert "wJalrXUtnFEMI" not in result.text

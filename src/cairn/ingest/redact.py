@@ -31,12 +31,19 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("slack_token", re.compile(r"xox[baprs]-[0-9A-Za-z-]{10,}")),
     ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}")),
     ("bearer_token", re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._-]{12,}")),
-    # key=value / key: value assignments for sensitive names (value may be quoted)
+    # key=value / key: value assignments for sensitive names (value may be quoted).
+    # Use non-letter lookaround instead of \b so compound identifiers like
+    # signing_secret= and DATABASE_PASSWORD= are caught, while English words
+    # like "secretary" (keyword followed by a letter) are not.
+    # The optional (?:[_-][A-Za-z0-9]+)* suffix absorbs trailing segments
+    # such as _KEY or _ACCESS_KEY before the assignment operator.
     (
         "secret_assignment",
         re.compile(
-            r"(?i)\b(?:aws_secret_access_key|secret_access_key|api[_-]?key|secret|token|password|passwd|pwd)\b"
-            r"\s*[:=]\s*['\"]?([^\s'\"]{6,})['\"]?"
+            r"(?i)(?<![A-Za-z])"
+            r"(?:aws_secret_access_key|secret_access_key|api[_-]?key|secret|token|password|passwd|pwd)"
+            r"(?:[_-][A-Za-z0-9]+)*"
+            r"(?![A-Za-z0-9])\s*[:=]\s*['\"]?([^\s'\"]{6,})['\"]?"
         ),
     ),
 ]
@@ -61,14 +68,15 @@ def _shannon_entropy(s: str) -> float:
 
 def _looks_secret(token: str) -> bool:
     if _HEX_RE.match(token):
-        return False  # hex digests / git SHAs are not secrets — don't over-redact
-    if (
-        not re.search(r"[A-Z]", token)
-        or not re.search(r"[a-z]", token)
-        or not re.search(r"[0-9]", token)
-    ):
-        return False  # require mixed case + digits to look like a credential
-    return _shannon_entropy(token) >= _ENTROPY_BITS
+        return False  # 7-40 char hex (git SHAs, short digests) — not secrets
+    has_upper = bool(re.search(r"[A-Z]", token))
+    has_lower = bool(re.search(r"[a-z]", token))
+    has_digit = bool(re.search(r"[0-9]", token))
+    if has_upper and has_lower and has_digit:
+        return _shannon_entropy(token) >= _ENTROPY_BITS
+    # No mixed case: raise the bar so long hyphenated slugs (entropy ~3.77)
+    # survive while 64-hex signing secrets (entropy ~3.94) are caught.
+    return _shannon_entropy(token) >= 3.8
 
 
 def redact(text: str) -> RedactionResult:
