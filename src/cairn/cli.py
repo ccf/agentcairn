@@ -180,6 +180,43 @@ def sweep(
 
 
 @app.command()
+def doctor(
+    index: Path = typer.Option(
+        None, "--index", help="Index .duckdb path (default ~/.cache/agentcairn/index.duckdb)."
+    ),
+) -> None:
+    """Health-check the index: model/dim, row counts, embedding/chunk parity."""
+    import duckdb
+
+    idx = index or _default_index()
+    if not idx.exists():
+        typer.echo(f"no index at {idx} — run `cairn reindex <vault>` first")
+        raise typer.Exit(1)
+    con = duckdb.connect(str(idx), read_only=True)
+    notes = con.execute("SELECT count(*) FROM notes").fetchone()[0]
+    chunks = con.execute("SELECT count(*) FROM chunks").fetchone()[0]
+    embs = con.execute("SELECT count(*) FROM chunk_embeddings").fetchone()[0]
+    model = get_meta(con, "embedding_model")
+    dim = get_meta(con, "embedding_dim")
+    con.close()
+    typer.echo(f"index:  {idx}")
+    typer.echo(f"model:  {model} (dim {dim})")
+    typer.echo(f"notes:  {notes}")
+    typer.echo(f"chunks: {chunks}")
+    typer.echo(f"embeds: {embs}")
+    problems: list[str] = []
+    if chunks != embs:
+        problems.append(f"chunk/embedding mismatch: {chunks} chunks vs {embs} embeddings")
+    if notes > 0 and chunks == 0:
+        problems.append("notes present but no chunks indexed")
+    if problems:
+        for p in problems:
+            typer.echo(f"PROBLEM: {p}")
+        raise typer.Exit(1)
+    typer.echo("status: OK")
+
+
+@app.command()
 def ingest(
     vault: Path = typer.Option(..., "--vault", help="Vault root to write derived notes into."),
     transcripts_dir: Path = typer.Option(

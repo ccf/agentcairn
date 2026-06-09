@@ -186,3 +186,27 @@ def test_sweep_command(tmp_path):
     n = duckdb.connect(str(idx)).execute("SELECT count(*) FROM notes").fetchone()[0]
     assert n >= 1
     assert "reindex" in result.output.lower() or "indexed" in result.output.lower()
+
+
+def test_doctor_command_healthy(tmp_path):
+    # build a small index via reindex --embedder fake
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "a.md").write_text("---\ntitle: A\npermalink: a\n---\nalpha body\n")
+    idx = tmp_path / "i.duckdb"
+    assert (
+        runner.invoke(
+            app, ["reindex", str(vault), "--index", str(idx), "--embedder", "fake"]
+        ).exit_code
+        == 0
+    )
+    result = runner.invoke(app, ["doctor", "--index", str(idx)])
+    assert result.exit_code == 0, result.output
+    assert "notes" in result.output.lower()
+    assert "ok" in result.output.lower() or "healthy" in result.output.lower()
+
+
+def test_doctor_command_missing_index(tmp_path):
+    result = runner.invoke(app, ["doctor", "--index", str(tmp_path / "nope.duckdb")])
+    assert result.exit_code == 1
+    assert "no index" in result.output.lower()
