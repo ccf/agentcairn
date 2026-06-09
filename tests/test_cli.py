@@ -9,6 +9,60 @@ from cairn.cli import app
 runner = CliRunner()
 
 
+def _seed_transcript(projects_root, cwd, session, turns):
+    enc = cwd.replace("/", "-")
+    d = projects_root / enc
+    d.mkdir(parents=True)
+    lines = []
+    for role, text in turns:
+        lines.append(
+            json.dumps(
+                {
+                    "type": role,
+                    "sessionId": session,
+                    "message": {"role": role, "content": text},
+                    "cwd": cwd,
+                    "timestamp": "2026-06-08T10:00:00Z",
+                    "gitBranch": "main",
+                }
+            )
+        )
+    (d / f"{session}.jsonl").write_text("\n".join(lines) + "\n")
+
+
+def test_ingest_command(tmp_path):
+    projects = tmp_path / "projects"
+    cwd = "/Users/x/proj"
+    _seed_transcript(
+        projects,
+        cwd,
+        "sess-1",
+        [
+            ("user", "thanks!"),
+            ("user", "We decided to always escape the ATTACH path before interpolating it."),
+        ],
+    )
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    result = runner.invoke(
+        app,
+        [
+            "ingest",
+            "--vault",
+            str(vault),
+            "--transcripts-dir",
+            str(projects),
+            "--project",
+            cwd,
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    written = list(vault.rglob("*.md"))
+    assert len(written) == 1
+    assert "escape the ATTACH path" in written[0].read_text()
+    assert "1 written" in result.output or "written: 1" in result.output.lower()
+
+
 def test_version_flag_prints_version():
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
@@ -38,6 +92,46 @@ def test_reindex_and_status(tmp_path):
     s = runner.invoke(app, ["index-status", "--index", str(idx)])
     assert s.exit_code == 0
     assert "notes: 1" in s.output
+
+
+def test_default_ledger_is_outside_vault(tmp_path, monkeypatch):
+    """Default dedup ledger must NOT be placed inside the vault root (I2)."""
+    projects = tmp_path / "projects"
+    cwd = "/Users/x/proj"
+    _seed_transcript(
+        projects,
+        cwd,
+        "sess-ledger",
+        [("user", "We decided to always escape the ATTACH path before interpolating it.")],
+    )
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    # Redirect ~/.cache so we don't pollute the real home dir
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    monkeypatch.setenv("HOME", str(fake_home))
+    # Patch Path.home() used inside cli.py at call time
+    import cairn.cli as cli_mod
+
+    monkeypatch.setattr(cli_mod.Path, "home", staticmethod(lambda: fake_home))
+    result = runner.invoke(
+        app,
+        [
+            "ingest",
+            "--vault",
+            str(vault),
+            "--transcripts-dir",
+            str(projects),
+            "--project",
+            cwd,
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    # No .sha256 file and no .cairn/ directory anywhere inside the vault
+    sha_files = list(vault.rglob("*.sha256"))
+    assert sha_files == [], f".sha256 found inside vault: {sha_files}"
+    cairn_dirs = list(vault.rglob(".cairn"))
+    assert cairn_dirs == [], f".cairn/ found inside vault: {cairn_dirs}"
 
 
 def test_recall_command(tmp_path):

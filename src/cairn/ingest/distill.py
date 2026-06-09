@@ -1,0 +1,63 @@
+# src/cairn/ingest/distill.py
+# SPDX-License-Identifier: Apache-2.0
+"""Distill a Candidate into a non-lossy derived Note and write it to the vault.
+
+Non-lossy law (spec §6): distillation only ADDS a derived note that links back to
+its origin (the `source` frontmatter field); it never edits a source. v1 uses a
+deterministic ExtractiveDistiller; the Distiller protocol leaves room for an
+agent-loop / LLM distiller (Plan 5) behind the same interface."""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+from typing import Protocol
+
+from cairn.ingest.dedup import content_hash
+from cairn.ingest.importance import score
+from cairn.ingest.models import Candidate
+from cairn.vault import Note, write_note
+
+_SLUG_STOP = re.compile(r"[^a-z0-9]+")
+
+
+def _slugify(text: str, max_words: int = 6) -> str:
+    words = _SLUG_STOP.sub(" ", text.lower()).split()
+    return "-".join(words[:max_words]) or "memory"
+
+
+class Distiller(Protocol):
+    def distill(self, candidate: Candidate) -> Note: ...
+
+
+class ExtractiveDistiller:
+    """Deterministic baseline: capture the candidate verbatim as a memory note with
+    provenance. No LLM — the agent-loop distiller (Plan 5) is the quality path."""
+
+    def distill(self, candidate: Candidate) -> Note:
+        h = content_hash(candidate.text)
+        slug = f"{_slugify(candidate.text)}-{h[:8]}"
+        title = candidate.text.strip().splitlines()[0][:80]
+        frontmatter = {
+            "title": title,
+            "type": "memory",
+            "permalink": slug,
+            "tags": ["ingested"],
+            "created": candidate.timestamp,
+            "source": f"memory://session/{candidate.session_id}",
+            "importance": round(score(candidate.text), 3),
+        }
+        body = f"- [context] {candidate.text.strip()} #ingested\n"
+        return Note(permalink=slug, frontmatter=frontmatter, body=body)
+
+
+def write_derived_note(note: Note, vault_root: Path, *, subdir: str = "memories") -> Path:
+    """Serialize `note` and write it under vault_root/subdir. Path-traversal guarded:
+    the resolved target MUST stay within vault_root, else ValueError."""
+    vault_root = Path(vault_root).resolve()
+    target = (vault_root / subdir / f"{note.permalink}.md").resolve()
+    if vault_root not in target.parents:
+        raise ValueError(f"refusing to write outside vault root: {target}")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(write_note(note), encoding="utf-8")
+    return target
