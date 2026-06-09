@@ -12,6 +12,7 @@ dependencies = [
     "markdown-it-py>=3.0",
     "fastembed>=0.4",
     "duckdb>=1.1",
+    "mcp>=1.27.2",
 ]
 
 [project.scripts]

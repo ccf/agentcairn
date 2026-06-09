@@ -121,6 +121,18 @@ def recall(
 
 
 @app.command()
+def serve(
+    vault: Path = typer.Option(None, "--vault", help="Vault root (enables `remember`)."),
+    index: Path = typer.Option(None, "--index", help="Index .duckdb path."),
+) -> None:
+    """Launch the agentcairn MCP server (stdio)."""
+    from cairn.mcp.server import build_server
+
+    idx = str(index) if index else str(_default_index())
+    build_server(vault=str(vault) if vault else None, index=idx).run()
+
+
+@app.command()
 def ingest(
     vault: Path = typer.Option(..., "--vault", help="Vault root to write derived notes into."),
     transcripts_dir: Path = typer.Option(

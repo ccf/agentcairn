@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
-from tests.search.test_engine import build_index
 
 from cairn.embed import FakeEmbedder
 from cairn.search import hybrid_search, open_search
+from tests.search.test_engine import build_index
 
 
 def test_hybrid_search_returns_ranked_hits(tmp_path):
