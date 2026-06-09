@@ -67,6 +67,8 @@ class OllamaEmbedder:
                 f"Ollama returned no embeddings at {self._host} (model {self._model!r}). "
                 f"Is 'ollama pull {self._model}' done?"
             )
+        if self._dim is None:
+            self._dim = len(embeddings[0])
         return embeddings
 
     def embed(self, texts: list[str]) -> list[list[float]]:
