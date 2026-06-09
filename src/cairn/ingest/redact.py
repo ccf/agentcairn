@@ -18,7 +18,11 @@ from cairn.ingest.models import RedactionResult
 # Matches scheme://[user]:password@host but NOT SSH remotes (git@…, no ://)
 # or plain host:port URLs (no @ sign).
 # Groups: (1) scheme://user:  (2) password  (3) @
-_URL_CRED_RE = re.compile(r"([a-z][a-z0-9+.-]*://[^/\s:@]*:)([^@\s/]+)(@)", re.IGNORECASE)
+# Password class allows '/' (AWS secret keys and many passwords contain it) and
+# anchors on the FIRST '@', so a slash in the password can't defeat the match and
+# leak the credential. Over-redacting an exotic 'host:port/p@th' URL is acceptable
+# (safe direction); leaking a password is not.
+_URL_CRED_RE = re.compile(r"([a-z][a-z0-9+.-]*://[^/\s:@]*:)([^@\s]+)(@)", re.IGNORECASE)
 
 # (kind, compiled pattern). Order matters: multi-line/private-key first.
 _PATTERNS: list[tuple[str, re.Pattern[str]]] = [

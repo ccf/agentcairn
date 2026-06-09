@@ -65,6 +65,22 @@ def test_high_entropy_token_redacted():
     assert "high_entropy" in result.kinds
 
 
+def test_url_password_with_slash_redacted():
+    # Passwords can contain '/' (e.g. AWS secret keys); the slash must not defeat
+    # the URL-credential regex and leak the password to disk.
+    for url in [
+        "postgres://user:wJalrXUtnFEMI/K7MDENG/bPxRf@db.internal:5432/prod",
+        "redis://:cache/pass/77@cache:6379",
+    ]:
+        r = redact(url)
+        assert r.count >= 1
+        for frag in ["wJalrXUtnFEMI", "K7MDENG", "bPxRf", "cache/pass"]:
+            assert frag not in r.text, f"slash-password fragment leaked: {frag}"
+    # false-positive survivors: SSH remote (no '://') and a host:port URL (no '@')
+    assert redact("git@github.com:org/repo").count == 0
+    assert redact("http://host:8080/path").count == 0
+
+
 # ---------------------------------------------------------------------------
 # Gap 1 — long hex secrets bypass _looks_secret (only 7–40 char hex are SHAs)
 # ---------------------------------------------------------------------------

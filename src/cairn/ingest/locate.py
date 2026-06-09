@@ -81,15 +81,16 @@ def parse_transcript(path: Path) -> Transcript:
             continue
         if obj.get("type") not in _CONTENT_TYPES:
             continue
-        # Only the first content line sets session_id (docstring: "first content line").
-        if session_id == path.stem:
-            session_id = obj.get("sessionId") or session_id
         msg = obj.get("message")
         if not isinstance(msg, dict):
             continue
         text = _extract_text(msg.get("content"))
         if not text:
             continue
+        # Provenance comes from the first ACCEPTED content turn, not from a
+        # content-typed row we end up skipping (no message / empty text).
+        if session_id == path.stem:
+            session_id = obj.get("sessionId") or session_id
         if cwd is None:
             cwd = obj.get("cwd")
         if git_branch is None:

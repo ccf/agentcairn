@@ -53,6 +53,26 @@ def test_encode_cwd_normalizes_trailing_slash():
     assert encode_cwd("/") == "-"  # root edge case, not all-empty
 
 
+def test_session_id_comes_from_first_accepted_turn(tmp_path):
+    # A content-type row that is skipped (no text) must NOT set provenance;
+    # session_id should come from the first row that yields a real turn.
+    t = tmp_path / "file.jsonl"
+    t.write_text(
+        "\n".join(
+            [
+                # user row with empty content -> skipped, must not set session_id
+                _line("user", role="user", content="", sessionId="skipme"),
+                # first ACCEPTED turn -> its sessionId wins
+                _line("user", role="user", content="real question here", sessionId="real-sess"),
+            ]
+        )
+        + "\n"
+    )
+    tr = parse_transcript(t)
+    assert tr.session_id == "real-sess"
+    assert [turn.text for turn in tr.turns] == ["real question here"]
+
+
 def test_find_transcripts_project_filter_tolerates_trailing_slash(tmp_path):
     proj = tmp_path / "-Users-x-proj"
     proj.mkdir(parents=True)
