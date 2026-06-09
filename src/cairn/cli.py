@@ -11,6 +11,7 @@ from pathlib import Path
 import typer
 
 from cairn import __version__
+from cairn.config import resolve_rerank
 from cairn.embed import get_embedder
 from cairn.index import get_meta, open_index, reconcile
 from cairn.ingest import find_transcripts, parse_transcript
@@ -103,8 +104,10 @@ def recall(
         "fastembed", "--embedder", help="'fastembed' (hybrid) or 'fake'; 'none' = BM25-only."
     ),
     k: int = typer.Option(10, "--k", help="Number of results."),
-    rerank: bool = typer.Option(
-        False, "--rerank", help="Rerank top candidates with a cross-encoder."
+    rerank: bool | None = typer.Option(
+        None,
+        "--rerank/--no-rerank",
+        help="Cross-encoder rerank (default on; or set CAIRN_RERANK=0).",
     ),
 ) -> None:
     """Hybrid recall over the index (semantic + BM25 + graph-boost)."""
@@ -114,7 +117,7 @@ def recall(
         raise typer.Exit(1)
     emb = None if embedder == "none" else get_embedder(embedder)
     con = open_search(str(idx))
-    hits = search(con, query, embedder=emb, k=k, rerank=rerank)
+    hits = search(con, query, embedder=emb, k=k, rerank=resolve_rerank(rerank))
     if not hits:
         typer.echo("(no results)")
         return
