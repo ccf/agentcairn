@@ -94,6 +94,46 @@ def test_reindex_and_status(tmp_path):
     assert "notes: 1" in s.output
 
 
+def test_default_ledger_is_outside_vault(tmp_path, monkeypatch):
+    """Default dedup ledger must NOT be placed inside the vault root (I2)."""
+    projects = tmp_path / "projects"
+    cwd = "/Users/x/proj"
+    _seed_transcript(
+        projects,
+        cwd,
+        "sess-ledger",
+        [("user", "We decided to always escape the ATTACH path before interpolating it.")],
+    )
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    # Redirect ~/.cache so we don't pollute the real home dir
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    monkeypatch.setenv("HOME", str(fake_home))
+    # Patch Path.home() used inside cli.py at call time
+    import cairn.cli as cli_mod
+
+    monkeypatch.setattr(cli_mod.Path, "home", staticmethod(lambda: fake_home))
+    result = runner.invoke(
+        app,
+        [
+            "ingest",
+            "--vault",
+            str(vault),
+            "--transcripts-dir",
+            str(projects),
+            "--project",
+            cwd,
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    # No .sha256 file and no .cairn/ directory anywhere inside the vault
+    sha_files = list(vault.rglob("*.sha256"))
+    assert sha_files == [], f".sha256 found inside vault: {sha_files}"
+    cairn_dirs = list(vault.rglob(".cairn"))
+    assert cairn_dirs == [], f".cairn/ found inside vault: {cairn_dirs}"
+
+
 def test_recall_command(tmp_path):
     v = tmp_path / "vault"
     v.mkdir()

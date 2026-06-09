@@ -14,6 +14,12 @@ import re
 
 from cairn.ingest.models import RedactionResult
 
+# URL / connection-string credential pattern.
+# Matches scheme://[user]:password@host but NOT SSH remotes (git@…, no ://)
+# or plain host:port URLs (no @ sign).
+# Groups: (1) scheme://user:  (2) password  (3) @
+_URL_CRED_RE = re.compile(r"([a-z][a-z0-9+.-]*://[^/\s:@]*:)([^@\s/]+)(@)", re.IGNORECASE)
+
 # (kind, compiled pattern). Order matters: multi-line/private-key first.
 _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     (
@@ -43,7 +49,7 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
             r"(?i)(?<![A-Za-z])"
             r"(?:aws_secret_access_key|secret_access_key|api[_-]?key|secret|token|password|passwd|pwd)"
             r"(?:[_-][A-Za-z0-9]+)*"
-            r"(?![A-Za-z0-9])\s*[:=]\s*['\"]?([^\s'\"]{6,})['\"]?"
+            r'(?![A-Za-z0-9])\s*[:=]\s*(?:"[^"]{6,}"|\'[^\']{6,}\'|[^\s\'"]{6,})'
         ),
     ),
 ]
@@ -82,11 +88,20 @@ def _looks_secret(token: str) -> bool:
 def redact(text: str) -> RedactionResult:
     """Return a RedactionResult whose .text is safe to hash and write.
 
-    Entropy heuristic runs first so standalone high-entropy tokens (not matched
-    by any named pattern) are always tagged as 'high_entropy'. Named patterns run
-    second and catch any remaining well-known credential shapes."""
+    URL credential pass runs first (before entropy) so short passwords in
+    connection strings are caught even if they fall below the entropy threshold.
+    Entropy heuristic runs second for long high-entropy standalone tokens.
+    Named patterns run last for precise well-known credential shapes."""
     kinds: list[str] = []
     out = text
+
+    # Pass 0: URL / connection-string credentials — run BEFORE entropy so that
+    # short passwords like "pass1234" in scheme://user:pass@host are caught.
+    def _url_sub(m: re.Match[str]) -> str:
+        kinds.append("url_credential")
+        return f"{m.group(1)}[REDACTED:url_credential]{m.group(3)}"
+
+    out = _URL_CRED_RE.sub(_url_sub, out)
 
     # Pass 1: entropy heuristic — catches long high-entropy tokens before named
     # patterns consume them.

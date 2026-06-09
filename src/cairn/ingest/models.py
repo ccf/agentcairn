@@ -51,3 +51,13 @@ class IngestReport:
     deduped: int = 0  # skipped as already-seen
     gated_out: int = 0  # below importance threshold
     written: list[Path] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        """Return a JSON-serializable representation (Paths stringified)."""
+        return {
+            "candidates": self.candidates,
+            "redactions": self.redactions,
+            "deduped": self.deduped,
+            "gated_out": self.gated_out,
+            "written": [str(p) for p in self.written],
+        }

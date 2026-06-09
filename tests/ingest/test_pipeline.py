@@ -1,8 +1,10 @@
 # tests/ingest/test_pipeline.py
 # SPDX-License-Identifier: Apache-2.0
 
+import json
+
 from cairn.ingest.dedup import DedupLedger
-from cairn.ingest.models import Transcript, Turn
+from cairn.ingest.models import IngestReport, Transcript, Turn
 from cairn.ingest.pipeline import ingest_transcript
 
 SECRET = "ghp_16C7e42F292c6912E7710c838347Ae178B4a"
@@ -62,3 +64,53 @@ def test_pipeline_dry_run_writes_nothing(tmp_path):
     # dry-run left the ledger clean: a real run now actually writes.
     real = ingest_transcript(_transcript(tmp_path), vault_root=vault, ledger=ledger)
     assert len(real.written) == 1
+
+
+# ---------------------------------------------------------------------------
+# M3 — IngestReport.to_dict() must produce a JSON-serializable dict
+# ---------------------------------------------------------------------------
+
+
+def test_ingest_report_to_dict_is_json_serializable(tmp_path):
+    """M3: IngestReport.to_dict() must be JSON-serializable (Paths -> str)."""
+    from pathlib import Path
+
+    report = IngestReport(
+        candidates=3,
+        redactions=1,
+        deduped=1,
+        gated_out=1,
+        written=[Path("/vault/memories/note-abc.md")],
+    )
+    d = report.to_dict()
+    serialized = json.dumps(d)  # must not raise
+    parsed = json.loads(serialized)
+    assert parsed["candidates"] == 3
+    assert parsed["redactions"] == 1
+    assert parsed["deduped"] == 1
+    assert parsed["gated_out"] == 1
+    assert parsed["written"] == ["/vault/memories/note-abc.md"]
+
+
+# ---------------------------------------------------------------------------
+# M2 — Plan-5 seams must be exported from cairn.ingest
+# ---------------------------------------------------------------------------
+
+
+def test_ingest_package_exports_plan5_seams():
+    """M2: cairn.ingest must export redact, RedactionResult, DedupLedger,
+    content_hash, Distiller, ExtractiveDistiller, write_derived_note."""
+    import cairn.ingest as pkg
+
+    expected = [
+        "redact",
+        "RedactionResult",
+        "DedupLedger",
+        "content_hash",
+        "Distiller",
+        "ExtractiveDistiller",
+        "write_derived_note",
+    ]
+    for name in expected:
+        assert hasattr(pkg, name), f"cairn.ingest missing export: {name!r}"
+        assert name in pkg.__all__, f"{name!r} not in cairn.ingest.__all__"

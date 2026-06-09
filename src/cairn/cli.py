@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
 from pathlib import Path
 
@@ -135,7 +136,13 @@ def ingest(
     dry_run: bool = typer.Option(False, "--dry-run", help="Report without writing."),
 ) -> None:
     """Ingest Claude Code transcripts into non-lossy derived memory notes."""
-    led_path = ledger if ledger is not None else vault / ".cairn" / "ingested.sha256"
+    if ledger is not None:
+        led_path = ledger
+    else:
+        # Keep ledger OUTSIDE the vault (dedup.py docstring + spec). Namespace
+        # by vault path so different vaults use separate ledgers.
+        vault_key = hashlib.sha256(str(vault.resolve()).encode()).hexdigest()[:16]
+        led_path = Path.home() / ".cache" / "agentcairn" / "ledgers" / f"{vault_key}.sha256"
     led = DedupLedger(led_path)
     paths = find_transcripts(root=transcripts_dir, project=project)
     if not paths:

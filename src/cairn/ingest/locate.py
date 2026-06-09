@@ -78,7 +78,9 @@ def parse_transcript(path: Path) -> Transcript:
             continue
         if obj.get("type") not in _CONTENT_TYPES:
             continue
-        session_id = obj.get("sessionId") or session_id
+        # Only the first content line sets session_id (docstring: "first content line").
+        if session_id == path.stem:
+            session_id = obj.get("sessionId") or session_id
         msg = obj.get("message")
         if not isinstance(msg, dict):
             continue

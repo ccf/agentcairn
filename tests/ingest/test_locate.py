@@ -80,3 +80,34 @@ def test_parse_transcript_unknown_harness_raises():
 
     with pytest.raises(ValueError):
         find_transcripts(harness="codex")
+
+
+def test_session_id_from_first_content_line(tmp_path):
+    """M1: session_id must come from the FIRST content line; later lines must not override."""
+    import json
+
+    t = tmp_path / "default-stem.jsonl"
+    lines = [
+        json.dumps(
+            {
+                "type": "user",
+                "sessionId": "first-session",
+                "message": {"role": "user", "content": "first message"},
+            }
+        ),
+        json.dumps(
+            {
+                "type": "assistant",
+                "sessionId": "second-session",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "reply"}],
+                },
+            }
+        ),
+    ]
+    t.write_text("\n".join(lines) + "\n")
+    tr = parse_transcript(t)
+    assert tr.session_id == "first-session", (
+        f"session_id should be from first content line, got {tr.session_id!r}"
+    )

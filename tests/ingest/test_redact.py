@@ -157,3 +157,92 @@ def test_existing_aws_secret_access_key_still_redacted():
     result = redact(text)
     assert result.count >= 1
     assert "wJalrXUtnFEMI" not in result.text
+
+
+# ---------------------------------------------------------------------------
+# C1 — URL / connection-string credential redaction
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "url,password",
+    [
+        (
+            "DATABASE_URL=postgres://app_user:Sup3rS3cret_DB_p4ss@db.internal:5432/prod",
+            "Sup3rS3cret_DB_p4ss",
+        ),
+        ("postgres://user:pass1234@host", "pass1234"),
+        ("mysql://root:rootpass99@host", "rootpass99"),
+        ("redis://:cachepass77@cache", "cachepass77"),
+        ("https://admin:hunter2xyz@host", "hunter2xyz"),
+        ("amqp://guest:guestpw12@rabbit", "guestpw12"),
+    ],
+    ids=[
+        "database_url_postgres",
+        "postgres_plain",
+        "mysql_plain",
+        "redis_empty_user",
+        "https_basic_auth",
+        "amqp_guest",
+    ],
+)
+def test_url_credentials_redacted(url, password):
+    """Passwords in scheme://user:password@host URLs must be redacted."""
+    result = redact(url)
+    assert result.count >= 1, f"No redaction for URL: {url!r}"
+    assert password not in result.text, f"Password {password!r} leaked in: {result.text!r}"
+    assert "[REDACTED" in result.text
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "git@github.com:org/repo.git",
+        "http://host:8080/path",
+    ],
+    ids=["ssh_remote_no_scheme", "host_port_no_at"],
+)
+def test_url_false_positive_survivors(url):
+    """SSH remotes and host:port URLs must NOT be redacted."""
+    result = redact(url)
+    assert result.text == url, f"False-positive redaction for: {url!r} -> {result.text!r}"
+    assert result.count == 0
+
+
+# ---------------------------------------------------------------------------
+# I1 — quoted multi-word secret values
+# ---------------------------------------------------------------------------
+
+
+def test_quoted_multiword_secret_redacted():
+    """The entire quoted passphrase must be gone, not just the first word."""
+    text = 'password = "correct horse battery staple"'
+    result = redact(text)
+    assert result.count >= 1, "No redaction for quoted multi-word secret"
+    for word in ("correct", "horse", "battery", "staple"):
+        assert word not in result.text, f"Tail word {word!r} leaked in: {result.text!r}"
+
+
+def test_quoted_multiword_secret_single_quotes():
+    """Single-quoted passphrase must also be fully redacted."""
+    text = "api_key = 'multi word secret value here'"
+    result = redact(text)
+    assert result.count >= 1
+    assert "multi" not in result.text
+    assert "secret" not in result.text or "[REDACTED" in result.text
+
+
+def test_existing_password_assign_still_redacted_after_i1():
+    """Regression: password = '...' golden case still works after I1 fix."""
+    text = 'password = "hunter2-not-a-real-pw-zzz"'
+    result = redact(text)
+    assert result.count >= 1
+    assert "hunter2-not-a-real-pw-zzz" not in result.text
+
+
+def test_existing_aws_secret_still_redacted_after_i1():
+    """Regression: aws_secret_access_key=... still works after I1 fix."""
+    text = "aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+    result = redact(text)
+    assert result.count >= 1
+    assert "wJalrXUtnFEMI" not in result.text
