@@ -24,10 +24,26 @@ def _turn_id(heading_path: str) -> str:
     return parts[1].split()[0]
 
 
+def _dedup(ids: list[str]) -> list[str]:
+    """Return ids with duplicates removed, preserving first occurrence order."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for i in ids:
+        if i not in seen:
+            seen.add(i)
+            out.append(i)
+    return out
+
+
 def score_query(rows: list[RankedRow], query: Query, ks: list[int]) -> dict:
-    """Return {granularity: {metric@k: value}} for one (arm, query)."""
-    turn_ranked = [_turn_id(r.heading_path) for r in rows]
-    sess_ranked = [r.permalink for r in rows]
+    """Return {granularity: {metric@k: value}} for one (arm, query).
+
+    Duplicate turn ids (from multi-chunk turns) are removed BEFORE slicing the
+    top-k window so that recall@k, ndcg@k, recall_all@k, and mrr all operate on
+    the same unique-id ranking.
+    """
+    turn_ranked = _dedup([_turn_id(r.heading_path) for r in rows])
+    sess_ranked = _dedup([r.permalink for r in rows])
     out: dict = {"turn": {}, "session": {}}
     for gran, ranked, gold in (
         ("turn", turn_ranked, query.gold_turns),

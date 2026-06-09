@@ -4,7 +4,22 @@ from __future__ import annotations
 import hashlib
 
 import pytest
-from cairn_bench.download import sha256_of, verify_sha
+from cairn_bench.download import _dest_path, sha256_of, verify_sha
+
+
+def test_dest_path_pin_change():
+    """Different pins must produce different dest paths; same pin → same path."""
+    url_entry_a = {"kind": "url", "url": "u/AAA"}
+    url_entry_b = {"kind": "url", "url": "u/BBB"}
+    hf_entry_v1 = {"kind": "hf", "revision": "abc123", "repo_id": "org/ds", "filename": "data.json"}
+    hf_entry_v2 = {"kind": "hf", "revision": "def456", "repo_id": "org/ds", "filename": "data.json"}
+
+    # different url pin → different path (no network)
+    assert _dest_path("locomo", url_entry_a) != _dest_path("locomo", url_entry_b)
+    # same entry → same path (deterministic)
+    assert _dest_path("locomo", url_entry_a) == _dest_path("locomo", url_entry_a)
+    # different HF revision → different path (no network)
+    assert _dest_path("myds", hf_entry_v1) != _dest_path("myds", hf_entry_v2)
 
 
 def test_sha_roundtrip(tmp_path):

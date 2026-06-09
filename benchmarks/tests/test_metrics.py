@@ -59,6 +59,36 @@ def test_ndcg_dedup_no_exceed_one():
     assert ndcg_at_k(["a", "x", "y"], gold, 3) > ndcg_at_k(["x", "y", "a"], gold, 3)
 
 
+def test_score_query_dedup_shared_window():
+    """recall@k and ndcg@k must share the same deduped top-k window.
+
+    When duplicate turn ids fill the raw ranked list, recall_at_k (which slices
+    the raw list) would miss gold items that ndcg_at_k (which dedups first) finds.
+    After the fix, score_query dedups before passing to any metric, so both agree.
+    """
+    from cairn_bench.ablation import score_query
+    from cairn_bench.config import RankedRow
+    from cairn_bench.models import Query
+
+    # Two rows with the same turn id (t1) before the gold turn (t2).
+    # heading_path format: "{permalink} > {turn_id}  (meta)"
+    rows = [
+        RankedRow("p", "p > t1  (x)"),
+        RankedRow("p", "p > t1  (x)"),
+        RankedRow("p2", "p2 > t2  (x)"),
+    ]
+    q = Query(qid="q", question="?", answer="", gold_turns={"t2"})
+    res = score_query(rows, q, [2])
+
+    # After dedup, top-2 unique turn ids are ["t1", "t2"], so t2 IS in top-2.
+    assert res["turn"]["recall@2"] == 1.0, (
+        f"recall@2 should be 1.0 (t2 in deduped top-2), got {res['turn']['recall@2']}"
+    )
+    assert res["turn"]["ndcg@2"] > 0, (
+        f"ndcg@2 should be > 0 (t2 in deduped top-2), got {res['turn']['ndcg@2']}"
+    )
+
+
 def test_aggregate_macro_average():
     from cairn_bench.report import aggregate, wilson_ci
 
