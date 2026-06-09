@@ -19,8 +19,11 @@ _CONTENT_TYPES = {"user", "assistant"}
 
 def encode_cwd(cwd: str) -> str:
     """Claude Code encodes a project dir by replacing every '/' with '-'.
-    e.g. '/Users/ccf/git/agentcairn' -> '-Users-ccf-git-agentcairn'."""
-    return cwd.replace("/", "-")
+    e.g. '/Users/ccf/git/agentcairn' -> '-Users-ccf-git-agentcairn'. Trailing
+    slashes are stripped first (Claude Code's cwd never has one), so a `--project`
+    given as '/Users/x/proj/' maps to the same directory as '/Users/x/proj'."""
+    normalized = cwd.rstrip("/") or "/"
+    return normalized.replace("/", "-")
 
 
 def find_transcripts(

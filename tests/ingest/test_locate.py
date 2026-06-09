@@ -45,6 +45,23 @@ def test_encode_cwd_matches_claude_layout():
     assert encode_cwd("/Users/ccf/git/agentcairn") == "-Users-ccf-git-agentcairn"
 
 
+def test_encode_cwd_normalizes_trailing_slash():
+    # a trailing slash (common from tab-completion) must map to the SAME encoded
+    # dir Claude Code uses, which never has one.
+    assert encode_cwd("/Users/x/proj/") == "-Users-x-proj"
+    assert encode_cwd("/Users/x/proj/") == encode_cwd("/Users/x/proj")
+    assert encode_cwd("/") == "-"  # root edge case, not all-empty
+
+
+def test_find_transcripts_project_filter_tolerates_trailing_slash(tmp_path):
+    proj = tmp_path / "-Users-x-proj"
+    proj.mkdir(parents=True)
+    (proj / "a.jsonl").write_text("{}\n")
+    # passing the project WITH a trailing slash must still find the transcript
+    found = find_transcripts(root=tmp_path, project="/Users/x/proj/")
+    assert [p.name for p in found] == ["a.jsonl"]
+
+
 def test_find_transcripts_empty_when_missing(tmp_path):
     # graceful: no projects dir -> [] (never raise)
     assert find_transcripts(root=tmp_path / "nope") == []
