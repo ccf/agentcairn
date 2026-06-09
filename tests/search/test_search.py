@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
+import pytest
 from tests.search.test_engine import build_index
 
 from cairn.embed import FakeEmbedder
@@ -49,3 +50,32 @@ def test_search_bm25_only_without_embedder(tmp_path):
     con = open_search(idx)
     hits = search(con, "tea steeping", embedder=None, k=5)  # no embedder -> BM25-only
     assert hits and any(h.permalink == "tea" for h in hits)
+
+
+def test_rerank_hit_scores_reflect_reranker_order(tmp_path, monkeypatch):
+    """When rerank=True, Hit.score must equal the cross-encoder score (not the RRF
+    score), so the returned list is sorted descending by Hit.score."""
+    emb = FakeEmbedder(dim=8)
+    idx = build_index(tmp_path, emb)
+    con = open_search(idx)
+
+    # Monkeypatch rerank_candidates so we control the output order and scores
+    # without needing the fastembed model.  The patched function returns the
+    # candidates in a deterministic new order, each augmented with a known
+    # descending rerank_score.
+    def fake_rerank(query, candidates, *, top_k):
+        # Reverse the incoming order so the result differs from the RRF order,
+        # then attach falling scores 0.9, 0.5, 0.1 … so we can assert exactly.
+        reordered = list(reversed(candidates))[:top_k]
+        scores = [0.9 - 0.4 * i for i in range(len(reordered))]
+        return [{**c, "rerank_score": s} for c, s in zip(reordered, scores, strict=False)]
+
+    monkeypatch.setattr("cairn.search.engine.rerank_candidates", fake_rerank)
+
+    hits = search(con, "coffee brewing", embedder=emb, k=3, rerank=True)
+    assert hits, "expected at least one hit"
+    scores = [h.score for h in hits]
+    # (a) each Hit.score must equal the monkeypatched rerank_score (not the RRF value)
+    assert scores[0] == pytest.approx(0.9)
+    # (b) the list is non-increasing
+    assert scores == sorted(scores, reverse=True)

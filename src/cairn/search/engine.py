@@ -8,11 +8,20 @@ from dataclasses import dataclass
 
 import duckdb
 
+from cairn.search.rerank import rerank_candidates
+
 _RRF_MACRO = "CREATE OR REPLACE MACRO rrf(rank, k := 60) AS coalesce(1.0 / (k + rank), 0)"
 
 
 def open_search(index_path: str) -> duckdb.DuckDBPyConnection:
-    """Open the persistent index READ-ONLY for querying (multi-reader safe).
+    """Open the persistent index READ-ONLY for querying.
+
+    Multiple concurrent read-only openers coexist without conflict, but each
+    read-only ATTACH still acquires a DuckDB file lock for the connection's
+    lifetime.  That lock will block a separate ``reindex`` writer process (and
+    vice-versa) until the connection is closed.  A long-lived consumer (e.g. an
+    MCP server) should therefore open-per-query or reopen after a rebuild rather
+    than hold this connection open across a ``reindex`` call.
 
     DuckDB read-only connections reject DDL, so we open an in-memory connection,
     attach the on-disk index read-only, and install the rrf() macro there.
@@ -23,7 +32,9 @@ def open_search(index_path: str) -> duckdb.DuckDBPyConnection:
     con = duckdb.connect()  # in-memory; permits DDL for the rrf macro
     con.execute("LOAD fts;")  # match_bm25 lives in the fts extension; array_* are core
     con.execute(_RRF_MACRO)  # create macro in the in-memory db BEFORE attaching read-only db
-    con.execute(f"ATTACH '{index_path}' AS idx (READ_ONLY)")
+    # DuckDB cannot bind the ATTACH target as a parameter, so we SQL-literal-escape it.
+    escaped = str(index_path).replace("'", "''")
+    con.execute(f"ATTACH '{escaped}' AS idx (READ_ONLY)")
     con.execute("USE idx;")  # set default schema so unqualified table names resolve
     # After USE idx, DuckDB resolves unqualified names against idx but not memory.
     # Add memory to the search_path so rrf() and other in-memory macros remain accessible.
@@ -38,6 +49,14 @@ def _dim(con: duckdb.DuckDBPyConnection) -> int:
 
 @dataclass
 class Hit:
+    """A single retrieval result.
+
+    ``score`` reflects relevance under the *active ranker* — higher is better
+    and the returned list is always sorted in descending score order:
+    - hybrid path (no rerank): RRF-fused score, graph-boosted.
+    - rerank path: cross-encoder score assigned by the reranker.
+    """
+
     chunk_id: str
     permalink: str
     heading_path: str
@@ -168,16 +187,22 @@ def search(
     else:
         rows = bm25_only(con, query, limit=(20 if rerank else k), pool=pool)
     if rerank and rows:
-        # hydrate full text for a precise rerank, then map back to compact Hits
-        from cairn.search.rerank import rerank_candidates
-
+        # Hydrate full text for a precise rerank, then map back to compact Hits.
+        # Hit.score is set to the cross-encoder score so the list remains sorted
+        # descending by the active ranker's score (not the original RRF score).
         text_by_id = {
             c["chunk_id"]: c["text"] for c in get_chunks(con, [r["chunk_id"] for r in rows])
         }
         cands = [{**r, "text": text_by_id.get(r["chunk_id"], r["snippet"])} for r in rows]
         ranked = rerank_candidates(query, cands, top_k=k)
         rows = [
-            {kk: c[kk] for kk in ("chunk_id", "note_permalink", "heading_path", "snippet", "score")}
+            {
+                "chunk_id": c["chunk_id"],
+                "note_permalink": c["note_permalink"],
+                "heading_path": c["heading_path"],
+                "snippet": c["snippet"],
+                "score": c["rerank_score"],  # use cross-encoder score, not RRF
+            }
             for c in ranked
         ]
     else:

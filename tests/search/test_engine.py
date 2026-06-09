@@ -38,6 +38,19 @@ def test_open_search_and_vector_search(tmp_path):
 from cairn.search import get_chunks, get_note, search  # noqa: E402
 
 
+def test_open_search_with_single_quote_in_path(tmp_path):
+    """ATTACH path containing a single quote must not raise a ParserException."""
+    emb = FakeEmbedder(dim=8)
+    # Build the index inside a directory whose name contains a single quote.
+    weird_dir = tmp_path / "weird ' dir"
+    weird_dir.mkdir()
+    idx = build_index(weird_dir, emb)
+    con = open_search(idx)
+    # A trivial query proves the connection is usable, not just opened.
+    count = con.execute("SELECT count(*) FROM chunks").fetchone()[0]
+    assert count > 0
+
+
 def test_progressive_disclosure_hydration(tmp_path):
     emb = FakeEmbedder(dim=8)
     idx = build_index(tmp_path, emb)
