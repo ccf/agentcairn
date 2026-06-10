@@ -47,6 +47,22 @@ def test_resolve_config_index_default(monkeypatch):
     assert index == expected
 
 
+def test_resolve_config_expands_tilde(monkeypatch):
+    """Leading ~ in CAIRN_VAULT/CAIRN_INDEX env is expanded to an absolute path
+    (plugin user_config defaults arrive as literal "~/agentcairn")."""
+    from pathlib import Path
+
+    from cairn.mcp.server import resolve_config
+
+    monkeypatch.setenv("CAIRN_VAULT", "~/agentcairn")
+    monkeypatch.setenv("CAIRN_INDEX", "~/.cache/agentcairn/index.duckdb")
+    vault, index, _ = resolve_config()
+    assert vault == str(Path.home() / "agentcairn")
+    assert index == str(Path.home() / ".cache" / "agentcairn" / "index.duckdb")
+    assert "~" not in vault
+    assert "~" not in index
+
+
 def test_resolve_config_embedder_defaults_fastembed(monkeypatch):
     """Embedder defaults to 'fastembed' when CAIRN_EMBEDDER is absent."""
     from cairn.mcp.server import resolve_config

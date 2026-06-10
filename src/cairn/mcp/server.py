@@ -35,6 +35,12 @@ def resolve_config(
     resolved_vault = vault or os.environ.get("CAIRN_VAULT")
     resolved_index = index or os.environ.get("CAIRN_INDEX") or _DEFAULT_INDEX
     resolved_embedder = embedder or os.environ.get("CAIRN_EMBEDDER") or _DEFAULT_EMBEDDER
+    # Expand a leading "~": plugin user_config defaults like "~/agentcairn" may
+    # reach us unnormalized, and DuckDB/open() treat a literal "~" as a relative
+    # dir — so recall would miss the index and remember would write outside the vault.
+    if resolved_vault:
+        resolved_vault = os.path.expanduser(resolved_vault)
+    resolved_index = os.path.expanduser(resolved_index)
     return resolved_vault, resolved_index, resolved_embedder
 
 

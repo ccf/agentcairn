@@ -358,3 +358,19 @@ def test_recent_project_filters_by_path_substring(tmp_path):
     assert s.exit_code == 0, s.output
     perms = {n["permalink"] for n in json.loads(s.stdout)["notes"]}
     assert "alpha" in perms and "beta" not in perms
+
+
+def test_default_index_honors_cairn_index_env(monkeypatch, tmp_path):
+    """_default_index() uses CAIRN_INDEX (expanding ~) when set, matching the MCP
+    server — so CLI commands, hooks, and MCP all target the same customized index."""
+    import cairn.cli as cli_mod
+
+    target = tmp_path / "custom.duckdb"
+    monkeypatch.setenv("CAIRN_INDEX", str(target))
+    assert cli_mod._default_index() == target
+
+    monkeypatch.setenv("CAIRN_INDEX", "~/some-index.duckdb")
+    assert cli_mod._default_index() == Path.home() / "some-index.duckdb"
+
+    monkeypatch.delenv("CAIRN_INDEX", raising=False)
+    assert cli_mod._default_index() == Path.home() / ".cache" / "agentcairn" / "index.duckdb"

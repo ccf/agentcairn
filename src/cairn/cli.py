@@ -42,6 +42,11 @@ def main(
 
 
 def _default_index() -> Path:
+    # Honor CAIRN_INDEX (expanding a leading "~") so the CLI, hooks, and MCP
+    # server all target the same index when it's customized via env/user_config.
+    env = os.environ.get("CAIRN_INDEX")
+    if env:
+        return Path(env).expanduser()
     return Path.home() / ".cache" / "agentcairn" / "index.duckdb"
 
 
