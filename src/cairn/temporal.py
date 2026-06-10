@@ -43,6 +43,9 @@ def parse_temporal(value: object) -> datetime | None:
     return dt.astimezone(UTC)
 
 
+_VALIDITY_PENALTY: float = 0.5
+
+
 def validity_status(
     valid_from: datetime | None,
     valid_until: datetime | None,
@@ -57,3 +60,17 @@ def validity_status(
     if valid_from is not None and valid_from > now:
         return "not_yet_valid"
     return "current"
+
+
+def validity_factor(
+    valid_from: datetime | None,
+    valid_until: datetime | None,
+    superseded_by: str | None,
+    now: datetime,
+) -> float:
+    """Return ``_VALIDITY_PENALTY`` when the note is not "current" as of ``now``,
+    else 1.0.  Used by the rerank path to preserve the validity demote that the
+    SQL RRF path applied (the cross-encoder score discards it)."""
+    if validity_status(valid_from, valid_until, superseded_by, now) == "current":
+        return 1.0
+    return _VALIDITY_PENALTY

@@ -306,3 +306,116 @@ def test_rerank_fetches_at_least_k_candidates_when_k_exceeds_20(tmp_path, monkey
         f"Expected >20 candidates passed to reranker for k=30, got {received_candidate_count[0]}. "
         "The 20-cap bug is still present."
     )
+
+
+def test_rerank_validity_demote_superseded(tmp_path, monkeypatch):
+    """After reranking, a superseded note must still be demoted vs a current note.
+
+    Without the fix, rerank_candidates returns candidates purely by cross-encoder
+    score, discarding the validity penalty — so a superseded note with a higher
+    cross-encoder score would outrank the current one.
+
+    The test forces that exact scenario: monkeypatched reranker gives superseded
+    score=1.0, current score=0.9 so without the fix the superseded note wins.
+    With validity_aware=True the adjusted scores must be 1.0×0.5=0.5 vs 0.9×1.0=0.9,
+    so the current note must come first.  With validity_aware=False no adjustment
+    is applied and the superseded note (score 1.0) wins.
+    """
+    from cairn.embed import FakeEmbedder
+    from cairn.index import open_index, reconcile
+    from cairn.search import open_search, search
+
+    v = tmp_path / "v"
+    v.mkdir()
+    (v / "old.md").write_text(
+        "---\ntitle: Old\npermalink: old\nsuperseded_by: new\n---\nfavorite color is blue\n"
+    )
+    (v / "new.md").write_text("---\ntitle: New\npermalink: new\n---\nfavorite color is green\n")
+    idx = tmp_path / "i.duckdb"
+    emb = FakeEmbedder(dim=8)
+    con0 = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
+    reconcile(con0, str(v), emb)
+    con0.close()
+
+    def fake_rerank_superseded_wins(query, candidates, *, top_k):
+        """Give the superseded 'old' note a higher cross-encoder score than 'new'."""
+        result = []
+        for c in candidates:
+            if c["note_permalink"] == "old":
+                result.append({**c, "rerank_score": 1.0})
+            else:
+                result.append({**c, "rerank_score": 0.9})
+        return sorted(result, key=lambda x: x["rerank_score"], reverse=True)[:top_k]
+
+    monkeypatch.setattr("cairn.search.engine.rerank_candidates", fake_rerank_superseded_wins)
+
+    con = open_search(str(idx))
+    try:
+        # validity_aware=True: superseded note must be demoted (0.9×1.0 > 1.0×0.5)
+        hits_on = search(con, "favorite color", embedder=emb, k=5, rerank=True, validity_aware=True)
+        perms_on = [h.permalink for h in hits_on]
+        assert "new" in perms_on and "old" in perms_on, (
+            f"Both notes must appear in results; got {perms_on}"
+        )
+        new_idx = perms_on.index("new")
+        old_idx = perms_on.index("old")
+        assert new_idx < old_idx, (
+            f"Current note 'new' must rank above superseded 'old' when validity_aware=True; "
+            f"got order {perms_on}"
+        )
+
+        # validity_aware=False: no adjustment; superseded wins with higher cross-encoder score
+        hits_off = search(
+            con, "favorite color", embedder=emb, k=5, rerank=True, validity_aware=False
+        )
+        perms_off = [h.permalink for h in hits_off]
+        assert "old" in perms_off and "new" in perms_off, (
+            f"Both notes must appear with validity_aware=False; got {perms_off}"
+        )
+        assert perms_off.index("old") < perms_off.index("new"), (
+            "With validity_aware=False, superseded 'old' (score 1.0) must rank above 'new' (0.9)"
+        )
+    finally:
+        con.close()
+
+
+def test_rerank_inert_without_validity_fields(tmp_path, monkeypatch):
+    """Notes without any validity frontmatter → factor 1.0 → reranked order unchanged.
+
+    Ensures the fix doesn't perturb results for corpora that have no validity fields.
+    """
+    from cairn.embed import FakeEmbedder
+    from cairn.index import open_index, reconcile
+    from cairn.search import open_search, search
+
+    v = tmp_path / "v"
+    v.mkdir()
+    (v / "a.md").write_text("---\ntitle: A\npermalink: a\n---\nfavorite color alpha\n")
+    (v / "b.md").write_text("---\ntitle: B\npermalink: b\n---\nfavorite color beta\n")
+    idx = tmp_path / "i.duckdb"
+    emb = FakeEmbedder(dim=8)
+    con0 = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
+    reconcile(con0, str(v), emb)
+    con0.close()
+
+    call_count = [0]
+
+    def fake_rerank_deterministic(query, candidates, *, top_k):
+        call_count[0] += 1
+        # Return in stable order a→b with scores 0.9, 0.8
+        ordered = sorted(candidates, key=lambda c: c["note_permalink"])
+        return [{**c, "rerank_score": 0.9 - 0.1 * i} for i, c in enumerate(ordered[:top_k])]
+
+    monkeypatch.setattr("cairn.search.engine.rerank_candidates", fake_rerank_deterministic)
+
+    con = open_search(str(idx))
+    try:
+        hits = search(con, "favorite color", embedder=emb, k=5, rerank=True, validity_aware=True)
+        perms = [h.permalink for h in hits]
+        # No validity fields → factor 1.0 everywhere → reranked order is exactly a, b
+        assert perms == sorted(perms), f"Inert corpus: order should be a→b, got {perms}"
+        # Scores must be the raw reranker scores (×1.0), not modified
+        assert hits[0].score == pytest.approx(0.9)
+        assert call_count[0] == 1, "rerank stub must have been called exactly once"
+    finally:
+        con.close()

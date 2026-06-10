@@ -5,11 +5,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 import duckdb
 
 from cairn.search.rerank import rerank_candidates
-from cairn.temporal import db_now, from_db
+from cairn.temporal import db_now, from_db, validity_factor
 
 _RRF_MACRO = "CREATE OR REPLACE MACRO rrf(rank, k := 60) AS coalesce(1.0 / (k + rank), 0)"
 _VALIDITY_PENALTY = 0.5
@@ -171,8 +172,9 @@ def bm25_only(
     pool: int = 200,
     graph_boost: bool = True,
     validity_aware: bool = True,
+    now: datetime | None = None,
 ) -> list[dict]:
-    now = db_now()
+    now = now if now is not None else db_now()
     sql = _bm25_only_sql(graph_boost, validity_aware)
     # Bind-param ordering (positional by appearance in SQL string):
     #   [query, pool]  — BM25 FTS arm
@@ -208,9 +210,10 @@ def hybrid_search(
     pool: int = 200,
     graph_boost: bool = True,
     validity_aware: bool = True,
+    now: datetime | None = None,
 ) -> list[dict]:
     """Hybrid BM25 + cosine via RRF, optionally graph-boosted. Returns compact dict rows."""
-    now = db_now()
+    now = now if now is not None else db_now()
     sql = _hybrid_sql(dim, graph_boost, validity_aware)
     # Bind-param ordering (positional by appearance in SQL string):
     #   [query, pool, qvec, pool]  — BM25 FTS arm + cosine arm
@@ -248,7 +251,15 @@ def search(
     validity_aware: bool = True,
 ) -> list[Hit]:
     """Top-level retrieval (degradation ladder): hybrid when an embedder is given
-    (auto-degrades to BM25 if no embeddings exist), else BM25-only."""
+    (auto-degrades to BM25 if no embeddings exist), else BM25-only.
+
+    A single ``now`` instant is captured once and threaded into both the SQL
+    validity comparisons and the post-rerank validity factor, so the two
+    ranking stages are always coherent."""
+    # Capture one instant for both SQL and rerank validity comparisons.
+    now_aware = datetime.now(UTC)
+    now_naive = now_aware.replace(tzinfo=None)  # naive-UTC for DuckDB TIMESTAMP bind
+
     if embedder is not None:
         qvec = embedder.embed_query(query)
         rows = hybrid_search(
@@ -260,6 +271,7 @@ def search(
             pool=pool,
             graph_boost=graph_boost,
             validity_aware=validity_aware,
+            now=now_naive,
         )
     else:
         rows = bm25_only(
@@ -269,6 +281,7 @@ def search(
             pool=pool,
             graph_boost=graph_boost,
             validity_aware=validity_aware,
+            now=now_naive,
         )
     if rerank and rows:
         # Hydrate full text for a precise rerank, then map back to compact Hits.
@@ -280,6 +293,33 @@ def search(
         }
         cands = [{**r, "text": text_by_id.get(r["chunk_id"], r["snippet"])} for r in rows]
         ranked = rerank_candidates(query, cands, top_k=k)
+        if validity_aware:
+            # Apply validity penalty to cross-encoder scores so superseded/expired/
+            # not-yet-valid notes are still demoted in the reranked order.
+            # Parse ISO strings from the candidate dicts; missing → None.
+            def _parse_iso(s: str | None) -> datetime | None:
+                if s is None:
+                    return None
+                dt = datetime.fromisoformat(s)
+                return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt.astimezone(UTC)
+
+            ranked = sorted(
+                [
+                    {
+                        **c,
+                        "rerank_score": c["rerank_score"]
+                        * validity_factor(
+                            _parse_iso(c.get("valid_from")),
+                            _parse_iso(c.get("valid_until")),
+                            c.get("superseded_by"),
+                            now_aware,
+                        ),
+                    }
+                    for c in ranked
+                ],
+                key=lambda c: c["rerank_score"],
+                reverse=True,
+            )
         rows = [
             {
                 "chunk_id": c["chunk_id"],
