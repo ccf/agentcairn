@@ -1,6 +1,7 @@
 ---
 import { hero } from "../lib/content";
 import CopyButton from "./CopyButton.astro";
+import HeroDiagram from "../islands/HeroDiagram.tsx";
 ---
 <header class="mx-auto max-w-[var(--container-frame)] px-8 pt-[90px] pb-14">
   <p class="eyebrow mb-7">{hero.eyebrow}</p>
@@ -14,5 +15,5 @@ import CopyButton from "./CopyButton.astro";
     </div>
     <a href={hero.specHref} class="font-sans font-medium text-[14px] text-[var(--color-accent)] hover:underline">Read the spec →</a>
   </div>
-  <!-- HeroDiagram island slot added in Task 5 -->
+  <HeroDiagram client:visible />
 </header>
