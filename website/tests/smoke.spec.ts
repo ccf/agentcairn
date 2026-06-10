@@ -16,3 +16,9 @@ test("inversion + differentiators render", async ({ page }) => {
   await expect(page.getByRole("heading", { name: /made it your files/ })).toHaveCount(2); // hero + inversion
   await expect(page.getByText("A free, deterministic graph")).toBeVisible();
 });
+
+test("benchmark table shows the nomic reranker row", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("0.662")).toBeVisible();
+  await expect(page.getByText(/nomic-embed-text/)).toBeVisible();
+});

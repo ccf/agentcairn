@@ -45,3 +45,22 @@ export const differentiators = [
   { title: "A free, deterministic graph", body: "Your [[wikilinks]] are the graph — no LLM extraction, no hallucinated entities." },
   { title: "Daemonless, zero external DB", body: "One embedded DuckDB does vector + BM25 + graph. No server, no Neo4j/Postgres/Qdrant." },
 ];
+
+export const howItWorks = {
+  body: "Capture reads your agent's session transcripts out-of-band, then redacts → dedups → importance-gates → distills into the vault. Retrieval fuses BM25 + vectors with RRF, with an optional cross-encoder reranker. The vault and the index reconcile on spawn; the MCP server exposes remember · recall · search · build_context · recent.",
+};
+
+export const benchmark = {
+  caption: "LoCoMo retrieval, turn-level macro-avg, FastEmbed nomic-embed-text-v1.5 (the default).",
+  rows: [
+    { arm: "BM25 only", r5: "0.527", r10: "0.604", mrr: "0.459", strong: false },
+    { arm: "vector only", r5: "0.536", r10: "0.637", mrr: "0.433", strong: false },
+    { arm: "hybrid (RRF)", r5: "0.562", r10: "0.648", mrr: "0.477", strong: false },
+    { arm: "hybrid + reranker", r5: "0.662", r10: "0.735", mrr: "0.608", strong: true },
+  ],
+  caveats: [
+    "No single headline number — these are relative ablation signals.",
+    "graph-boost is inert on chat corpora (no native wikilink graph); it's for real vaults.",
+    "QA-accuracy numbers use an Anthropic judge, not GPT-4o — not comparable to published leaderboards.",
+  ],
+};
