@@ -107,6 +107,16 @@ def main() -> None:
         dest="ts_k",
         help="Top-k recalled chunks for --token-savings (default: 10).",
     )
+    ap.add_argument(
+        "--with-token-savings",
+        action="store_true",
+        dest="with_token_savings",
+        help=(
+            "Also measure context-token savings during the ablation run (one extra recall per "
+            "answerable query), reusing each built index — printed alongside the retrieval tables. "
+            "Use this to get both the ablation and the savings from a single (expensive) pass."
+        ),
+    )
     args = ap.parse_args()
 
     emb = get_embedder(args.embedder)
@@ -142,6 +152,7 @@ def main() -> None:
 
     # QA accumulators: rows list for aggregate_qa, plus simple per-type counters.
     qa_rows: list[dict] = []
+    ts_rows: list[dict] = []  # context-token savings, when --with-token-savings
     provider = None
 
     if args.qa:
@@ -158,6 +169,10 @@ def main() -> None:
         with tempfile.TemporaryDirectory() as d:
             con, chunks = build_scoped_index(notes, Path(d), emb)
             try:
+                # Per-record full-haystack token count (reused for every query in the record).
+                full_tokens = (
+                    token_savings.full_haystack_tokens(con) if args.with_token_savings else 0
+                )
                 for q in queries:
                     # Retrieval pass: skip abstention/empty-gold queries (Zep invariant).
                     if not q.gold_turns and not q.gold_sessions:
@@ -166,6 +181,15 @@ def main() -> None:
                         for arm in ARMS:
                             res = run_arm(con, arm, q, emb, ks=KS, pool=max(200, chunks))
                             per_query.append({"arm": arm.name, "category": q.category, **res})
+                        if args.with_token_savings:
+                            ts_rows.append(
+                                {
+                                    "full": full_tokens,
+                                    "recalled": token_savings.recalled_tokens(
+                                        con, q.question, emb, k=args.ts_k, pool=max(200, chunks)
+                                    ),
+                                }
+                            )
 
                     # QA pass — answerable and abstention queries, one arm each.
                     if args.qa and provider is not None and qa_arm is not None:
@@ -206,6 +230,14 @@ def main() -> None:
 
     agg = aggregate(per_query)
     print(to_markdown(agg, granularity="turn"))
+    # Session-level too — the granularity comparable to LongMemEval's published recall@k.
+    if any(grans.get("session") for grans in agg.values()):
+        print()
+        print(to_markdown(agg, granularity="session"))
+
+    if args.with_token_savings and ts_rows:
+        print()
+        print(token_savings.to_markdown(ts_rows, k=args.ts_k))
 
     if args.qa:
         if provider is None:
