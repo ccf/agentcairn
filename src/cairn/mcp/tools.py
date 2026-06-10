@@ -7,6 +7,7 @@ file lock across a reindex (Plan 3 connection-lifecycle guidance)."""
 from __future__ import annotations
 
 import re
+from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
 
@@ -15,11 +16,35 @@ from cairn.ingest import write_derived_note
 from cairn.ingest.dedup import content_hash
 from cairn.ingest.redact import redact
 from cairn.search import get_note, open_search, search
+from cairn.temporal import validity_status
 from cairn.vault import Note
 
 # Over-fetch this many chunk candidates per requested note, then dedup by
 # permalink so that a note with many chunks cannot consume all k slots.
 _FETCH_FACTOR = 5
+
+
+def _parse_iso(s: str | None) -> datetime | None:
+    """Parse an ISO-8601 string (with +00:00 offset) back to an aware datetime."""
+    return datetime.fromisoformat(s) if s else None
+
+
+def _validity_block(
+    valid_from: str | None,
+    valid_until: str | None,
+    superseded_by: str | None,
+    now: datetime,
+) -> dict:
+    """Build the validity annotation sub-dict for a hit/note."""
+    vf = _parse_iso(valid_from)
+    vu = _parse_iso(valid_until)
+    status = validity_status(vf, vu, superseded_by, now)
+    return {
+        "status": status,
+        "valid_from": valid_from,
+        "valid_until": valid_until,
+        "superseded_by": superseded_by,
+    }
 
 
 @lru_cache(maxsize=8)
@@ -66,14 +91,17 @@ def search_tool(
             continue
         seen_perms.add(h.permalink)
         deduped.append(h)
+    now = datetime.now(UTC)
     return {
         "query": query,
+        "as_of": now.isoformat(),
         "hits": [
             {
                 "permalink": h.permalink,
                 "heading_path": h.heading_path,
                 "snippet": h.snippet.strip()[:240],
                 "score": round(h.score, 4),
+                "validity": _validity_block(h.valid_from, h.valid_until, h.superseded_by, now),
             }
             for h in deduped
         ],
@@ -91,6 +119,7 @@ def recall_tool(
     """Search then hydrate the top-k notes' full text (one-shot content)."""
     fetch = max(k * _FETCH_FACTOR, 25)
     con = _open(index_path)
+    now = datetime.now(UTC)
     try:
         hits = search(
             con, query, embedder=_embedder(embedder), k=fetch, rerank=rerank, pool=max(200, fetch)
@@ -106,10 +135,16 @@ def recall_tool(
             note = get_note(con, h.permalink)
             if note is not None:
                 note["score"] = round(h.score, 4)
+                note["validity"] = _validity_block(
+                    note.get("valid_from"),
+                    note.get("valid_until"),
+                    note.get("superseded_by"),
+                    now,
+                )
                 notes.append(note)
     finally:
         con.close()
-    return {"query": query, "notes": notes}
+    return {"query": query, "as_of": now.isoformat(), "notes": notes}
 
 
 def build_context_tool(index_path: str, permalink: str) -> dict:
@@ -117,10 +152,17 @@ def build_context_tool(index_path: str, permalink: str) -> dict:
     `dst_target` is raw/unresolved (Plan 3 caveat): a neighbor resolves when the
     target equals a note permalink or title; otherwise it is reported raw."""
     con = _open(index_path)
+    now = datetime.now(UTC)
     try:
         root = get_note(con, permalink)
         if root is None:
             return {"root": None, "outgoing": [], "incoming": []}
+        root["validity"] = _validity_block(
+            root.get("valid_from"),
+            root.get("valid_until"),
+            root.get("superseded_by"),
+            now,
+        )
         title = root.get("title")
         out_rows = con.execute(
             "SELECT DISTINCT dst_target, edge_type FROM links WHERE src_permalink = ?",
@@ -136,12 +178,20 @@ def build_context_tool(index_path: str, permalink: str) -> dict:
                 ).fetchone()
                 if row:
                     n = get_note(con, row[0])
+            if n is not None:
+                n["validity"] = _validity_block(
+                    n.get("valid_from"),
+                    n.get("valid_until"),
+                    n.get("superseded_by"),
+                    now,
+                )
             outgoing.append(
                 {
                     "edge_type": edge,
                     "target": dst,
                     "permalink": n["permalink"] if n else None,
                     "title": n["title"] if n else None,
+                    "validity": n["validity"] if n else None,
                 }
             )
         in_rows = con.execute(

@@ -335,7 +335,9 @@ def get_chunks(con: duckdb.DuckDBPyConnection, chunk_ids: list[str]) -> list[dic
 def get_note(con: duckdb.DuckDBPyConnection, permalink: str) -> dict | None:
     """Hydrate full note text and metadata by permalink."""
     row = con.execute(
-        "SELECT permalink, path, title, type FROM notes WHERE permalink = ?", [permalink]
+        "SELECT permalink, path, title, type, valid_from, valid_until, superseded_by "
+        "FROM notes WHERE permalink = ?",
+        [permalink],
     ).fetchone()
     if not row:
         return None
@@ -347,5 +349,8 @@ def get_note(con: duckdb.DuckDBPyConnection, permalink: str) -> dict | None:
         "path": row[1],
         "title": row[2],
         "type": row[3],
+        "valid_from": from_db(row[4]).isoformat() if row[4] is not None else None,
+        "valid_until": from_db(row[5]).isoformat() if row[5] is not None else None,
+        "superseded_by": row[6],
         "text": "\n\n".join(c[0] for c in chunks),
     }

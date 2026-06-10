@@ -388,6 +388,115 @@ def test_embedder_none_returns_none():
 
 
 # ---------------------------------------------------------------------------
+# Task 4: validity annotation in search_tool, recall_tool, build_context_tool
+# ---------------------------------------------------------------------------
+
+
+def _build_validity_index(tmp_path: Path) -> Path:
+    """Build an index with one current, one superseded, and one expired note."""
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "current.md").write_text(
+        "---\ntitle: Current\npermalink: current\n---\nfavorite color is green\n"
+    )
+    (vault / "old.md").write_text(
+        "---\ntitle: Old\npermalink: old\nsuperseded_by: current\n---\nfavorite color is blue\n"
+    )
+    (vault / "expired.md").write_text(
+        "---\ntitle: Expired\npermalink: expired\nvalid_until: 2020-01-01\n"
+        "---\nfavorite color was red\n"
+    )
+    idx = tmp_path / "i.duckdb"
+    emb = FakeEmbedder(dim=8)
+    con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
+    reconcile(con, str(vault), emb)
+    con.close()
+    return idx
+
+
+def test_search_tool_annotates_validity(tmp_path):
+    """search_tool hits must carry a validity sub-dict with correct status; no TypeError."""
+    idx = _build_validity_index(tmp_path)
+    out = search_tool(str(idx), "favorite color", embedder="fake", k=10)
+    assert "as_of" in out, "search_tool must include top-level as_of"
+    hits_by_perm = {h["permalink"]: h for h in out["hits"]}
+    assert "current" in hits_by_perm, "current note must appear in hits"
+    h_current = hits_by_perm["current"]
+    assert "validity" in h_current, f"hit missing validity sub-dict: {h_current}"
+    assert h_current["validity"]["status"] == "current"
+
+    if "old" in hits_by_perm:
+        h_old = hits_by_perm["old"]
+        assert "validity" in h_old
+        assert h_old["validity"]["status"] == "superseded"
+        assert h_old["validity"]["superseded_by"] == "current"
+
+    if "expired" in hits_by_perm:
+        h_exp = hits_by_perm["expired"]
+        assert "validity" in h_exp
+        assert h_exp["validity"]["status"] == "expired"
+
+
+def test_recall_tool_annotates_validity(tmp_path):
+    """recall_tool notes must carry a validity sub-dict with correct status; no TypeError."""
+    idx = _build_validity_index(tmp_path)
+    out = recall_tool(str(idx), "favorite color", embedder="fake", k=10)
+    assert "as_of" in out, "recall_tool must include top-level as_of"
+    notes_by_perm = {n["permalink"]: n for n in out["notes"]}
+    assert "current" in notes_by_perm, "current note must appear in notes"
+    n_current = notes_by_perm["current"]
+    assert "validity" in n_current, f"note missing validity sub-dict: {n_current}"
+    assert n_current["validity"]["status"] == "current"
+
+    if "old" in notes_by_perm:
+        n_old = notes_by_perm["old"]
+        assert "validity" in n_old
+        assert n_old["validity"]["status"] == "superseded"
+
+    if "expired" in notes_by_perm:
+        n_exp = notes_by_perm["expired"]
+        assert "validity" in n_exp
+        assert n_exp["validity"]["status"] == "expired"
+
+
+def test_build_context_tool_annotates_validity(tmp_path):
+    """build_context_tool root and resolved neighbors must carry validity sub-dict."""
+    idx = _build_validity_index(tmp_path)
+    out = build_context_tool(str(idx), "old")
+    root = out["root"]
+    assert root is not None
+    assert "validity" in root, f"root missing validity: {root}"
+    assert root["validity"]["status"] == "superseded"
+
+
+def test_no_type_error_on_validity_annotation(tmp_path):
+    """Annotating a note with valid_from/valid_until must not raise TypeError.
+
+    The fix in Commit 1 ensures Hit.valid_from is an aware-UTC ISO string
+    ("+00:00"), so _parse_iso returns an aware datetime that compares cleanly
+    against datetime.now(UTC) without a naive-vs-aware TypeError.
+    """
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "note.md").write_text(
+        "---\ntitle: Note\npermalink: note\nvalid_from: 2024-06-15T10:30:45Z\n"
+        "valid_until: 2099-01-01T00:00:00Z\n---\nsome content here\n"
+    )
+    idx = tmp_path / "i.duckdb"
+    emb = FakeEmbedder(dim=8)
+    con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
+    reconcile(con, str(vault), emb)
+    con.close()
+    # Must not raise TypeError (naive vs aware comparison)
+    out = search_tool(str(idx), "content", embedder="fake", k=5)
+    assert out["hits"]
+    h = out["hits"][0]
+    assert h["validity"]["status"] == "current"
+    assert h["validity"]["valid_from"] is not None
+    assert h["validity"]["valid_until"] is not None
+
+
+# ---------------------------------------------------------------------------
 # Bugbot Fix 2: search_tool/recall_tool must pass pool >= fetch to search()
 # ---------------------------------------------------------------------------
 
