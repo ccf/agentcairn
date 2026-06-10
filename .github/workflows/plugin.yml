@@ -1,0 +1,22 @@
+name: plugin
+on:
+  push:
+    branches: [main]
+    paths: ["plugin/**", ".claude-plugin/**", ".github/workflows/plugin.yml"]
+  pull_request:
+    paths: ["plugin/**", ".claude-plugin/**", ".github/workflows/plugin.yml"]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      # --with pytest provisions pytest into the isolated env; the plugin tests
+      # read only JSON/Markdown (no cairn package), so --no-project keeps CI fast.
+      - run: uv run --no-project --with pytest pytest plugin/tests/ -q
+      - name: shellcheck hook scripts
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          shellcheck plugin/scripts/*.sh || true
