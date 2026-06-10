@@ -9,7 +9,6 @@ resolution-markers = [
 
 [[package]]
 name = "agentcairn"
-version = "0.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "duckdb" },
