@@ -22,3 +22,11 @@ test("benchmark table shows the nomic reranker row", async ({ page }) => {
   await expect(page.getByText("0.662")).toBeVisible();
   await expect(page.getByText(/nomic-embed-text/)).toBeVisible();
 });
+
+test("uninstall demo advances through stages", async ({ page }) => {
+  await page.goto("/");
+  const demo = page.getByTestId("uninstall-demo");
+  await demo.getByRole("button", { name: /Reindex/ }).click();
+  await demo.getByRole("button", { name: /Recall/ }).click();
+  await expect(demo.getByText(/0 facts lost/)).toBeVisible();
+});
