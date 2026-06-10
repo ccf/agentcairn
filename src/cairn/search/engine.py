@@ -5,12 +5,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 import duckdb
 
 from cairn.search.rerank import rerank_candidates
 
 _RRF_MACRO = "CREATE OR REPLACE MACRO rrf(rank, k := 60) AS coalesce(1.0 / (k + rank), 0)"
+_VALIDITY_PENALTY = 0.5
 
 
 def open_search(index_path: str) -> duckdb.DuckDBPyConnection:
@@ -62,6 +64,9 @@ class Hit:
     heading_path: str
     snippet: str
     score: float
+    valid_from: str | None = None
+    valid_until: str | None = None
+    superseded_by: str | None = None
 
 
 def vector_search(
@@ -77,13 +82,22 @@ def vector_search(
     return [(r[0], float(r[1])) for r in con.execute(sql, [qvec, pool]).fetchall()]
 
 
-def _hybrid_sql(dim: int, graph_boost: bool = True) -> str:
+def _hybrid_sql(dim: int, graph_boost: bool = True, validity_aware: bool = True) -> str:
     # BM25 arm + brute-force cosine arm, each ranked, fused by rrf(), then an
     # optional graph-boost (x1.2 when the note is the target of any link). pool >> limit.
+    # An optional validity multiplier (x0.5) demotes superseded/expired/not-yet-valid notes.
     boost = (
         " * (CASE WHEN EXISTS (SELECT 1 FROM links l WHERE l.dst_target = c.note_permalink) "
         "THEN 1.2 ELSE 1.0 END)"
         if graph_boost
+        else ""
+    )
+    validity = (
+        f" * (CASE WHEN n.superseded_by IS NOT NULL THEN {_VALIDITY_PENALTY}"
+        f" WHEN n.valid_until IS NOT NULL AND n.valid_until <= ? THEN {_VALIDITY_PENALTY}"
+        f" WHEN n.valid_from IS NOT NULL AND n.valid_from > ? THEN {_VALIDITY_PENALTY}"
+        f" ELSE 1.0 END)"
+        if validity_aware
         else ""
     )
     return f"""
@@ -108,17 +122,27 @@ def _hybrid_sql(dim: int, graph_boost: bool = True) -> str:
             FROM fts FULL OUTER JOIN vec ON fts.chunk_id = vec.chunk_id
         )
         SELECT f.chunk_id, c.note_permalink, c.heading_path, left(c.text, 240) AS snippet,
-               f.rrf_score{boost} AS score
+               n.valid_from, n.valid_until, n.superseded_by,
+               f.rrf_score{boost}{validity} AS score
         FROM fused f JOIN chunks c ON c.chunk_id = f.chunk_id
+        JOIN notes n ON n.permalink = c.note_permalink
         ORDER BY score DESC LIMIT ?
     """
 
 
-def _bm25_only_sql(graph_boost: bool = True) -> str:
+def _bm25_only_sql(graph_boost: bool = True, validity_aware: bool = True) -> str:
     boost = (
         " * (CASE WHEN EXISTS (SELECT 1 FROM links l WHERE l.dst_target = c.note_permalink) "
         "THEN 1.2 ELSE 1.0 END)"
         if graph_boost
+        else ""
+    )
+    validity = (
+        f" * (CASE WHEN n.superseded_by IS NOT NULL THEN {_VALIDITY_PENALTY}"
+        f" WHEN n.valid_until IS NOT NULL AND n.valid_until <= ? THEN {_VALIDITY_PENALTY}"
+        f" WHEN n.valid_from IS NOT NULL AND n.valid_from > ? THEN {_VALIDITY_PENALTY}"
+        f" ELSE 1.0 END)"
+        if validity_aware
         else ""
     )
     return f"""
@@ -131,8 +155,10 @@ def _bm25_only_sql(graph_boost: bool = True) -> str:
             ORDER BY score DESC LIMIT ?
         )
         SELECT c.chunk_id, c.note_permalink, c.heading_path, left(c.text, 240) AS snippet,
-               rrf(f.r){boost} AS score
+               n.valid_from, n.valid_until, n.superseded_by,
+               rrf(f.r){boost}{validity} AS score
         FROM fts f JOIN chunks c ON c.chunk_id = f.chunk_id
+        JOIN notes n ON n.permalink = c.note_permalink
         ORDER BY score DESC LIMIT ?
     """
 
@@ -144,15 +170,29 @@ def bm25_only(
     limit: int = 10,
     pool: int = 200,
     graph_boost: bool = True,
+    validity_aware: bool = True,
 ) -> list[dict]:
-    rows = con.execute(_bm25_only_sql(graph_boost), [query, pool, limit]).fetchall()
+    now = datetime.now(UTC)
+    sql = _bm25_only_sql(graph_boost, validity_aware)
+    # Bind-param ordering (positional by appearance in SQL string):
+    #   [query, pool]  — BM25 FTS arm
+    #   + [now, now]   — validity CASE comparisons (only when validity_aware)
+    #   + [limit]      — LIMIT
+    params: list = [query, pool]
+    if validity_aware:
+        params += [now, now]
+    params.append(limit)
+    rows = con.execute(sql, params).fetchall()
     return [
         {
             "chunk_id": r[0],
             "note_permalink": r[1],
             "heading_path": r[2],
             "snippet": r[3],
-            "score": float(r[4]),
+            "valid_from": r[4].isoformat() if r[4] is not None else None,
+            "valid_until": r[5].isoformat() if r[5] is not None else None,
+            "superseded_by": r[6],
+            "score": float(r[7]),
         }
         for r in rows
     ]
@@ -167,16 +207,30 @@ def hybrid_search(
     limit: int = 10,
     pool: int = 200,
     graph_boost: bool = True,
+    validity_aware: bool = True,
 ) -> list[dict]:
     """Hybrid BM25 + cosine via RRF, optionally graph-boosted. Returns compact dict rows."""
-    rows = con.execute(_hybrid_sql(dim, graph_boost), [query, pool, qvec, pool, limit]).fetchall()
+    now = datetime.now(UTC)
+    sql = _hybrid_sql(dim, graph_boost, validity_aware)
+    # Bind-param ordering (positional by appearance in SQL string):
+    #   [query, pool, qvec, pool]  — BM25 FTS arm + cosine arm
+    #   + [now, now]               — validity CASE comparisons (only when validity_aware)
+    #   + [limit]                  — LIMIT
+    params: list = [query, pool, qvec, pool]
+    if validity_aware:
+        params += [now, now]
+    params.append(limit)
+    rows = con.execute(sql, params).fetchall()
     return [
         {
             "chunk_id": r[0],
             "note_permalink": r[1],
             "heading_path": r[2],
             "snippet": r[3],
-            "score": float(r[4]),
+            "valid_from": r[4].isoformat() if r[4] is not None else None,
+            "valid_until": r[5].isoformat() if r[5] is not None else None,
+            "superseded_by": r[6],
+            "score": float(r[7]),
         }
         for r in rows
     ]
@@ -191,6 +245,7 @@ def search(
     pool: int = 200,
     rerank: bool = False,
     graph_boost: bool = True,
+    validity_aware: bool = True,
 ) -> list[Hit]:
     """Top-level retrieval (degradation ladder): hybrid when an embedder is given
     (auto-degrades to BM25 if no embeddings exist), else BM25-only."""
@@ -204,15 +259,22 @@ def search(
             limit=(max(20, k) if rerank else k),
             pool=pool,
             graph_boost=graph_boost,
+            validity_aware=validity_aware,
         )
     else:
         rows = bm25_only(
-            con, query, limit=(max(20, k) if rerank else k), pool=pool, graph_boost=graph_boost
+            con,
+            query,
+            limit=(max(20, k) if rerank else k),
+            pool=pool,
+            graph_boost=graph_boost,
+            validity_aware=validity_aware,
         )
     if rerank and rows:
         # Hydrate full text for a precise rerank, then map back to compact Hits.
         # Hit.score is set to the cross-encoder score so the list remains sorted
         # descending by the active ranker's score (not the original RRF score).
+        # Validity fields are preserved from the original row dicts.
         text_by_id = {
             c["chunk_id"]: c["text"] for c in get_chunks(con, [r["chunk_id"] for r in rows])
         }
@@ -224,6 +286,9 @@ def search(
                 "note_permalink": c["note_permalink"],
                 "heading_path": c["heading_path"],
                 "snippet": c["snippet"],
+                "valid_from": c.get("valid_from"),
+                "valid_until": c.get("valid_until"),
+                "superseded_by": c.get("superseded_by"),
                 "score": c["rerank_score"],  # use cross-encoder score, not RRF
             }
             for c in ranked
@@ -237,6 +302,9 @@ def search(
             heading_path=r["heading_path"],
             snippet=r["snippet"],
             score=r["score"],
+            valid_from=r.get("valid_from"),
+            valid_until=r.get("valid_until"),
+            superseded_by=r.get("superseded_by"),
         )
         for r in rows
     ]
