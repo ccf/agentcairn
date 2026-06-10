@@ -7,7 +7,8 @@
     "build": "astro build",
     "preview": "astro preview --port 4321",
     "check": "astro check",
-    "test": "playwright test"
+    "test": "playwright test",
+    "og": "node scripts/gen-og.mjs"
   },
   "dependencies": {
     "@astrojs/react": "^4.0.0",
