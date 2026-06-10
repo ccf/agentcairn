@@ -6,6 +6,7 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import json
+import os
 from pathlib import Path
 
 import typer
@@ -171,6 +172,35 @@ def recent(
     else:
         for nt in notes:
             typer.echo(f"{nt['permalink']}  ·  {nt['title']}")
+
+
+_WELCOME = (
+    "---\ntitle: Welcome to your agentcairn vault\npermalink: welcome\n---\n\n"
+    "This is your **agentcairn** memory vault. Your coding agent writes distilled, redacted "
+    "memories here as plain Markdown — you can read, edit, or delete any of it by hand. "
+    "Open this folder in Obsidian to browse the graph.\n"
+)
+
+
+@app.command()
+def init(
+    path: Path = typer.Argument(None, help="Vault path (default: $CAIRN_VAULT or ~/agentcairn)."),
+) -> None:
+    """Scaffold an Obsidian-ready agentcairn vault. Idempotent and non-destructive."""
+    target = path or Path(os.environ.get("CAIRN_VAULT") or (Path.home() / "agentcairn"))
+    target = target.expanduser()
+    target.mkdir(parents=True, exist_ok=True)
+    obs = target / ".obsidian"
+    obs.mkdir(exist_ok=True)
+    app_json = obs / "app.json"
+    if not app_json.exists():
+        app_json.write_text("{}\n")
+    welcome = target / "welcome.md"
+    existed = welcome.exists()
+    if not existed:
+        welcome.write_text(_WELCOME)
+    suffix = "" if not existed else " (existing — left intact)"
+    typer.echo(f"agentcairn vault ready at {target}{suffix}")
 
 
 @app.command()

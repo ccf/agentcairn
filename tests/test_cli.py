@@ -321,3 +321,24 @@ def test_recent_missing_index_json_is_empty(tmp_path):
     s = runner.invoke(app, ["recent", "--index", str(tmp_path / "nope.duckdb"), "--json"])
     assert s.exit_code == 0
     assert json.loads(s.stdout) == {"notes": []}
+
+
+def test_init_creates_obsidian_ready_vault(tmp_path):
+    target = tmp_path / "myvault"
+    r = runner.invoke(app, ["init", str(target)])
+    assert r.exit_code == 0, r.output
+    assert (target / ".obsidian" / "app.json").exists()
+    welcome = (target / "welcome.md").read_text()
+    assert "permalink: welcome" in welcome
+    assert str(target) in r.output
+
+
+def test_init_idempotent_preserves_edits(tmp_path):
+    target = tmp_path / "myvault"
+    runner.invoke(app, ["init", str(target)])
+    (target / "welcome.md").write_text("---\ntitle: Mine\npermalink: welcome\n---\nedited\n")
+    (target / "note.md").write_text("---\ntitle: N\npermalink: n\n---\nkeep me\n")
+    r2 = runner.invoke(app, ["init", str(target)])  # second run
+    assert r2.exit_code == 0
+    assert "edited" in (target / "welcome.md").read_text()  # not clobbered
+    assert (target / "note.md").exists()  # existing notes untouched
