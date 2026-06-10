@@ -138,6 +138,42 @@ def recall(
 
 
 @app.command()
+def recent(
+    index: Path = typer.Option(None, "--index", help="Index .duckdb path."),
+    project: str = typer.Option(
+        None, "--project", help="Only notes whose path contains this substring."
+    ),
+    n: int = typer.Option(10, "-n", "--num", help="Number of notes."),
+    as_json: bool = typer.Option(False, "--json", help="Emit JSON for machine parsing."),
+) -> None:
+    """Most-recently-modified notes (optionally filtered to a project path substring)."""
+    idx = index or _default_index()
+    if not idx.exists():
+        typer.echo(json.dumps({"notes": []}) if as_json else f"no index at {idx}")
+        return
+    con = open_search(str(idx))
+    try:
+        if project:
+            rows = con.execute(
+                "SELECT permalink, title, path FROM notes "
+                "WHERE path LIKE '%' || ? || '%' ORDER BY mtime DESC LIMIT ?",
+                [project, n],
+            ).fetchall()
+        else:
+            rows = con.execute(
+                "SELECT permalink, title, path FROM notes ORDER BY mtime DESC LIMIT ?", [n]
+            ).fetchall()
+    finally:
+        con.close()
+    notes = [{"permalink": r[0], "title": r[1], "path": r[2]} for r in rows]
+    if as_json:
+        typer.echo(json.dumps({"notes": notes}))
+    else:
+        for nt in notes:
+            typer.echo(f"{nt['permalink']}  ·  {nt['title']}")
+
+
+@app.command()
 def serve(
     vault: Path = typer.Option(None, "--vault", help="Vault root (enables `remember`)."),
     index: Path = typer.Option(None, "--index", help="Index .duckdb path."),

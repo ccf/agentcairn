@@ -296,3 +296,28 @@ def test_recall_env_off(tmp_path, monkeypatch):
 
 def test_recall_flag_overrides_env(tmp_path, monkeypatch):
     assert _spy_recall(tmp_path, monkeypatch, ["--rerank"], env={"CAIRN_RERANK": "0"}) is True
+
+
+def test_recent_returns_recent_notes_json(tmp_path):
+    import json
+
+    v = tmp_path / "vault"
+    v.mkdir()
+    (v / "a.md").write_text("---\ntitle: Alpha\npermalink: a\n---\nalpha body\n")
+    (v / "b.md").write_text("---\ntitle: Beta\npermalink: b\n---\nbeta body\n")
+    idx = tmp_path / "i.duckdb"
+    r = runner.invoke(app, ["reindex", str(v), "--index", str(idx), "--embedder", "fake"])
+    assert r.exit_code == 0, r.output
+    s = runner.invoke(app, ["recent", "--index", str(idx), "-n", "5", "--json"])
+    assert s.exit_code == 0, s.output
+    data = json.loads(s.stdout)
+    perms = {note["permalink"] for note in data["notes"]}
+    assert {"a", "b"} <= perms
+
+
+def test_recent_missing_index_json_is_empty(tmp_path):
+    import json
+
+    s = runner.invoke(app, ["recent", "--index", str(tmp_path / "nope.duckdb"), "--json"])
+    assert s.exit_code == 0
+    assert json.loads(s.stdout) == {"notes": []}
