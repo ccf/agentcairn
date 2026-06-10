@@ -20,14 +20,24 @@ Most agent-memory systems make a database or cloud store the source of truth and
 
 ## How it works
 
-```
-Obsidian vault (Markdown + frontmatter + [[links]])   ← source of truth
-        │  parse                       ▲ write (agent + you), redacted
-        ▼                              │
-   rebuildable DuckDB index  (vector + BM25 + graph-boost)
-        ▲                              │
-        │ reconcile-on-spawn           ▼ READ_ONLY queries
-   transcript ingestion ──────────────►  MCP tools: remember · recall · search · build_context · recent
+```mermaid
+flowchart LR
+    T["Session transcripts<br/>(out-of-band)"]
+    H["You · Obsidian<br/>(hand edits)"]
+    V["📂 Obsidian vault<br/>Markdown + frontmatter + wikilinks<br/><b>source of truth</b>"]
+    I["♻️ DuckDB index<br/>vector + BM25 + graph<br/><b>rebuildable cache</b>"]
+    M["MCP tools<br/>remember · recall · search · build_context · recent"]
+
+    T -- "redact → dedup → distill" --> V
+    H -- "edit" --> V
+    V -- "parse / reconcile-on-spawn" --> I
+    I -- "READ_ONLY hybrid recall" --> M
+    M -. "remember (redacted write)" .-> V
+
+    classDef truth fill:#eaf1ff,stroke:#317cff,color:#191919;
+    classDef cache fill:#f5f5f3,stroke:#999999,color:#191919;
+    class V truth
+    class I cache
 ```
 
 - **Capture** reads your agent harness's session transcripts (append-only, already on disk) *out-of-band* — robust by design, with no fragile live hooks — then redacts → dedups → importance-gates → distills into the vault, non-lossily. Plus an agent-driven `remember` tool for curated, high-value memories.
