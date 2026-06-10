@@ -37,3 +37,41 @@ PYTHONPATH=benchmarks uv run --group bench python -m cairn_bench.run --dataset l
   statistically indistinguishable; don't over-read orderings.
 - LongMemEval "paper-style" `recall_all@k`/`ndcg_any@k` are labeled separately from our
   fractional `recall@k`; don't conflate.
+
+## Embedding-model sweep (LoCoMo) — why `nomic` is the default
+
+Five FastEmbed models, full LoCoMo set, turn-level macro-avg. BM25-only is
+embedder-independent (≈ .527 recall@5 for all) and `graph-boost` ≈ hybrid on these
+corpora, so both are omitted below. To reproduce any row:
+
+```bash
+CAIRN_EMBED_MODEL=<model> PYTHONPATH=benchmarks uv run --group bench \
+  python -m cairn_bench.run --dataset locomo
+```
+
+recall@5 / recall@10 / MRR, by embedder:
+
+| arm | all-MiniLM-L6-v2 (384d) | bge-small-en-v1.5 (384d) | mxbai-embed-large-v1 (1024d) | **nomic-embed-text-v1.5 (768d)** | bge-large-en-v1.5 (1024d) |
+|---|---|---|---|---|---|
+| vector-only | .386 / .476 / .318 | .483 / .578 / .388 | .502 / .616 / .416 | **.536 / .637 / .433** | .535 / .649 / .455 |
+| hybrid-rrf  | .507 / .598 / .422 | .546 / .633 / .462 | .547 / .643 / .466 | **.562 / .648 / .477** | .566 / .655 / .486 |
+| hybrid+reranker | .659 / .730 / .607 | .660 / .735 / .608 | .661 / .735 / .609 | **.662 / .735 / .608** | .660 / .735 / .608 |
+
+Three findings:
+
+1. **`nomic` and `bge-large` are co-leaders; the 384-d models trail.** `nomic` (768-d) and
+   `bge-large` (1024-d) are neck-and-neck on vector-only and are the only models whose
+   vector-only beats BM25. `bge-large` takes a hair more on hybrid recall@10, at 1024-d cost
+   and ~2.5× the indexing wall-clock.
+2. **Dimension is not the lever — model quality is.** The clean proof: `mxbai-large` is also
+   1024-d but lands *below* 768-d `nomic`. You cannot buy recall with wider vectors.
+3. **The reranker erases the spread.** With the default cross-encoder on, every model
+   converges to ~.66 recall@5 — it re-scores the same candidate pool, so the embedder choice
+   barely moves the *defaulted* number. The embedder matters most on the no-reranker /
+   vector-forward path.
+
+**Decision:** ship **`nomic-embed-text-v1.5`** as the default embedder — best quality-per-dim,
+same speed class as `bge-small`, no Ollama server needed, and it lifts vector-only above BM25.
+(`bge-small` remains a fine lighter 384-d option via `CAIRN_EMBED_MODEL=BAAI/bge-small-en-v1.5`.)
+Switching the default changes `model_id`, so an existing index reconciles (re-embeds the vault)
+on first run after upgrade — non-lossy, since the Markdown vault is the source of truth.

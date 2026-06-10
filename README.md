@@ -32,7 +32,7 @@ Obsidian vault (Markdown + frontmatter + [[links]])   ← source of truth
 
 - **Capture** reads your agent harness's session transcripts (append-only, already on disk) *out-of-band* — robust by design, with no fragile live hooks — then redacts → dedups → importance-gates → distills into the vault, non-lossily. Plus an agent-driven `remember` tool for curated, high-value memories.
 - **Retrieval** fuses BM25 + semantic vectors with Reciprocal Rank Fusion, applies an optional graph-boost, and **degrades gracefully** down to keyword-only when no embedding model is available — so recall is *never* silently dead. An optional cross-encoder reranker adds precision.
-- **Hybrid intelligence:** offline local embeddings (FastEmbed / `bge-small`) out of the box — strongest *in the hybrid fusion* (vector-only trails BM25 on short turns; see the benchmark); optional Ollama models (`CAIRN_EMBEDDER=ollama`) or cloud lift recall further.
+- **Hybrid intelligence:** offline local embeddings (FastEmbed / `nomic-embed-text-v1.5` by default) out of the box — strong on its own *and* in the hybrid fusion (with `nomic`, vector-only edges out BM25 even on short turns; see the benchmark). Set `CAIRN_EMBED_MODEL` to pick another FastEmbed model, or run `CAIRN_EMBEDDER=ollama` / a cloud tier to go further.
 - **Temporal memory:** notes may carry `valid_from`/`valid_until`/`superseded_by` frontmatter. Recall is validity-aware — it soft-demotes superseded and expired facts (the *current* fact wins) without ever hiding them (non-lossy), and annotates each result's status (`current`/`superseded`/`expired`/`not_yet_valid`) plus an `as_of` anchor so the agent can reason over time. Inert for notes with no validity fields.
 
 ### CLI
@@ -50,20 +50,20 @@ cairn doctor                                         # health-check the index
 
 We benchmark agentcairn the way we'd want a memory system measured — **reproducibly, with ablations, and without a single cherry-picked headline number.** The harness ([`benchmarks/`](benchmarks/)) runs **LongMemEval-S** and **LoCoMo** through a version-pinned downloader (datasets are never vendored), scores retrieval deterministically (recall/nDCG@k, MRR — no API key needed, runs in CI on a synthetic fixture), and offers an opt-in LLM-judged QA layer.
 
-Retrieval ablation on the full LoCoMo set (turn-level, macro-avg, FastEmbed `bge-small`):
+Retrieval ablation on the full LoCoMo set (turn-level, macro-avg, FastEmbed `nomic-embed-text-v1.5` — the default):
 
 | arm | recall@5 | recall@10 | MRR |
 |---|---|---|---|
 | BM25 only | 0.527 | 0.604 | 0.459 |
-| vector only | 0.483 | 0.578 | 0.388 |
-| hybrid (RRF) | 0.546 | 0.633 | 0.462 |
-| hybrid + graph-boost | 0.546 | 0.633 | 0.462 |
-| **hybrid + reranker** | **0.660** | **0.735** | **0.608** |
+| vector only | 0.536 | 0.637 | 0.433 |
+| hybrid (RRF) | 0.562 | 0.648 | 0.477 |
+| hybrid + graph-boost | 0.562 | 0.648 | 0.477 |
+| **hybrid + reranker** | **0.662** | **0.735** | **0.608** |
 
 What we read from this — and say out loud:
 - **Hybrid beats either arm alone** — RRF fusion is worth it.
-- **The cross-encoder reranker is the biggest lever** (+0.11 recall@5 over hybrid); the "ms-marco domain-shift might hurt" worry didn't materialize on conversational data.
-- **Local `bge-small` vector-only trails BM25** here — the embedder is the weak link on short chat turns (hence the v1.1 cloud/Ollama tiers).
+- **The cross-encoder reranker is the biggest lever** (+0.10 recall@5 over hybrid); the "ms-marco domain-shift might hurt" worry didn't materialize on conversational data.
+- **The embedder default now pulls its weight** — with `nomic`, vector-only *edges out* BM25 (0.536 vs 0.527); switching from the old `bge-small` default (which trailed at 0.483) closed the gap. A 5-model FastEmbed sweep settled the pick — `nomic` (768-d) wins on quality-per-dim; bigger 1024-d models don't beat it. Full table: [`benchmarks/README.md`](benchmarks/README.md).
 - **graph-boost is inert on these corpora** — LoCoMo/LongMemEval have no native `[[wikilink]]` graph, so the boost has nothing to fire on. It's for *real interlinked vaults*, not chat logs, and we don't pretend otherwise.
 
 QA-accuracy numbers (LLM-judged) are available too, but use an Anthropic judge rather than the papers' GPT-4o, so they are **not comparable to published leaderboards** — valid for relative ablation signal only. See [`benchmarks/README.md`](benchmarks/README.md) for how to run it and how to read the numbers.

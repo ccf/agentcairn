@@ -45,3 +45,5 @@ Thumbs.db
 # Note: the vault Markdown files are NEVER ignored (they are the source of truth)
 *.duckdb
 *.duckdb.wal
+
+.superpowers/
