@@ -22,7 +22,7 @@ import tempfile
 from pathlib import Path
 
 from cairn.embed import get_embedder
-from cairn_bench import download
+from cairn_bench import download, token_savings
 from cairn_bench.ablation import run_arm
 from cairn_bench.adapters import locomo, longmemeval
 from cairn_bench.build import build_scoped_index
@@ -91,6 +91,22 @@ def main() -> None:
         dest="qa_model",
         help="Anthropic model used for QA generate+judge (default: claude-sonnet-4-6).",
     )
+    ap.add_argument(
+        "--token-savings",
+        action="store_true",
+        dest="token_savings",
+        help=(
+            "Measure context-token savings (recalled top-k vs. full haystack) instead of the "
+            "ablation matrix. Retrieval-only; no API key needed."
+        ),
+    )
+    ap.add_argument(
+        "--ts-k",
+        type=int,
+        default=10,
+        dest="ts_k",
+        help="Top-k recalled chunks for --token-savings (default: 10).",
+    )
     args = ap.parse_args()
 
     emb = get_embedder(args.embedder)
@@ -102,6 +118,24 @@ def main() -> None:
     else:
         data = json.loads(download.fetch("locomo").read_text())
         records = [locomo.adapt(s) for s in data[: args.limit]]
+
+    # Lean token-savings path: measure recalled vs. full-haystack tokens, then exit.
+    if args.token_savings:
+        ts_rows: list[dict] = []
+        for notes, queries in records:
+            with tempfile.TemporaryDirectory() as d:
+                con, chunks = build_scoped_index(notes, Path(d), emb)
+                try:
+                    full = token_savings.full_haystack_tokens(con)
+                    for q in queries:
+                        rec = token_savings.recalled_tokens(
+                            con, q.question, emb, k=args.ts_k, pool=max(200, chunks)
+                        )
+                        ts_rows.append({"full": full, "recalled": rec})
+                finally:
+                    con.close()
+        print(token_savings.to_markdown(ts_rows, k=args.ts_k))
+        return
 
     # Locate the QA arm once (used only when --qa is set).
     qa_arm = next((a for a in ARMS if a.name == _QA_ARM_NAME), None)
