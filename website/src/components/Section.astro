@@ -1,0 +1,7 @@
+---
+const { id, eyebrow } = Astro.props;
+---
+<section id={id} class="mx-auto max-w-[var(--container-frame)] px-8 pt-[var(--spacing-section)]">
+  {eyebrow && <p class="eyebrow mb-4">{eyebrow}</p>}
+  <slot />
+</section>

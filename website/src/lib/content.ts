@@ -27,3 +27,21 @@ export const footer = {
   license: "Apache-2.0",
   copyright: "© 2026 Charles C. Figueiredo",
 };
+
+export const inversion = {
+  eyebrow: "The inversion",
+  h2: "Most systems make the database the truth. We made it your files.",
+  body: [
+    "Mem0 and Zep keep your memory in a cloud database. Letta and agentmemory keep it in a database too, and treat files — if any — as a one-way export. agentcairn is the only one where the Markdown vault *is* the source of truth.",
+    "So your memory survives a model upgrade, a corrupted index, a schema change — even uninstalling the tool. There is nothing to lose, because the truth was never trapped in the database.",
+  ],
+};
+
+export const differentiators = [
+  { title: "Vault is the source of truth", body: "Human-readable Markdown with frontmatter and [[wikilinks]]. Edit it by hand; the index honors your edits." },
+  { title: "The index is disposable", body: "DuckDB is a rebuildable cache. `cairn reindex` restores everything — zero data loss." },
+  { title: "Non-lossy by construction", body: "The full note is always retained. Distillation only adds derived notes that link back." },
+  { title: "Redaction before every write", body: "Secrets scrubbed (regex + entropy + URL-cred) before body, title, or tags reach the vault." },
+  { title: "A free, deterministic graph", body: "Your [[wikilinks]] are the graph — no LLM extraction, no hallucinated entities." },
+  { title: "Daemonless, zero external DB", body: "One embedded DuckDB does vector + BM25 + graph. No server, no Neo4j/Postgres/Qdrant." },
+];

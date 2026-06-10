@@ -1,0 +1,14 @@
+---
+import Section from "./Section.astro";
+import { differentiators } from "../lib/content";
+---
+<Section id="why" eyebrow="Six differences">
+  <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-8 mt-2">
+    {differentiators.map((d) => (
+      <div>
+        <h3 class="font-sans font-medium text-[18px] tracking-[-0.01em] mb-1.5">{d.title}</h3>
+        <p class="font-serif text-[16px] leading-[1.5] text-[var(--color-ink-muted)]" set:html={d.body.replace(/`(.+?)`/g, '<code class="font-mono text-[0.85em]">$1</code>')} />
+      </div>
+    ))}
+  </div>
+</Section>
