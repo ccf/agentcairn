@@ -26,12 +26,12 @@ def test_get_embedder_ollama_defaults(monkeypatch):
 
 
 def test_get_embedder_fastembed_honors_env(monkeypatch):
-    # CAIRN_EMBED_MODEL selects the FastEmbed model (default bge-small); patch the
-    # backend so no ONNX model is downloaded/loaded at construction.
+    # CAIRN_EMBED_MODEL selects the FastEmbed model (default nomic-embed-text-v1.5);
+    # patch the backend so no ONNX model is downloaded/loaded at construction.
     captured = {}
 
     class _FakeFE:
-        def __init__(self, model_name="BAAI/bge-small-en-v1.5"):
+        def __init__(self, model_name="nomic-ai/nomic-embed-text-v1.5"):
             captured["model"] = model_name
 
     monkeypatch.setattr("cairn.embed.fastembed_embedder.FastEmbedEmbedder", _FakeFE)
@@ -42,7 +42,7 @@ def test_get_embedder_fastembed_honors_env(monkeypatch):
     captured.clear()
     monkeypatch.delenv("CAIRN_EMBED_MODEL", raising=False)
     get_embedder("fastembed")
-    assert captured["model"] == "BAAI/bge-small-en-v1.5"
+    assert captured["model"] == "nomic-ai/nomic-embed-text-v1.5"
 
 
 def test_get_embedder_unknown_still_raises():

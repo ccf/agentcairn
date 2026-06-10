@@ -52,8 +52,8 @@ def test_ollama_config_env_override():
 def test_fastembed_model_default_and_override():
     from cairn.config import fastembed_model
 
-    assert fastembed_model(env={}) == "BAAI/bge-small-en-v1.5"
+    assert fastembed_model(env={}) == "nomic-ai/nomic-embed-text-v1.5"
     assert (
-        fastembed_model(env={"CAIRN_EMBED_MODEL": "BAAI/bge-large-en-v1.5"})
-        == "BAAI/bge-large-en-v1.5"
+        fastembed_model(env={"CAIRN_EMBED_MODEL": "BAAI/bge-small-en-v1.5"})
+        == "BAAI/bge-small-en-v1.5"
     )

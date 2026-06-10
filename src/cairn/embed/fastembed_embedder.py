@@ -7,7 +7,7 @@ from __future__ import annotations
 
 
 class FastEmbedEmbedder:
-    def __init__(self, model_name: str = "BAAI/bge-small-en-v1.5") -> None:
+    def __init__(self, model_name: str = "nomic-ai/nomic-embed-text-v1.5") -> None:
         from fastembed import TextEmbedding
 
         self._name = model_name
