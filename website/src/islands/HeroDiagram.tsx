@@ -1,17 +1,24 @@
+import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
 export default function HeroDiagram() {
   const reduce = useReducedMotion();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  // SSR, first client paint, and reduced motion all render the final visible state
+  // (initial: false) so the diagram is never hidden without JS and reduced-motion
+  // users see it immediately. The draw-in entrance is a client-only enhancement.
+  const motionOK = mounted && !reduce;
   const reveal = (delay: number) =>
-    reduce
-      ? { initial: { opacity: 1, y: 0 }, animate: { opacity: 1, y: 0 } }
-      : { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.5, delay, ease } };
+    motionOK
+      ? { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.5, delay, ease } }
+      : { initial: false as const, animate: { opacity: 1, y: 0 } };
   const draw = (delay: number) =>
-    reduce
-      ? { initial: { pathLength: 1 }, animate: { pathLength: 1 } }
-      : { initial: { pathLength: 0 }, animate: { pathLength: 1 }, transition: { duration: 0.8, delay, ease } };
+    motionOK
+      ? { initial: { pathLength: 0 }, animate: { pathLength: 1 }, transition: { duration: 0.8, delay, ease } }
+      : { initial: false as const, animate: { pathLength: 1 } };
 
   return (
     <div data-testid="hero-diagram" role="img" aria-label="Diagram: a Markdown note becomes a DuckDB index with a wikilink graph, then a cited recall result." className="mt-14 rounded-2xl border border-[var(--color-border)] p-7 grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto_1fr] gap-4 items-center bg-[linear-gradient(180deg,#fff,#fcfcfb)]">
