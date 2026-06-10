@@ -1,0 +1,9 @@
+---
+import { footer, site } from "../lib/content";
+---
+<footer class="mx-auto max-w-[var(--container-frame)] px-8 py-16 mt-[var(--spacing-section)] border-t border-[var(--color-border-faint)] font-mono text-[12px] text-[var(--color-ink-faint)] flex flex-wrap gap-x-6 gap-y-2">
+  <span>{footer.copyright}</span>
+  <a href={`${site.repo}/blob/main/LICENSE`} class="hover:text-[var(--color-ink)]">{footer.license}</a>
+  <a href={site.repo} class="hover:text-[var(--color-ink)]">GitHub</a>
+  <span class="text-[var(--color-ink)]">uvx agentcairn</span>
+</footer>

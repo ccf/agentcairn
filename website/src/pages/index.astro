@@ -1,4 +1,10 @@
 ---
-import "../styles/global.css";
+import Base from "../layouts/Base.astro";
+import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
 ---
-<html lang="en"><head><title>agentcairn</title></head><body><h1>agentcairn</h1></body></html>
+<Base>
+  <Nav />
+  <main id="main"></main>
+  <Footer />
+</Base>
