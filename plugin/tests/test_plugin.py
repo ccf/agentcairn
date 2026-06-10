@@ -6,6 +6,8 @@ import os
 import subprocess
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]  # repo root
 PLUGIN = ROOT / "plugin"
 
@@ -119,3 +121,10 @@ def test_skill_has_valid_frontmatter():
     assert text.startswith("---")
     head = text.split("---", 2)[1]
     assert "name:" in head and "description:" in head
+
+
+@pytest.mark.parametrize("cmd", ["recall", "remember", "memory", "ingest"])
+def test_command_has_frontmatter(cmd):
+    text = (PLUGIN / "commands" / f"{cmd}.md").read_text()
+    assert text.startswith("---")
+    assert "description:" in text.split("---", 2)[1]
