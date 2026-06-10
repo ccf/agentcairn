@@ -12,10 +12,11 @@ export default function SurvivesUninstallDemo() {
   const [advanced, setAdvanced] = useState(0);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  // Derive the visible index reactively: under reduced motion always show the
-  // final state (this corrects even if useReducedMotion() resolves after mount,
-  // rather than getting stuck at the seed value). Otherwise advance via the button.
-  const i = reduce ? stages.length - 1 : advanced;
+  // Derive the visible index reactively. The reduced-motion jump to the final state
+  // is gated on `mounted` so SSR and first client paint agree (the static prerender
+  // always runs with motion off) — no hydration mismatch; reduced-motion users get
+  // the full final state as a clean post-hydration update.
+  const i = mounted && reduce ? stages.length - 1 : advanced;
   const shown = stages.slice(0, i + 1);
   // SSR/first paint/reduced motion render visible (no hidden initial); stages added
   // by clicking after mount animate in.
