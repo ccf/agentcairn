@@ -112,3 +112,10 @@ def test_session_end_runs_and_exits_zero(tmp_path):
         },
     )
     assert r.returncode == 0
+
+
+def test_skill_has_valid_frontmatter():
+    text = (PLUGIN / "skills" / "using-agentcairn-memory" / "SKILL.md").read_text()
+    assert text.startswith("---")
+    head = text.split("---", 2)[1]
+    assert "name:" in head and "description:" in head
