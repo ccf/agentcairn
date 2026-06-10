@@ -2,6 +2,8 @@
 """Validate the Claude Code plugin's static assets (no network)."""
 
 import json
+import os
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]  # repo root
@@ -30,3 +32,83 @@ def test_mcp_config_wires_uvx_agentcairn():
     assert srv["command"] == "uvx"
     assert srv["args"] == ["agentcairn"]
     assert srv["env"]["CAIRN_VAULT"] == "${user_config.vault_path}"
+
+
+def _run_hook(script, stdin_obj, env_extra):
+    env = {**os.environ, **env_extra}
+    return subprocess.run(
+        ["sh", str(PLUGIN / "scripts" / script), env["VAULT_ARG"], env["INDEX_ARG"]],
+        input=json.dumps(stdin_obj),
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+
+def test_session_start_emits_valid_json_with_memories(tmp_path, monkeypatch):
+    # Stub `uvx` so `uvx --from ... cairn recent --json` returns canned notes — no network.
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    stub = bindir / "uvx"
+    stub.write_text(
+        "#!/bin/sh\n"
+        "# echo canned recent JSON regardless of args\n"
+        'echo \'{"notes":[{"permalink":"a","title":"Fixed login","path":"a.md"}]}\'\n'
+    )
+    stub.chmod(0o755)
+    vault = tmp_path / "agentcairn"
+    vault.mkdir()  # exists → init path is skipped
+    r = _run_hook(
+        "session-start.sh",
+        {"hook_event_name": "SessionStart", "cwd": "/Users/x/proj"},
+        {
+            "PATH": f"{bindir}:{os.environ['PATH']}",
+            "VAULT_ARG": str(vault),
+            "INDEX_ARG": str(tmp_path / "i.duckdb"),
+        },
+    )
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    assert out["hookSpecificOutput"]["hookEventName"] == "SessionStart"
+    assert "Fixed login" in out["hookSpecificOutput"]["additionalContext"]
+
+
+def test_session_start_empty_emits_nothing(tmp_path):
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    stub = bindir / "uvx"
+    stub.write_text("#!/bin/sh\necho '{\"notes\":[]}'\n")
+    stub.chmod(0o755)
+    vault = tmp_path / "agentcairn"
+    vault.mkdir()
+    r = _run_hook(
+        "session-start.sh",
+        {"hook_event_name": "SessionStart", "cwd": "/Users/x/proj"},
+        {
+            "PATH": f"{bindir}:{os.environ['PATH']}",
+            "VAULT_ARG": str(vault),
+            "INDEX_ARG": str(tmp_path / "i.duckdb"),
+        },
+    )
+    assert r.returncode == 0
+    assert r.stdout.strip() == ""  # no context when no memories
+
+
+def test_session_end_runs_and_exits_zero(tmp_path):
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    stub = bindir / "uvx"
+    stub.write_text("#!/bin/sh\necho swept; exit 0\n")
+    stub.chmod(0o755)
+    vault = tmp_path / "agentcairn"
+    vault.mkdir()
+    r = _run_hook(
+        "session-end.sh",
+        {"hook_event_name": "SessionEnd", "cwd": "/Users/x/proj"},
+        {
+            "PATH": f"{bindir}:{os.environ['PATH']}",
+            "VAULT_ARG": str(vault),
+            "INDEX_ARG": str(tmp_path / "i.duckdb"),
+        },
+    )
+    assert r.returncode == 0

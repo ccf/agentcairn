@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      { "matcher": "*", "hooks": [
+        { "type": "command", "command": "sh",
+          "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/session-start.sh", "${user_config.vault_path}", "${user_config.index_path}"],
+          "timeout": 20 } ] }
+    ],
+    "SessionEnd": [
+      { "matcher": "*", "hooks": [
+        { "type": "command", "command": "sh",
+          "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/session-end.sh", "${user_config.vault_path}", "${user_config.index_path}"],
+          "timeout": 120 } ] }
+    ]
+  }
+}
