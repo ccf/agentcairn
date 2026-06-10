@@ -18,10 +18,7 @@ export const hero = {
   h1: "Most agent memory makes a database the source of truth. We made it your files.",
   subhead:
     "agentcairn inverts the stack: human-readable Markdown with [[wikilinks]] is the truth, and a rebuildable DuckDB index gives your agent fast hybrid retrieval. Hand-edit a fact in Obsidian and the agent picks it up.",
-  byline: "By Charles C. Figueiredo · Apache-2.0",
-  date: "06.10.26",
   install: "uvx agentcairn",
-  specHref: site.repo + "/blob/main/docs/specs/2026-06-08-agentcairn-design.md",
 };
 
 export const footer = {
@@ -39,7 +36,7 @@ export const inversion = {
 };
 
 export const differentiators = [
-  { title: "Vault is the source of truth", body: "Human-readable Markdown with frontmatter and [[wikilinks]]. Edit it by hand; the index honors your edits." },
+  { title: "Obsidian Vault is the source of truth", body: "Human-readable Markdown with frontmatter and [[wikilinks]]. Edit it by hand; the index honors your edits." },
   { title: "The index is disposable", body: "DuckDB is a rebuildable cache. `cairn reindex` restores everything — zero data loss." },
   { title: "Non-lossy by construction", body: "The full note is always retained. Distillation only adds derived notes that link back." },
   { title: "Redaction before every write", body: "Secrets scrubbed (regex + entropy + URL-cred) before body, title, or tags reach the vault." },
