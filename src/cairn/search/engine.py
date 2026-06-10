@@ -5,11 +5,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
 
 import duckdb
 
 from cairn.search.rerank import rerank_candidates
+from cairn.temporal import db_now, from_db
 
 _RRF_MACRO = "CREATE OR REPLACE MACRO rrf(rank, k := 60) AS coalesce(1.0 / (k + rank), 0)"
 _VALIDITY_PENALTY = 0.5
@@ -172,7 +172,7 @@ def bm25_only(
     graph_boost: bool = True,
     validity_aware: bool = True,
 ) -> list[dict]:
-    now = datetime.now(UTC)
+    now = db_now()
     sql = _bm25_only_sql(graph_boost, validity_aware)
     # Bind-param ordering (positional by appearance in SQL string):
     #   [query, pool]  — BM25 FTS arm
@@ -189,8 +189,8 @@ def bm25_only(
             "note_permalink": r[1],
             "heading_path": r[2],
             "snippet": r[3],
-            "valid_from": r[4].isoformat() if r[4] is not None else None,
-            "valid_until": r[5].isoformat() if r[5] is not None else None,
+            "valid_from": from_db(r[4]).isoformat() if r[4] is not None else None,
+            "valid_until": from_db(r[5]).isoformat() if r[5] is not None else None,
             "superseded_by": r[6],
             "score": float(r[7]),
         }
@@ -210,7 +210,7 @@ def hybrid_search(
     validity_aware: bool = True,
 ) -> list[dict]:
     """Hybrid BM25 + cosine via RRF, optionally graph-boosted. Returns compact dict rows."""
-    now = datetime.now(UTC)
+    now = db_now()
     sql = _hybrid_sql(dim, graph_boost, validity_aware)
     # Bind-param ordering (positional by appearance in SQL string):
     #   [query, pool, qvec, pool]  — BM25 FTS arm + cosine arm
@@ -227,8 +227,8 @@ def hybrid_search(
             "note_permalink": r[1],
             "heading_path": r[2],
             "snippet": r[3],
-            "valid_from": r[4].isoformat() if r[4] is not None else None,
-            "valid_until": r[5].isoformat() if r[5] is not None else None,
+            "valid_from": from_db(r[4]).isoformat() if r[4] is not None else None,
+            "valid_until": from_db(r[5]).isoformat() if r[5] is not None else None,
             "superseded_by": r[6],
             "score": float(r[7]),
         }
