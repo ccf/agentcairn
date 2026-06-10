@@ -142,8 +142,23 @@ def recall_tool(
                     now,
                 )
                 notes.append(note)
+        full = 0
+        try:
+            from cairn.index.schema import cached_haystack_tokens
+
+            full = cached_haystack_tokens(con)
+        except Exception:
+            full = 0
     finally:
         con.close()
+    # Best-effort savings ledger — must never break or slow recall.
+    try:
+        from cairn import usage
+
+        recalled = sum(usage.estimate_tokens(n.get("text")) for n in notes)
+        usage.record("recall", full=full, recalled=recalled, k=k)
+    except Exception:
+        pass
     return {"query": query, "as_of": now.isoformat(), "notes": notes}
 
 
