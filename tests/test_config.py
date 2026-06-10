@@ -47,3 +47,13 @@ def test_ollama_config_defaults():
 def test_ollama_config_env_override():
     env = {"CAIRN_EMBED_MODEL": "mxbai-embed-large", "OLLAMA_HOST": "http://box:11434"}
     assert ollama_config(env=env) == ("mxbai-embed-large", "http://box:11434")
+
+
+def test_fastembed_model_default_and_override():
+    from cairn.config import fastembed_model
+
+    assert fastembed_model(env={}) == "BAAI/bge-small-en-v1.5"
+    assert (
+        fastembed_model(env={"CAIRN_EMBED_MODEL": "BAAI/bge-large-en-v1.5"})
+        == "BAAI/bge-large-en-v1.5"
+    )

@@ -4,14 +4,16 @@ from cairn.embed.fake import FakeEmbedder
 
 
 def get_embedder(name: str = "fastembed") -> Embedder:
-    """Return an Embedder by name. 'fake' for tests; 'fastembed' (default) for real use;
-    'ollama' for local Ollama server (CAIRN_EMBED_MODEL/OLLAMA_HOST)."""
+    """Return an Embedder by name. 'fake' for tests; 'fastembed' (default) for real use
+    (model ← CAIRN_EMBED_MODEL or bge-small); 'ollama' for a local Ollama server
+    (CAIRN_EMBED_MODEL/OLLAMA_HOST)."""
     if name == "fake":
         return FakeEmbedder()
     if name == "fastembed":
+        from cairn.config import fastembed_model
         from cairn.embed.fastembed_embedder import FastEmbedEmbedder
 
-        return FastEmbedEmbedder()
+        return FastEmbedEmbedder(model_name=fastembed_model())
     if name == "ollama":
         from cairn.config import ollama_config
         from cairn.embed.ollama_embedder import OllamaEmbedder

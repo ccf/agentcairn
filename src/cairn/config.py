@@ -23,6 +23,15 @@ def parse_bool(value: str) -> bool:
 
 _DEFAULT_OLLAMA_MODEL = "nomic-embed-text"
 _DEFAULT_OLLAMA_HOST = "http://localhost:11434"
+_DEFAULT_FASTEMBED_MODEL = "BAAI/bge-small-en-v1.5"
+
+
+def fastembed_model(env: Mapping[str, str] | None = None) -> str:
+    """Resolve the FastEmbed model name: CAIRN_EMBED_MODEL or 'BAAI/bge-small-en-v1.5'.
+    (CAIRN_EMBED_MODEL is shared with the Ollama tier; each provider has its own default.)"""
+    if env is None:
+        env = os.environ
+    return env.get("CAIRN_EMBED_MODEL") or _DEFAULT_FASTEMBED_MODEL
 
 
 def ollama_config(env: Mapping[str, str] | None = None) -> tuple[str, str]:
