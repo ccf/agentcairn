@@ -30,3 +30,10 @@ test("uninstall demo advances through stages", async ({ page }) => {
   await demo.getByRole("button", { name: /Recall/ }).click();
   await expect(demo.getByText(/0 facts lost/)).toBeVisible();
 });
+
+test("quickstart + roadmap + prior art render", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("cairn doctor")).toBeVisible();
+  await expect(page.getByText("nomic default embedder")).toBeVisible();
+  await expect(page.getByText("basic-memory")).toBeVisible();
+});
