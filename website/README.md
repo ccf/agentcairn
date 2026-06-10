@@ -15,5 +15,10 @@ npm test           # Playwright e2e (smoke, reduced-motion, a11y)
 ```
 
 ## Deploy
-Cloudflare Pages, project root `website/`, build `npm run build`, output `dist/`.
-Custom domain `agentcairn.dev`. CI deploys on push to `main` (`.github/workflows/site.yml`).
+Deployed via **Cloudflare Pages Git integration** (connect the repo in the Cloudflare
+dashboard): root directory `website`, build command `npm run build`, output directory `dist`,
+custom domain `agentcairn.dev`. Cloudflare builds + deploys on push to `main` and creates
+preview URLs for pull requests — no GitHub secrets required.
+
+CI (`.github/workflows/site.yml`) is the **test gate only** (`astro check` + build +
+Playwright/axe on PRs and `main`); it does not deploy.

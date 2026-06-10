@@ -18,11 +18,5 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm test
-      - name: Deploy to Cloudflare Pages
-        if: github.ref == 'refs/heads/main'
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: website
-          command: pages deploy dist --project-name=agentcairn
+      # Deploy is handled by Cloudflare Pages' Git integration (build: npm run build,
+      # output: dist, root dir: website). This workflow is the test gate only.
