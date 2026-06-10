@@ -8,8 +8,22 @@ VAULT=$(printf '%s' "${1:-$HOME/agentcairn}" | sed "s#^~#$HOME#")
 INDEX=$(printf '%s' "${2:-$HOME/.cache/agentcairn/index.duckdb}" | sed "s#^~#$HOME#")
 CAIRN="uvx --from agentcairn>=0.2 cairn"
 
-# Zero-step onboarding: create the vault if missing.
-[ -d "$VAULT" ] || $CAIRN init "$VAULT" >/dev/null 2>&1 || true
+# First run (no index yet): there is nothing to surface, and the very first
+# `uvx` call cold-installs agentcairn — which can exceed the SessionStart hook
+# timeout. So don't block the session: create the vault and warm the uvx cache
+# in the BACKGROUND (stdout/stderr detached so the hook returns immediately),
+# then exit. By the next session the index exists and the cache is warm, so the
+# fast digest path below runs in well under a second.
+if [ ! -f "$INDEX" ]; then
+  # Make the vault dir exist immediately (uvx-free) so a mid-session `remember`
+  # has somewhere to land; the full Obsidian scaffolding + cache-warm runs in
+  # the background. Detach the job's stdin/stdout/stderr so it does NOT hold the
+  # hook's pipes open — otherwise the caller would block on EOF for the whole
+  # cold install, defeating the point.
+  mkdir -p "$VAULT" 2>/dev/null || true
+  ( $CAIRN init "$VAULT" ) </dev/null >/dev/null 2>&1 &
+  exit 0
+fi
 
 # Fetch recent memories as JSON (best-effort, cross-project).
 JSON=$($CAIRN recent --index "$INDEX" -n 5 --json 2>/dev/null || echo '{"notes":[]}')

@@ -59,7 +59,8 @@ def test_session_start_emits_valid_json_with_memories(tmp_path, monkeypatch):
     )
     stub.chmod(0o755)
     vault = tmp_path / "agentcairn"
-    vault.mkdir()  # exists → init path is skipped
+    vault.mkdir()
+    (tmp_path / "i.duckdb").write_text("")  # index exists → digest path (not first-run)
     r = _run_hook(
         "session-start.sh",
         {"hook_event_name": "SessionStart", "cwd": "/Users/x/proj"},
@@ -83,6 +84,7 @@ def test_session_start_empty_emits_nothing(tmp_path):
     stub.chmod(0o755)
     vault = tmp_path / "agentcairn"
     vault.mkdir()
+    (tmp_path / "i.duckdb").write_text("")  # index exists but recall returns no notes
     r = _run_hook(
         "session-start.sh",
         {"hook_event_name": "SessionStart", "cwd": "/Users/x/proj"},
@@ -94,6 +96,31 @@ def test_session_start_empty_emits_nothing(tmp_path):
     )
     assert r.returncode == 0
     assert r.stdout.strip() == ""  # no context when no memories
+
+
+def test_session_start_first_run_no_index_exits_quietly(tmp_path):
+    # First-ever run: no index file yet. The hook must NOT block on a cold `uvx`
+    # install for an empty digest — it exits 0 immediately with no output and
+    # warms the cache in the background. A stub `uvx` that would hang if called
+    # synchronously proves the digest path is skipped.
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    stub = bindir / "uvx"
+    # If the hook blocked on this synchronously, the test would hang; it must not.
+    stub.write_text("#!/bin/sh\nsleep 30\n")
+    stub.chmod(0o755)
+    vault = tmp_path / "agentcairn"  # does NOT exist yet
+    r = _run_hook(
+        "session-start.sh",
+        {"hook_event_name": "SessionStart", "cwd": "/Users/x/proj"},
+        {
+            "PATH": f"{bindir}:{os.environ['PATH']}",
+            "VAULT_ARG": str(vault),
+            "INDEX_ARG": str(tmp_path / "i.duckdb"),  # absent → first-run branch
+        },
+    )
+    assert r.returncode == 0
+    assert r.stdout.strip() == ""  # nothing to surface on first run
 
 
 def test_session_end_runs_and_exits_zero(tmp_path):
