@@ -64,6 +64,9 @@ export const benchmark = {
     "graph-boost is inert on chat corpora (no native wikilink graph); it's for real vaults.",
     "QA-accuracy numbers use an Anthropic judge, not GPT-4o — not comparable to published leaderboards.",
   ],
+  contextEfficiency:
+    "On LongMemEval-S (~136k-token sessions), agentcairn answers from ~2,500 tokens of recalled " +
+    "context per query — a ~55× reduction in what the model has to read. Estimate; 20-query sample.",
 };
 
 export const cli = [

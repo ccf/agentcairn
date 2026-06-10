@@ -17,6 +17,9 @@ import { benchmark } from "../lib/content";
       </tbody>
     </table>
     <p class="font-serif text-[14px] text-[var(--color-ink-faint)] mt-3">{benchmark.caption}</p>
+    <p class="font-serif text-[15px] text-[var(--color-ink)] mt-6 border-l-2 border-[var(--color-accent)] pl-4">
+      <span class="font-sans font-medium">Context efficiency.</span> {benchmark.contextEfficiency}
+    </p>
     <ul class="font-serif text-[14px] text-[var(--color-ink-muted)] mt-4 list-disc pl-5 space-y-1">
       {benchmark.caveats.map((c) => <li>{c}</li>)}
     </ul>
