@@ -2,7 +2,7 @@
 
 **Local-first memory for AI agents — that you can actually read, edit, and own.**
 
-> **Status: v1 implemented (June 2026).** The full core loop is built, tested, and benchmarked: `cairn.vault` · `cairn.index` · `cairn.embed` · `cairn.search` · `cairn.ingest` · `cairn.mcp` + CLI. Install/usage below is real. v1.1 work (reranker-on, cloud embedding tiers, bi-temporal validity) is informed by the benchmark results below.
+> **Status: v1 implemented (June 2026).** The full core loop is built, tested, and benchmarked: `cairn.vault` · `cairn.index` · `cairn.embed` · `cairn.search` · `cairn.ingest` · `cairn.mcp` + CLI. Install/usage below is real. Three v1.1 features have shipped (reranker on by default, an Ollama embedding tier, and bi-temporal validity), prioritized by the benchmark results below.
 
 agentcairn gives your coding agent durable, high-quality memory — but instead of locking it in an opaque database or a cloud service, **your memories live as plain Markdown in an [Obsidian](https://obsidian.md) vault you own.** A fast, rebuildable [DuckDB](https://duckdb.org) index sits on top for retrieval. Open your vault, read what the agent remembered, fix a wrong fact by hand, or drop in your own notes — and the agent picks it all up.
 
@@ -32,7 +32,8 @@ Obsidian vault (Markdown + frontmatter + [[links]])   ← source of truth
 
 - **Capture** reads your agent harness's session transcripts (append-only, already on disk) *out-of-band* — robust by design, with no fragile live hooks — then redacts → dedups → importance-gates → distills into the vault, non-lossily. Plus an agent-driven `remember` tool for curated, high-value memories.
 - **Retrieval** fuses BM25 + semantic vectors with Reciprocal Rank Fusion, applies an optional graph-boost, and **degrades gracefully** down to keyword-only when no embedding model is available — so recall is *never* silently dead. An optional cross-encoder reranker adds precision.
-- **Hybrid intelligence:** offline local embeddings (FastEmbed / `bge-small`) out of the box — strongest *in the hybrid fusion* (vector-only trails BM25 on short turns; see the benchmark); optional Ollama or cloud models lift recall further.
+- **Hybrid intelligence:** offline local embeddings (FastEmbed / `bge-small`) out of the box — strongest *in the hybrid fusion* (vector-only trails BM25 on short turns; see the benchmark); optional Ollama models (`CAIRN_EMBEDDER=ollama`) or cloud lift recall further.
+- **Temporal memory:** notes may carry `valid_from`/`valid_until`/`superseded_by` frontmatter. Recall is validity-aware — it soft-demotes superseded and expired facts (the *current* fact wins) without ever hiding them (non-lossy), and annotates each result's status (`current`/`superseded`/`expired`/`not_yet_valid`) plus an `as_of` anchor so the agent can reason over time. Inert for notes with no validity fields.
 
 ### CLI
 
@@ -73,7 +74,7 @@ QA-accuracy numbers (LLM-judged) are available too, but use an Anthropic judge r
 - **v1.1 — next, prioritized by the benchmark above:**
   - ✅ **Reranker on by default** — the largest measured retrieval lever; `CAIRN_RERANK=0` to disable. *(shipped)*
   - **Ollama embedding tier** — ✅ local models via `CAIRN_EMBEDDER=ollama` (`CAIRN_EMBED_MODEL`/`OLLAMA_HOST`); cloud (OpenAI/Voyage) still pending.
-  - **Bi-temporal validity** (frontmatter `valid_from`/`valid_until`/`superseded_by`) — temporal questions retrieve the right turns but answer poorly today; the gap is reasoning-over-time, not retrieval.
+  - ✅ **Bi-temporal validity** — frontmatter `valid_from`/`valid_until`/`superseded_by`; recall soft-demotes superseded/expired facts (non-lossy — never hidden) and annotates each result's currency + an `as_of` anchor, so the *current* fact wins and the agent can reason over time. *(shipped)*
   - In-memory HNSW for large-vault retrieval latency.
 - **v2** — Obsidian plugin surface, MotherDuck cloud sync, optional LLM entity extraction.
 
