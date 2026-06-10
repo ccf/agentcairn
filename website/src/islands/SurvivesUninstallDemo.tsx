@@ -27,13 +27,13 @@ export default function SurvivesUninstallDemo() {
         <motion.div key={k}
           initial={motionOK ? { opacity: 0, y: 8 } : false}
           animate={{ opacity: 1, y: 0 }} transition={{ duration: motionOK ? 0.25 : 0 }} className="mb-2">
-          <div><span className="text-[var(--color-accent)]">$</span> {s.cmd}</div>
+          <div><span className="text-[var(--color-accent)]" aria-hidden="true">$</span> {s.cmd}</div>
           <div className="text-[var(--color-ink-muted)]">{s.out}</div>
         </motion.div>
       ))}
       {i < stages.length - 1 && (
         <button onClick={() => setAdvanced((n) => n + 1)}
-          className="mt-2 font-sans text-[13px] font-medium text-[var(--color-accent)] hover:underline">
+          className="mt-2 font-sans text-[13px] font-medium text-[var(--color-accent-text)] hover:underline">
           {stages[i + 1].label} →
         </button>
       )}

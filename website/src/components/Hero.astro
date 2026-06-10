@@ -1,7 +1,7 @@
 ---
 import { hero } from "../lib/content";
 import CopyButton from "./CopyButton.astro";
-import HeroDiagram from "../islands/HeroDiagram.tsx";
+import HeroDiagram from "./HeroDiagram.astro";
 ---
 <header class="mx-auto max-w-[var(--container-frame)] px-8 pt-[90px] pb-14">
   <p class="eyebrow mb-7">{hero.eyebrow}</p>
@@ -10,10 +10,10 @@ import HeroDiagram from "../islands/HeroDiagram.tsx";
   <p class="font-mono text-[12.5px] text-[var(--color-ink-faint)] mb-9">{hero.byline} · <span class="border-b border-dotted border-[var(--color-ink-faint)]">{hero.date}</span></p>
   <div class="flex items-center gap-5 flex-wrap">
     <div class="font-mono text-[14px] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-4 py-3 flex items-center gap-3">
-      <span><span class="text-[var(--color-accent)]">$</span>&nbsp;{hero.install}</span>
+      <span><span class="text-[var(--color-accent)]" aria-hidden="true">$</span>&nbsp;{hero.install}</span>
       <CopyButton text={hero.install} />
     </div>
-    <a href={hero.specHref} class="font-sans font-medium text-[14px] text-[var(--color-accent)] hover:underline">Read the spec →</a>
+    <a href={hero.specHref} class="font-sans font-medium text-[14px] text-[var(--color-accent-text)] hover:underline">Read the spec →</a>
   </div>
-  <HeroDiagram client:visible />
+  <HeroDiagram />
 </header>

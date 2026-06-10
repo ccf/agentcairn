@@ -1,0 +1,38 @@
+---
+// Static hero diagram with a pure-CSS draw-in (no JS island). Content is in the SSR
+// HTML (visible without JS / to crawlers); the entrance is CSS-only and the
+// prefers-reduced-motion rule in global.css shows the final state instantly.
+---
+<div data-testid="hero-diagram" role="img" aria-label="Diagram: a Markdown note becomes a DuckDB index with a wikilink graph, then a cited recall result." class="mt-14 rounded-2xl border border-[var(--color-border)] p-7 grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto_1fr] gap-4 items-center bg-[linear-gradient(180deg,#fff,#fcfcfb)]">
+  <div class="hd-panel">
+    <p class="eyebrow mb-2 text-[10.5px]">Vault · source of truth</p>
+    <pre class="font-mono text-[12px] leading-[1.55] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-3.5 whitespace-pre-wrap">{`---
+tags: [auth, fix]
+---
+Fixed login by rotating
+`}<span class="text-[var(--color-accent)]">[[jwt-secret]]</span>{` during `}<span class="text-[var(--color-accent)]">[[deploy]]</span>.</pre>
+  </div>
+
+  <svg width="40" height="20" class="mx-auto"><path class="hd-edge" pathLength="1" d="M2 10 H38" stroke="var(--color-ink-faint)" fill="none" /></svg>
+
+  <div class="hd-panel hd-p2 flex flex-col items-center gap-3">
+    <p class="eyebrow text-[10.5px]">Index · disposable cache</p>
+    <div class="font-mono text-[11px] text-[var(--color-ink-muted)] border border-[var(--color-border)] rounded-lg px-3.5 py-2.5 bg-white w-full text-center">DuckDB · vector + BM25</div>
+    <div class="flex items-center gap-2">
+      <span class="hd-node w-3.5 h-3.5 rounded-full bg-[var(--color-accent)]"></span>
+      <svg width="26" height="2"><line class="hd-edge-mid" pathLength="1" x1="0" y1="1" x2="26" y2="1" stroke="var(--color-border)" /></svg>
+      <span class="hd-node hd-n2 w-3.5 h-3.5 rounded-full bg-[var(--color-accent-warm)]"></span>
+    </div>
+  </div>
+
+  <svg width="40" height="20" class="mx-auto"><path class="hd-edge hd-e2" pathLength="1" d="M2 10 H38" stroke="var(--color-ink-faint)" fill="none" /></svg>
+
+  <div class="hd-panel hd-p3">
+    <p class="eyebrow mb-2 text-[10.5px]">MCP · recall</p>
+    <div class="hd-recall font-sans text-[13px] bg-white border border-[var(--color-border)] rounded-lg p-3.5">
+      <p class="font-mono text-[11.5px] text-[var(--color-ink-muted)] mb-2">cairn recall "how did we fix login?"</p>
+      <p class="leading-[1.45]">Rotated the jwt-secret during deploy.</p>
+      <p class="font-mono text-[10.5px] text-[var(--color-accent)] mt-2">↳ auth-fix.md</p>
+    </div>
+  </div>
+</div>
