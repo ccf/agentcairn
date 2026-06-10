@@ -24,6 +24,8 @@ export const hero = {
 export const footer = {
   license: "Apache-2.0",
   copyright: "© 2026 Charles C. Figueiredo",
+  definition:
+    "a stack of stones raised to mark a trail or a place worth remembering, left for whoever comes next.",
 };
 
 export const inversion = {
@@ -64,6 +66,10 @@ export const benchmark = {
   contextEfficiency:
     "On LongMemEval-S (~136k-token sessions), agentcairn answers from ~2,500 tokens of recalled " +
     "context per query — a ~55× reduction in what the model has to read. Estimate; 20-query sample.",
+  longmemeval:
+    "On LongMemEval-S — larger, well-separated sessions — session-level retrieval is essentially " +
+    "perfect (recall@5 = 1.00 across every arm, so it's near-ceiling), and turn-level reaches 0.96 " +
+    "recall@5 with the reranker.",
 };
 
 export const cli = [
