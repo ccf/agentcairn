@@ -141,7 +141,12 @@ def test_recall_command(tmp_path):
     idx = tmp_path / "i.duckdb"
     r = runner.invoke(app, ["reindex", str(v), "--index", str(idx), "--embedder", "fake"])
     assert r.exit_code == 0, r.output
-    s = runner.invoke(app, ["recall", "apple brewing", "--index", str(idx), "--embedder", "fake"])
+    # --no-rerank keeps this hermetic: the default-on reranker would download the
+    # ms-marco cross-encoder from HF (flaky/offline-hostile in CI). The default-on
+    # resolution itself is covered by test_recall_rerank_default_on (search() spied).
+    s = runner.invoke(
+        app, ["recall", "apple brewing", "--index", str(idx), "--embedder", "fake", "--no-rerank"]
+    )
     assert s.exit_code == 0, s.output
     assert "a" in s.output  # the permalink shows up in results
 
