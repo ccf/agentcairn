@@ -12,7 +12,15 @@ import duckdb
 
 from cairn.embed.base import Embedder
 from cairn.index.chunk import chunk_note
+from cairn.temporal import parse_temporal
 from cairn.vault import parse_note
+
+
+def _safe_temporal(value: object):
+    try:
+        return parse_temporal(value)
+    except (TypeError, ValueError):
+        return None
 
 
 @dataclass
@@ -70,15 +78,22 @@ def index_note(
     note.permalink = permalink  # ensure downstream rows are keyed consistently
 
     _delete_note(con, permalink)
+    fm = note.frontmatter
     con.execute(
-        "INSERT INTO notes VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO notes "
+        "(permalink, path, title, type, content_hash, mtime, "
+        " valid_from, valid_until, superseded_by) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
             permalink,
             str(path),
-            str(note.frontmatter.get("title") or ""),
-            str(note.frontmatter.get("type") or ""),
+            str(fm.get("title") or ""),
+            str(fm.get("type") or ""),
             _content_hash(text),
             path.stat().st_mtime,
+            _safe_temporal(fm.get("valid_from")),
+            _safe_temporal(fm.get("valid_until")),
+            (fm.get("superseded_by") or None),
         ],
     )
     chunks = chunk_note(note)

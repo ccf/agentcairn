@@ -94,6 +94,32 @@ def test_reconcile_updates_path_on_move(tmp_path):
     assert con.execute("SELECT count(*) FROM notes").fetchone()[0] == 1
 
 
+def test_reconcile_populates_validity_columns(tmp_path):
+    from cairn.embed import FakeEmbedder
+    from cairn.index import open_index, reconcile
+
+    v = tmp_path / "vault"
+    v.mkdir()
+    (v / "job.md").write_text(
+        "---\ntitle: Job\npermalink: job\nvalid_from: 2024-01-01\n"
+        "valid_until: 2024-06-01\nsuperseded_by: job2\n---\nworked at X\n"
+    )
+    # malformed valid_from -> NULL, note still indexes (non-lossy)
+    (v / "ok.md").write_text(
+        "---\ntitle: OK\npermalink: ok\nvalid_from: bad-date\n---\nplain note\n"
+    )
+    emb = FakeEmbedder(dim=8)
+    con = open_index(str(tmp_path / "i.duckdb"), dim=emb.dim, model_id=emb.model_id)
+    reconcile(con, str(v), emb)
+    row = con.execute(
+        "SELECT valid_from, valid_until, superseded_by FROM notes WHERE permalink='job'"
+    ).fetchone()
+    assert row[0] is not None and row[1] is not None and row[2] == "job2"
+    # malformed valid_from -> NULL, but the note is still indexed (non-lossy)
+    ok = con.execute("SELECT valid_from, superseded_by FROM notes WHERE permalink='ok'").fetchone()
+    assert ok is not None and ok[0] is None and ok[1] is None
+
+
 def test_open_index_does_not_clobber_meta_so_reconcile_rebuilds(tmp_path):
     # Simulates two CLI `reindex` invocations (open_index -> reconcile each time)
     # with a switched embedder. open_index must NOT overwrite the stored

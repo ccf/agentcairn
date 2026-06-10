@@ -15,7 +15,8 @@ def open_index(path: str, *, dim: int, model_id: str) -> duckdb.DuckDBPyConnecti
     con.execute(
         "CREATE TABLE IF NOT EXISTS notes ("
         "  permalink VARCHAR PRIMARY KEY, path VARCHAR, title VARCHAR, type VARCHAR,"
-        "  content_hash VARCHAR, mtime DOUBLE)"
+        "  content_hash VARCHAR, mtime DOUBLE,"
+        "  valid_from TIMESTAMP, valid_until TIMESTAMP, superseded_by VARCHAR)"
     )
     con.execute(
         "CREATE TABLE IF NOT EXISTS chunks ("
