@@ -16,7 +16,16 @@ def test_hybrid_search_returns_ranked_hits(tmp_path):
     hits = hybrid_search(con, "coffee brewing", qvec, dim=emb.dim, limit=5)
     assert hits, "no hybrid hits"
     h = hits[0]
-    assert set(h.keys()) == {"chunk_id", "note_permalink", "heading_path", "snippet", "score"}
+    assert set(h.keys()) == {
+        "chunk_id",
+        "note_permalink",
+        "heading_path",
+        "snippet",
+        "score",
+        "valid_from",
+        "valid_until",
+        "superseded_by",
+    }
     scores = [x["score"] for x in hits]
     assert scores == sorted(scores, reverse=True)
     # BM25 term 'coffee' should surface the coffee note near the top
@@ -179,6 +188,43 @@ def test_bm25_only_graph_boost_toggle(tmp_path):
     # tea is a link target -> boosted when on, not when off
     assert on["tea"] > off["tea"]
     assert default["tea"] == on["tea"]  # default is graph_boost=True
+
+
+def test_validity_soft_demote(tmp_path):
+    from cairn.embed import FakeEmbedder
+    from cairn.index import open_index, reconcile
+    from cairn.search import open_search, search
+
+    v = tmp_path / "v"
+    v.mkdir()
+    # two notes about the same topic; "old" is superseded by "new"
+    (v / "old.md").write_text(
+        "---\ntitle: Old\npermalink: old\nsuperseded_by: new\n---\nfavorite color is blue\n"
+    )
+    (v / "new.md").write_text("---\ntitle: New\npermalink: new\n---\nfavorite color is green\n")
+    idx = tmp_path / "i.duckdb"
+    emb = FakeEmbedder(dim=8)
+    con0 = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
+    reconcile(con0, str(v), emb)
+    con0.close()
+    con = open_search(str(idx))
+    try:
+        on = {
+            h.permalink: h.score
+            for h in search(con, "favorite color", embedder=emb, validity_aware=True)
+        }
+        off = {
+            h.permalink: h.score
+            for h in search(con, "favorite color", embedder=emb, validity_aware=False)
+        }
+        hits = search(con, "favorite color", embedder=emb)
+    finally:
+        con.close()
+    # superseded "old" is demoted when validity_aware (default on)
+    assert on["old"] < off["old"]
+    # Hit carries validity fields regardless of the toggle
+    h_old = next(h for h in hits if h.permalink == "old")
+    assert h_old.superseded_by == "new"
 
 
 def test_rerank_fetches_at_least_k_candidates_when_k_exceeds_20(tmp_path, monkeypatch):
