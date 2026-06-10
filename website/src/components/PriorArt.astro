@@ -1,9 +1,0 @@
----
-import Section from "./Section.astro";
-import { priorArt } from "../lib/content";
----
-<Section id="prior-art" eyebrow="Prior art & thanks">
-  <ul class="prose-measure font-serif text-[16px] text-[var(--color-ink-muted)] space-y-2">
-    {priorArt.map((p) => <li><span class="text-[var(--color-ink)]">{p.name}</span> — {p.note}</li>)}
-  </ul>
-</Section>

@@ -80,14 +80,3 @@ export const trust = [
   { k: "No telemetry", v: "nothing phones home" },
   { k: "Index outside the vault", v: "the .duckdb cache is never synced" },
 ];
-export const roadmap = {
-  done: ["Transcript ingestion → redaction → Markdown → DuckDB", "MCP server + CLI", "Reproducible benchmark harness"],
-  shipped: ["Reranker on by default", "Ollama embedding tier", "Bi-temporal validity", "nomic default embedder"],
-  next: ["In-memory HNSW", "Obsidian plugin", "MotherDuck cloud sync"],
-};
-export const priorArt = [
-  { name: "basic-memory", note: "Markdown-as-memory + rebuildable index" },
-  { name: "Simon Späti — Obsidian RAG on DuckDB", note: "SQL hybrid search over a vault" },
-  { name: "DuckDB VSS + FTS", note: "the embedded engine" },
-  { name: "LongMemEval / LoCoMo", note: "the benchmarks" },
-];

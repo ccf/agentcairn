@@ -31,9 +31,9 @@ test("uninstall demo advances through stages", async ({ page }) => {
   await expect(demo.getByText(/0 facts lost/)).toBeVisible();
 });
 
-test("quickstart + roadmap + prior art render", async ({ page }) => {
+test("quickstart renders; removed roadmap/prior-art sections are absent", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("cairn doctor")).toBeVisible();
-  await expect(page.getByText("nomic default embedder")).toBeVisible();
-  await expect(page.getByText("basic-memory")).toBeVisible();
+  await expect(page.getByText("basic-memory")).toHaveCount(0);
+  await expect(page.getByText("Roadmap & honest status")).toHaveCount(0);
 });
