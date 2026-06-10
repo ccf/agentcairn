@@ -116,7 +116,12 @@ def recall(
         help="Cross-encoder rerank (default on; or set CAIRN_RERANK=0).",
     ),
 ) -> None:
-    """Hybrid recall over the index (semantic + BM25 + graph-boost)."""
+    """Hybrid recall over the index (semantic + BM25 + graph-boost).
+
+    Validity-aware: current facts rank above superseded/expired ones (set
+    `superseded_by`/`valid_until` in note frontmatter). Reranked by default
+    (`CAIRN_RERANK=0` to disable).
+    """
     idx = index or _default_index()
     if not idx.exists():
         typer.echo(f"no index at {idx} — run `cairn reindex <vault>` first")
