@@ -75,3 +75,28 @@ same speed class as `bge-small`, no Ollama server needed, and it lifts vector-on
 (`bge-small` remains a fine lighter 384-d option via `CAIRN_EMBED_MODEL=BAAI/bge-small-en-v1.5`.)
 Switching the default changes `model_id`, so an existing index reconciles (re-embeds the vault)
 on first run after upgrade — non-lossy, since the Markdown vault is the source of truth.
+
+## Context-token savings (`--token-savings`)
+
+How much smaller is the context agentcairn *recalls* than the full history you'd otherwise
+carry into the model? Measured retrieval-only with the default config (hybrid + cross-encoder
+reranker, k=10), over a sample of each dataset:
+
+| dataset (sample) | queries | mean haystack | mean recalled (k=10) | context reduction |
+|---|---|---|---|---|
+| LoCoMo (3 convos) | 497 | 25,646 tok | 529 tok | **51.1× mean / 50.3× median** |
+| LongMemEval-S (`--limit 20`) | 20 | 136,104 tok | 2,528 tok | **54.8× mean / 53.7× median** |
+
+```bash
+PYTHONPATH=benchmarks uv run --group bench python -m cairn_bench.run \
+  --dataset longmemeval-s --token-savings --limit 20
+```
+
+Read honestly:
+- **Estimate, not a billed cost.** Tokens via a ~4-chars/token heuristic; "full" = the entire
+  indexed haystack (what you'd paste if you dumped the vault), "recalled" = the top-k chunks
+  agentcairn returns. The factor is `full / recalled`.
+- The reduction is **~50× at k=10 on both corpora**; the *absolute* savings scale with history
+  size (~25k tokens/query on LoCoMo, ~134k tokens/query on LongMemEval-S).
+- It measures *context size*, independent of retrieval quality (recall/nDCG tables above).
+- Samples, not full sets — rerun with a larger `--limit` for tighter intervals before quoting.
