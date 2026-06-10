@@ -2,7 +2,7 @@
 
 **Local-first memory for AI agents — that you can actually read, edit, and own.**
 
-> **Status: v1 implemented (June 2026).** The full core loop is built, tested, and benchmarked: `cairn.vault` · `cairn.index` · `cairn.embed` · `cairn.search` · `cairn.ingest` · `cairn.mcp` + CLI. Install/usage below is real. Three v1.1 features have shipped (reranker on by default, an Ollama embedding tier, and bi-temporal validity), prioritized by the benchmark results below.
+> **cairn** &nbsp;/kɛən/&nbsp; · *noun* — a stack of stones raised to mark a trail or a place worth remembering, left for whoever comes next.
 
 agentcairn gives your coding agent durable, high-quality memory — but instead of locking it in an opaque database or a cloud service, **your memories live as plain Markdown in an [Obsidian](https://obsidian.md) vault you own.** A fast, rebuildable [DuckDB](https://duckdb.org) index sits on top for retrieval. Open your vault, read what the agent remembered, fix a wrong fact by hand, or drop in your own notes — and the agent picks it all up.
 
@@ -65,6 +65,10 @@ What we read from this — and say out loud:
 - **The cross-encoder reranker is the biggest lever** (+0.10 recall@5 over hybrid); the "ms-marco domain-shift might hurt" worry didn't materialize on conversational data.
 - **The embedder default now pulls its weight** — with `nomic`, vector-only *edges out* BM25 (0.536 vs 0.527); switching from the old `bge-small` default (which trailed at 0.483) closed the gap. A 5-model FastEmbed sweep settled the pick — `nomic` (768-d) wins on quality-per-dim; bigger 1024-d models don't beat it. Full table: [`benchmarks/README.md`](benchmarks/README.md).
 - **graph-boost is inert on these corpora** — LoCoMo/LongMemEval have no native `[[wikilink]]` graph, so the boost has nothing to fire on. It's for *real interlinked vaults*, not chat logs, and we don't pretend otherwise.
+
+**LongMemEval-S** (50-instance sample) is an easier retrieval task with well-separated evidence sessions. At **session level** (the granularity prior work reports) retrieval is essentially perfect — **recall@5 = 1.00** for *every* arm (hybrid+reranker nDCG@10 0.993 / MRR 0.990); at the finer **turn level**, hybrid+reranker reaches **0.96 recall@5**. Two caveats we say out loud: session-recall@5 *saturates* at 1.0 here (even BM25 hits it), so it isn't a discriminating metric on this corpus; and it's a 10% sample — comparable for relative signal, not a leaderboard claim.
+
+**Context efficiency.** On LongMemEval-S's ~136k-token sessions, agentcairn answers from the ~2,500 tokens it *recalls* (top-10) rather than the full history — a **~55× reduction** in what the model has to read (estimate, ~4 chars/token; 20-query sample). It measures context *size*, independent of retrieval quality.
 
 QA-accuracy numbers (LLM-judged) are available too, but use an Anthropic judge rather than the papers' GPT-4o, so they are **not comparable to published leaderboards** — valid for relative ablation signal only. See [`benchmarks/README.md`](benchmarks/README.md) for how to run it and how to read the numbers.
 
