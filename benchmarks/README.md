@@ -38,6 +38,30 @@ PYTHONPATH=benchmarks uv run --group bench python -m cairn_bench.run --dataset l
 - LongMemEval "paper-style" `recall_all@k`/`ndcg_any@k` are labeled separately from our
   fractional `recall@k`; don't conflate.
 
+## LongMemEval-S retrieval (50-instance sample, FastEmbed `nomic`)
+
+```bash
+PYTHONPATH=benchmarks uv run --group bench python -m cairn_bench.run --dataset longmemeval-s --limit 50
+```
+
+Session-level (the granularity prior work reports) + turn-level macro-avg:
+
+| arm | session r@5 | session MRR | turn r@5 | turn r@10 | turn MRR |
+|---|---|---|---|---|---|
+| bm25-only | 1.000 | 0.975 | 0.840 | 0.880 | 0.654 |
+| hybrid-rrf | 1.000 | 0.970 | 0.860 | 0.940 | 0.596 |
+| **hybrid+reranker** | **1.000** | **0.990** | **0.960** | **0.980** | **0.822** |
+
+Read honestly:
+- **Session recall@5 saturates at 1.000 for every arm** (even BM25) — LongMemEval-S evidence
+  sessions are well-separated, so landing the right session in the top-5 is near-trivial. It is
+  *not* a discriminating metric here; use session nDCG/MRR or turn-level to compare arms.
+- **Turn-level is the discriminating view:** hybrid+reranker hits **0.960** r@5, and the reranker
+  is again the largest lever (+0.10 over hybrid).
+- LongMemEval-S retrieval is markedly *easier* than LoCoMo (turn r@5 0.84–0.96 vs 0.53–0.66).
+- 50/500 sample (10%) — comparable for relative signal, not a published-leaderboard claim. (Prior
+  work reports session recall@5 ≈ 0.95 over the full 500; our sample saturates at 1.0.)
+
 ## Embedding-model sweep (LoCoMo) — why `nomic` is the default
 
 Five FastEmbed models, full LoCoMo set, turn-level macro-avg. BM25-only is
