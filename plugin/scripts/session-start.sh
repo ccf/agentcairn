@@ -1,22 +1,18 @@
 #!/bin/sh
-# args: $1 = vault path, $2 = index path. stdin = hook JSON (has "cwd").
-# Emits SessionStart additionalContext with a compact recent-memory digest.
+# args: $1 = vault path, $2 = index path. stdin = hook JSON (unused).
+# Emits SessionStart additionalContext with a compact recent-memory digest
+# (global / cross-project — see the using-agentcairn-memory skill).
 # Always exits 0 (never blocks/delays the session); no output when there's nothing.
 set -u
 VAULT=$(printf '%s' "${1:-$HOME/agentcairn}" | sed "s#^~#$HOME#")
 INDEX=$(printf '%s' "${2:-$HOME/.cache/agentcairn/index.duckdb}" | sed "s#^~#$HOME#")
 CAIRN="uvx --from agentcairn>=0.2 cairn"
 
-# Read cwd from stdin hook JSON (best-effort; default to repo dir name unknown).
-INPUT=$(cat 2>/dev/null || true)
-CWD=$(printf '%s' "$INPUT" | sed -n 's/.*"cwd"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-PROJECT=$(basename "${CWD:-}" 2>/dev/null || echo "")
-
 # Zero-step onboarding: create the vault if missing.
 [ -d "$VAULT" ] || $CAIRN init "$VAULT" >/dev/null 2>&1 || true
 
-# Fetch recent project-scoped memories as JSON (best-effort).
-JSON=$($CAIRN recent --index "$INDEX" ${PROJECT:+--project "$PROJECT"} -n 5 --json 2>/dev/null || echo '{"notes":[]}')
+# Fetch recent memories as JSON (best-effort, cross-project).
+JSON=$($CAIRN recent --index "$INDEX" -n 5 --json 2>/dev/null || echo '{"notes":[]}')
 
 # Format a compact digest; emit nothing if no notes.
 LINES=$(printf '%s' "$JSON" | python3 -c '
@@ -32,7 +28,7 @@ for n in notes:
 
 [ -z "$LINES" ] && exit 0
 
-CTX="## agentcairn — recent memory${PROJECT:+ for $PROJECT}
+CTX="## agentcairn — recent memory
 $LINES
 
 (Use the \`recall\` tool to pull full notes.)"

@@ -25,7 +25,7 @@ agent remembers across sessions with zero manual bookkeeping — the vault is **
   (SessionStart surface, SessionEnd distill). *Not* per-prompt auto-recall.
 - **Vault: one global personal vault (A)** — default `~/agentcairn`, overridable at install.
   Memories from all projects live in one vault, scoped by project metadata.
-- **SessionStart: compact recent digest (A)** — inject a few recent, project-scoped memories.
+- **SessionStart: compact recent digest (A)** — inject a few recent memories (global / cross-project).
 
 ## 3. Architecture & distribution
 
@@ -183,16 +183,18 @@ absolute path (no silent `./~/agentcairn` directory).
 }
 ```
 
-**`session-start.sh`** (vault, index as `$1`, `$2`; stdin = hook JSON with `cwd`):
-- Expand `~` in the paths; derive a project key from `cwd` (basename).
+**`session-start.sh`** (vault, index as `$1`, `$2`; stdin = hook JSON, unused):
+- Expand `~` in the paths.
 - **Ensure the vault exists (zero-step onboarding):** if the vault dir is missing, run
   `uvx --from 'agentcairn>=0.2' cairn init "$VAULT"` (idempotent) so the first session auto-creates
   an Obsidian-ready vault — no manual step even for first-time users.
-- `uvx --from 'agentcairn>=0.2' cairn recent --index "$INDEX" --project "$PROJECT" -n 5 --json`
-- If it returns memories, format a compact digest (each: `- <title> — <one-line>`) and emit:
+- `uvx --from 'agentcairn>=0.2' cairn recent --index "$INDEX" -n 5 --json`
+  (global / cross-project — the index has no per-note cwd/provenance column, and surfacing
+  cross-project recent memory is desirable)
+- If it returns memories, format a compact digest (each: `- <title>`) and emit:
   ```json
   {"hookSpecificOutput":{"hookEventName":"SessionStart",
-    "additionalContext":"## agentcairn — recent memory for <project>\n- …"}}
+    "additionalContext":"## agentcairn — recent memory\n- …"}}
   ```
 - **Always non-fatal:** empty result, missing index, or any error → exit 0 with no context.
   Never block or delay the session start beyond the timeout.

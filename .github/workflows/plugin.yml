@@ -19,4 +19,4 @@ jobs:
       - name: shellcheck hook scripts
         run: |
           sudo apt-get update && sudo apt-get install -y shellcheck
-          shellcheck plugin/scripts/*.sh || true
+          shellcheck -S error plugin/scripts/*.sh

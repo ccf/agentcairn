@@ -342,3 +342,19 @@ def test_init_idempotent_preserves_edits(tmp_path):
     assert r2.exit_code == 0
     assert "edited" in (target / "welcome.md").read_text()  # not clobbered
     assert (target / "note.md").exists()  # existing notes untouched
+
+
+def test_recent_project_filters_by_path_substring(tmp_path):
+    import json
+
+    v = tmp_path / "vault"
+    v.mkdir()
+    (v / "alpha.md").write_text("---\ntitle: Alpha\npermalink: alpha\n---\nbody\n")
+    (v / "beta.md").write_text("---\ntitle: Beta\npermalink: beta\n---\nbody\n")
+    idx = tmp_path / "i.duckdb"
+    r = runner.invoke(app, ["reindex", str(v), "--index", str(idx), "--embedder", "fake"])
+    assert r.exit_code == 0, r.output
+    s = runner.invoke(app, ["recent", "--index", str(idx), "--project", "alpha", "--json"])
+    assert s.exit_code == 0, s.output
+    perms = {n["permalink"] for n in json.loads(s.stdout)["notes"]}
+    assert "alpha" in perms and "beta" not in perms
