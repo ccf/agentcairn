@@ -12,7 +12,7 @@ import duckdb
 
 from cairn.embed.base import Embedder
 from cairn.index.chunk import chunk_note
-from cairn.temporal import parse_temporal
+from cairn.temporal import parse_temporal, to_db
 from cairn.vault import parse_note
 
 
@@ -91,8 +91,8 @@ def index_note(
             str(fm.get("type") or ""),
             _content_hash(text),
             path.stat().st_mtime,
-            _safe_temporal(fm.get("valid_from")),
-            _safe_temporal(fm.get("valid_until")),
+            to_db(_safe_temporal(fm.get("valid_from"))),
+            to_db(_safe_temporal(fm.get("valid_until"))),
             (fm.get("superseded_by") or None),
         ],
     )

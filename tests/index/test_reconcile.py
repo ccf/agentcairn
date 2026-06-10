@@ -120,6 +120,39 @@ def test_reconcile_populates_validity_columns(tmp_path):
     assert ok is not None and ok[0] is None and ok[1] is None
 
 
+def test_valid_from_roundtrip_stores_utc_wall_clock(tmp_path):
+    """Gate test: stored valid_from must be the UTC wall-clock instant, not local-shifted.
+
+    Reconcile a note with valid_from=2024-06-15T10:30:45Z, then read the raw
+    TIMESTAMP column back and confirm it is 2024-06-15 10:30:45 (naive UTC),
+    NOT a local-shifted value (which would differ when system TZ != UTC).
+    """
+    from datetime import UTC, datetime
+
+    from cairn.embed import FakeEmbedder
+    from cairn.index import open_index, reconcile
+    from cairn.temporal import from_db
+
+    v = tmp_path / "vault"
+    v.mkdir()
+    (v / "job.md").write_text(
+        "---\ntitle: Job\npermalink: job\nvalid_from: 2024-06-15T10:30:45Z\n---\nworked at X\n"
+    )
+    emb = FakeEmbedder(dim=8)
+    con = open_index(str(tmp_path / "i.duckdb"), dim=emb.dim, model_id=emb.model_id)
+    reconcile(con, str(v), emb)
+    row = con.execute("SELECT valid_from FROM notes WHERE permalink = 'job'").fetchone()
+    assert row is not None and row[0] is not None
+    stored_naive = row[0]  # DuckDB TIMESTAMP -> naive datetime in Python
+    # The stored value must be the UTC wall-clock: 2024-06-15 10:30:45, not local-shifted.
+    assert stored_naive == datetime(2024, 6, 15, 10, 30, 45), (
+        f"stored valid_from={stored_naive!r} is not the UTC wall-clock 2024-06-15T10:30:45 — "
+        "the DuckDB TZ footgun: binding an aware datetime shifts it to local time."
+    )
+    # from_db should re-attach UTC and compare equal to the original aware value
+    assert from_db(stored_naive) == datetime(2024, 6, 15, 10, 30, 45, tzinfo=UTC)
+
+
 def test_open_index_does_not_clobber_meta_so_reconcile_rebuilds(tmp_path):
     # Simulates two CLI `reindex` invocations (open_index -> reconcile each time)
     # with a switched embedder. open_index must NOT overwrite the stored

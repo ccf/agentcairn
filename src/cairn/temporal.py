@@ -8,6 +8,22 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 
 
+def to_db(dt: datetime | None) -> datetime | None:
+    """Aware datetime -> naive-UTC for binding into a DuckDB TIMESTAMP (DuckDB
+    converts aware values to local time; binding naive-UTC stores the instant verbatim)."""
+    return None if dt is None else dt.astimezone(UTC).replace(tzinfo=None)
+
+
+def from_db(dt: datetime | None) -> datetime | None:
+    """Naive-UTC read back from a DuckDB TIMESTAMP -> aware UTC."""
+    return None if dt is None else dt.replace(tzinfo=UTC)
+
+
+def db_now() -> datetime:
+    """Current time as naive-UTC, for binding into TIMESTAMP comparisons."""
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
 def parse_temporal(value: object) -> datetime | None:
     """Normalize a frontmatter temporal value to a tz-aware UTC datetime.
     None/"" -> None. naive -> assumed UTC. date-only -> 00:00 UTC. str -> ISO-8601.

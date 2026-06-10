@@ -227,6 +227,49 @@ def test_validity_soft_demote(tmp_path):
     assert h_old.superseded_by == "new"
 
 
+def test_expired_note_demoted_vs_current(tmp_path):
+    """An expired note (valid_until in the past) must be soft-demoted vs a current note.
+
+    This exercises the corrected db_now() naive-UTC bind: if the SQL now-param were
+    timezone-aware DuckDB would coerce it to local time, potentially breaking the
+    comparison against the naive-UTC stored values.
+    """
+    from cairn.embed import FakeEmbedder
+    from cairn.index import open_index, reconcile
+    from cairn.search import open_search, search
+
+    v = tmp_path / "v"
+    v.mkdir()
+    # "old" expired in 2020 — valid_until is definitively in the past
+    (v / "old.md").write_text(
+        "---\ntitle: Old\npermalink: old\nvalid_until: 2020-01-01\n---\nfavorite color is blue\n"
+    )
+    (v / "new.md").write_text("---\ntitle: New\npermalink: new\n---\nfavorite color is green\n")
+    idx = tmp_path / "i.duckdb"
+    emb = FakeEmbedder(dim=8)
+    con0 = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
+    reconcile(con0, str(v), emb)
+    con0.close()
+
+    con = open_search(str(idx))
+    try:
+        on = {
+            h.permalink: h.score
+            for h in search(con, "favorite color", embedder=emb, validity_aware=True)
+        }
+        off = {
+            h.permalink: h.score
+            for h in search(con, "favorite color", embedder=emb, validity_aware=False)
+        }
+    finally:
+        con.close()
+    # expired "old" is demoted when validity_aware=True vs off
+    assert on["old"] < off["old"], (
+        f"Expired note score on={on['old']:.6f} not < off={off['old']:.6f}; "
+        "db_now() naive-UTC bind may be broken."
+    )
+
+
 def test_rerank_fetches_at_least_k_candidates_when_k_exceeds_20(tmp_path, monkeypatch):
     """When rerank=True and k>20, the engine must fetch max(20, k) candidates so the
     reranker sees all k candidates and the 20-cap no longer throttles a larger k.
