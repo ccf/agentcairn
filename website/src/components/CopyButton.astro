@@ -1,0 +1,13 @@
+---
+const { text } = Astro.props;
+---
+<button
+  class="font-mono text-[11px] text-[var(--color-ink-faint)] border-l border-[var(--color-border)] pl-3 hover:text-[var(--color-ink)]"
+  data-copy={text} aria-label={`Copy: ${text}`}>copy</button>
+<script>
+  document.querySelectorAll("[data-copy]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(b.getAttribute("data-copy") || "");
+      const prev = b.textContent; b.textContent = "copied"; setTimeout(() => (b.textContent = prev), 1200);
+    }));
+</script>
