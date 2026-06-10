@@ -64,3 +64,29 @@ export const benchmark = {
     "QA-accuracy numbers use an Anthropic judge, not GPT-4o — not comparable to published leaderboards.",
   ],
 };
+
+export const cli = [
+  "uvx agentcairn                      # on-demand MCP server",
+  "cairn ingest --vault ~/vault        # distill recent sessions",
+  "cairn sweep  --vault ~/vault        # ingest + reindex",
+  "cairn recall \"how did we fix auth?\"  # hybrid recall",
+  "cairn reindex ~/vault               # rebuild from Markdown",
+  "cairn doctor                        # health-check the index",
+];
+export const trust = [
+  { k: "Redaction before write", v: "regex + entropy + URL-credential" },
+  { k: "Localhost-only MCP", v: "READ_ONLY queries, no exposed ports" },
+  { k: "No telemetry", v: "nothing phones home" },
+  { k: "Index outside the vault", v: "the .duckdb cache is never synced" },
+];
+export const roadmap = {
+  done: ["Transcript ingestion → redaction → Markdown → DuckDB", "MCP server + CLI", "Reproducible benchmark harness"],
+  shipped: ["Reranker on by default", "Ollama embedding tier", "Bi-temporal validity", "nomic default embedder"],
+  next: ["In-memory HNSW", "Obsidian plugin", "MotherDuck cloud sync"],
+};
+export const priorArt = [
+  { name: "basic-memory", note: "Markdown-as-memory + rebuildable index" },
+  { name: "Simon Späti — Obsidian RAG on DuckDB", note: "SQL hybrid search over a vault" },
+  { name: "DuckDB VSS + FTS", note: "the embedded engine" },
+  { name: "LongMemEval / LoCoMo", note: "the benchmarks" },
+];

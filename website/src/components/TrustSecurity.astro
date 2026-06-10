@@ -1,0 +1,14 @@
+---
+import Section from "./Section.astro";
+import { trust } from "../lib/content";
+---
+<Section id="trust" eyebrow="Trust & security">
+  <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+    {trust.map((t) => (
+      <div>
+        <p class="font-mono text-[12px] text-[var(--color-ink)] mb-1">{t.k}</p>
+        <p class="font-serif text-[14px] text-[var(--color-ink-muted)]">{t.v}</p>
+      </div>
+    ))}
+  </div>
+</Section>
