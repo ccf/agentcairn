@@ -1,0 +1,59 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* Self-hosted variable fonts (Fontsource) */
+@import "@fontsource-variable/newsreader";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+
+@theme {
+  --color-bg: #ffffff;
+  --color-surface: #fafaf8;
+  --color-ink: #191919;
+  --color-ink-muted: rgba(25, 25, 25, 0.56);
+  --color-ink-faint: rgba(25, 25, 25, 0.40);
+  --color-border: rgba(0, 0, 0, 0.10);
+  --color-border-faint: rgba(0, 0, 0, 0.05);
+  --color-accent: #317cff;
+  --color-accent-warm: #e89b3c;
+
+  --font-serif: "Newsreader Variable", Georgia, "Times New Roman", serif;
+  --font-sans: "Geist Variable", system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", monospace;
+
+  --spacing-section: 96px;
+  --container-prose: 680px;
+  --container-frame: 1100px;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Ensure all design tokens are available as CSS custom properties
+   (Tailwind v4 tree-shakes @theme vars not used by utilities) */
+:root {
+  --color-surface: #fafaf8;
+  --color-ink-faint: rgba(25, 25, 25, 0.40);
+  --color-border: rgba(0, 0, 0, 0.10);
+  --color-border-faint: rgba(0, 0, 0, 0.05);
+  --color-accent: #317cff;
+  --color-accent-warm: #e89b3c;
+  --spacing-section: 96px;
+  --container-frame: 1100px;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+body { background: var(--color-bg); color: var(--color-ink);
+       font-family: var(--font-serif); font-size: 16px; line-height: 1.6; }
+@media (min-width: 768px) { body { font-size: 18px; } }
+
+h1, h2, h3, .font-sans { font-family: var(--font-sans); }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.05em;
+           text-transform: uppercase; color: var(--color-ink-muted); }
+
+.prose-measure { max-width: var(--container-prose); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+}
