@@ -7,7 +7,7 @@ import HeroDiagram from "../islands/HeroDiagram.tsx";
   <p class="eyebrow mb-7">{hero.eyebrow}</p>
   <h1 class="font-sans font-medium text-[32px] md:text-[38px] leading-[1.15] tracking-[-0.02em] max-w-[18ch] mb-6">{hero.h1}</h1>
   <p class="prose-measure font-serif text-[20px] leading-[1.55] text-[var(--color-ink-muted)] mb-8">{hero.subhead}</p>
-  <p class="font-mono text-[12.5px] text-[var(--color-ink-faint)] mb-9">{hero.byline}</p>
+  <p class="font-mono text-[12.5px] text-[var(--color-ink-faint)] mb-9">{hero.byline} · <span class="border-b border-dotted border-[var(--color-ink-faint)]">{hero.date}</span></p>
   <div class="flex items-center gap-5 flex-wrap">
     <div class="font-mono text-[14px] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-4 py-3 flex items-center gap-3">
       <span><span class="text-[var(--color-accent)]">$</span>&nbsp;{hero.install}</span>

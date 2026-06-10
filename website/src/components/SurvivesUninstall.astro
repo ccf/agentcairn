@@ -3,8 +3,9 @@ import Section from "./Section.astro";
 import Prose from "./Prose.astro";
 import SurvivesUninstallDemo from "../islands/SurvivesUninstallDemo.tsx";
 ---
-<Section id="survives" eyebrow="Survives uninstall">
+<Section id="survives" eyebrow="Survives uninstall" eyebrowHeading={false}>
   <h2 class="font-sans font-medium text-[24px] md:text-[28px] tracking-[-0.015em] max-w-[24ch] mb-4">Delete the index. Reindex. Everything's back.</h2>
   <div class="prose-measure mb-6"><Prose><p>The index is a cache. The proof is destructive: remove it, rebuild it, lose nothing — because the truth was never in the database.</p></Prose></div>
+  <!-- client:load (not client:visible): demo is below the fold; client:visible races the e2e scroll+click before hydration -->
   <div class="prose-measure"><SurvivesUninstallDemo client:load /></div>
 </Section>

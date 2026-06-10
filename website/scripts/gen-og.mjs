@@ -1,4 +1,4 @@
-import { chromium } from "playwright";
+import { chromium } from "@playwright/test";
 
 const html = `<!doctype html><html><body style="margin:0;width:1200px;height:630px;background:#fff;color:#191919;font-family:Georgia,serif;display:flex;flex-direction:column;justify-content:center;padding:80px;box-sizing:border-box">
   <div style="font-size:40px;font-family:system-ui">🪨 agentcairn</div>

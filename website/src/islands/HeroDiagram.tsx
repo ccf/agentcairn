@@ -14,7 +14,7 @@ export default function HeroDiagram() {
       : { initial: { pathLength: 0 }, animate: { pathLength: 1 }, transition: { duration: 0.8, delay, ease } };
 
   return (
-    <div data-testid="hero-diagram" className="mt-14 rounded-2xl border border-[var(--color-border)] p-7 grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto_1fr] gap-4 items-center bg-[linear-gradient(180deg,#fff,#fcfcfb)]">
+    <div data-testid="hero-diagram" role="img" aria-label="Diagram: a Markdown note becomes a DuckDB index with a wikilink graph, then a cited recall result." className="mt-14 rounded-2xl border border-[var(--color-border)] p-7 grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto_1fr] gap-4 items-center bg-[linear-gradient(180deg,#fff,#fcfcfb)]">
       <motion.div {...reveal(0)}>
         <p className="eyebrow mb-2 text-[10.5px]">Vault · source of truth</p>
         <pre className="font-mono text-[12px] leading-[1.55] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-3.5 whitespace-pre-wrap">{`---

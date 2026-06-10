@@ -19,6 +19,7 @@ export const hero = {
   subhead:
     "agentcairn inverts the stack: human-readable Markdown with [[wikilinks]] is the truth, and a rebuildable DuckDB index gives your agent fast hybrid retrieval. Hand-edit a fact in Obsidian and the agent picks it up.",
   byline: "By Charles C. Figueiredo · Apache-2.0",
+  date: "06.10.26",
   install: "uvx agentcairn",
   specHref: site.repo + "/blob/main/docs/specs/2026-06-08-agentcairn-design.md",
 };

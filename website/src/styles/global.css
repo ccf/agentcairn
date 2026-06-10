@@ -10,8 +10,8 @@
   --color-bg: #ffffff;
   --color-surface: #fafaf8;
   --color-ink: #191919;
-  --color-ink-muted: rgba(25, 25, 25, 0.62);
-  --color-ink-faint: rgba(25, 25, 25, 0.62);
+  --color-ink-muted: rgba(25, 25, 25, 0.70);
+  --color-ink-faint: rgba(25, 25, 25, 0.60);
   --color-border: rgba(0, 0, 0, 0.10);
   --color-border-faint: rgba(0, 0, 0, 0.05);
   --color-accent: #2563eb;
@@ -32,8 +32,8 @@
    (Tailwind v4 tree-shakes @theme vars not used by utilities) */
 :root {
   --color-surface: #fafaf8;
-  --color-ink-muted: rgba(25, 25, 25, 0.62);
-  --color-ink-faint: rgba(25, 25, 25, 0.62);
+  --color-ink-muted: rgba(25, 25, 25, 0.70);
+  --color-ink-faint: rgba(25, 25, 25, 0.60);
   --color-border: rgba(0, 0, 0, 0.10);
   --color-border-faint: rgba(0, 0, 0, 0.05);
   --color-accent: #2563eb;

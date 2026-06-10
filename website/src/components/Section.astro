@@ -1,7 +1,9 @@
 ---
-const { id, eyebrow } = Astro.props;
+const { id, eyebrow, eyebrowHeading = true } = Astro.props;
 ---
 <section id={id} class="mx-auto max-w-[var(--container-frame)] px-8 pt-[var(--spacing-section)]">
-  {eyebrow && <p class="eyebrow mb-4">{eyebrow}</p>}
+  {eyebrow && (eyebrowHeading
+    ? <h2 class="eyebrow mb-4">{eyebrow}</h2>
+    : <p class="eyebrow mb-4">{eyebrow}</p>)}
   <slot />
 </section>
