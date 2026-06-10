@@ -9,7 +9,11 @@ const stages = [
 
 export default function SurvivesUninstallDemo() {
   const reduce = useReducedMotion();
-  const [i, setI] = useState(reduce ? stages.length - 1 : 0);
+  const [advanced, setAdvanced] = useState(0);
+  // Derive the visible index reactively: under reduced motion always show the
+  // final state (this corrects even if useReducedMotion() resolves after mount,
+  // rather than getting stuck at the seed value). Otherwise advance via the button.
+  const i = reduce ? stages.length - 1 : advanced;
   const shown = stages.slice(0, i + 1);
   return (
     <div data-testid="uninstall-demo" className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 font-mono text-[13px]">
@@ -22,7 +26,7 @@ export default function SurvivesUninstallDemo() {
         </motion.div>
       ))}
       {i < stages.length - 1 && (
-        <button onClick={() => setI(i + 1)}
+        <button onClick={() => setAdvanced((n) => n + 1)}
           className="mt-2 font-sans text-[13px] font-medium text-[var(--color-accent)] hover:underline">
           {stages[i + 1].label} →
         </button>
