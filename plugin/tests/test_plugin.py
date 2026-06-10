@@ -150,7 +150,7 @@ def test_skill_has_valid_frontmatter():
     assert "name:" in head and "description:" in head
 
 
-@pytest.mark.parametrize("cmd", ["recall", "remember", "memory", "ingest"])
+@pytest.mark.parametrize("cmd", ["recall", "remember", "memory", "ingest", "savings"])
 def test_command_has_frontmatter(cmd):
     text = (PLUGIN / "commands" / f"{cmd}.md").read_text()
     assert text.startswith("---")
