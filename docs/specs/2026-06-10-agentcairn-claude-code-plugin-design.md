@@ -15,8 +15,9 @@ One install (`claude plugin install agentcairn@agentcairn`) that:
 - **distills** each session into the vault when it ends,
 - teaches Claude *when* to recall/remember via a **skill**, and gives quick **slash commands**.
 
-Success: a user installs the plugin, points it at a vault once, and from then on the coding
-agent remembers across sessions with zero manual bookkeeping.
+Success: a user installs the plugin, accepts the default vault path, and from then on the coding
+agent remembers across sessions with zero manual bookkeeping — the vault is **auto-created**
+(Obsidian-ready) on the first session, so it works even for someone who's never used Obsidian.
 
 ## 2. Decisions (from brainstorm)
 
@@ -40,21 +41,31 @@ agent remembers across sessions with zero manual bookkeeping.
   claude plugin install agentcairn@agentcairn
   ```
 
-## 4. Prerequisite (tool-side): a `cairn recent` CLI command
+## 4. Prerequisites (tool-side): `cairn recent` + `cairn init` CLI commands
 
-The SessionStart digest needs to fetch recent, project-scoped memories from the CLI, but the
-`cairn` CLI currently exposes only `parse · reindex · index-status · recall · serve · sweep ·
-doctor · ingest` — `recent` exists only as an MCP tool. So this plan **first extends agentcairn**:
+The plugin needs two CLI commands the `cairn` CLI doesn't have yet (it currently exposes only
+`parse · reindex · index-status · recall · serve · sweep · doctor · ingest`). So this plan **first
+extends agentcairn**, then ships the plugin against the new release:
 
-- Add `cairn recent` mirroring the MCP `recent_tool`:
-  `cairn recent [--index PATH] [--project SUBSTR] [-n N] [--json]`
+**`cairn recent`** — for the SessionStart digest (currently `recent` is MCP-only):
+- `cairn recent [--index PATH] [--project SUBSTR] [-n N] [--json]`
   → the N most-recent notes (permalink + title + one-line snippet), optionally filtered to a
   project substring, with `--json` for machine parsing by the hook.
-- **Release `agentcairn 0.2.0`** (bump `__version__`, tag `v0.2.0` → the existing Trusted-Publishing
-  workflow publishes) **before** the plugin's SessionStart hook can rely on it. The hook pins
-  `uvx --from 'agentcairn>=0.2' cairn recent …`.
 
-This prerequisite is part of this plan and must be sequenced first.
+**`cairn init`** — scaffolds an **Obsidian-ready vault** so getting started needs no prior Obsidian
+setup and no hand-made vault:
+- `cairn init [PATH]` (PATH defaults to `$CAIRN_VAULT` or `~/agentcairn`).
+- Creates: the vault dir; a minimal `.obsidian/` so Obsidian opens it cleanly as a vault; and a
+  `welcome.md` note (valid frontmatter) explaining the vault is agentcairn's memory — written by
+  the agent, freely human-editable.
+- **Idempotent + non-destructive:** safe to run repeatedly; never overwrites an existing
+  `welcome.md` or any notes; only creates what's missing. (No `--force` in v1.)
+
+**Release `agentcairn 0.2.0`** (bump `__version__`, tag `v0.2.0` → the existing Trusted-Publishing
+workflow publishes) carrying both commands, **before** the plugin relies on them. Hooks pin
+`uvx --from 'agentcairn>=0.2' cairn …`.
+
+This prerequisite phase is part of this plan and must be sequenced first.
 
 ## 5. Repo / file layout
 
@@ -174,6 +185,9 @@ absolute path (no silent `./~/agentcairn` directory).
 
 **`session-start.sh`** (vault, index as `$1`, `$2`; stdin = hook JSON with `cwd`):
 - Expand `~` in the paths; derive a project key from `cwd` (basename).
+- **Ensure the vault exists (zero-step onboarding):** if the vault dir is missing, run
+  `uvx --from 'agentcairn>=0.2' cairn init "$VAULT"` (idempotent) so the first session auto-creates
+  an Obsidian-ready vault — no manual step even for first-time users.
 - `uvx --from 'agentcairn>=0.2' cairn recent --index "$INDEX" --project "$PROJECT" -n 5 --json`
 - If it returns memories, format a compact digest (each: `- <title> — <one-line>`) and emit:
   ```json
@@ -218,6 +232,11 @@ Each is a prompt-style command (frontmatter `description`, body uses `$ARGUMENTS
 
 ## 12. Testing
 
+- **Tool-side CLI (agentcairn pytest, offline):** unit-test `cairn init` (creates the dir +
+  `.obsidian/` + `welcome.md` with valid frontmatter in a tmp vault; idempotent — a second run
+  doesn't clobber an edited `welcome.md` or existing notes) and `cairn recent` (returns the
+  expected recent notes from a FakeEmbedder-built index; `--project` filter; `--json` shape). These
+  live in `tests/test_cli.py`, no network.
 - **Manifest/structure validation** (CI + local script): assert `plugin.json`,
   `marketplace.json`, `hooks.json` parse as valid JSON; `.mcp.json` references `uvx` + `agentcairn`;
   every `skills/*/SKILL.md` and `commands/*.md` has valid frontmatter (`name`/`description`).
