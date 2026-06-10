@@ -50,7 +50,7 @@ path = "src/cairn/__init__.py"
 packages = ["src/cairn"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src", "."]
+pythonpath = ["src", ".", "benchmarks"]
 testpaths = ["tests"]
 
 [tool.ruff]

@@ -111,3 +111,11 @@ def test_oneline_has_total_and_count():
     assert "saved you" in line
     assert "318 recalls" in line
     assert "2.3M" in line
+
+
+def test_benchmark_imports_shared_estimator():
+    from cairn_bench import token_savings
+
+    assert token_savings.estimate_tokens is usage.estimate_tokens
+    for t in ["", "abc", "x" * 41, "hello world this is a test"]:
+        assert token_savings.estimate_tokens(t) == usage.estimate_tokens(t)

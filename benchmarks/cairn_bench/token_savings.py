@@ -16,19 +16,9 @@ from __future__ import annotations
 import statistics
 
 from cairn.search import get_chunks, search
+from cairn.usage import estimate_tokens  # shared estimator (identical to the package)
 
-_CHARS_PER_TOKEN = 4
-
-
-def estimate_tokens(text: str) -> int:
-    """Estimate a token count from character length (~4 chars/token, rounded up).
-
-    A deliberately simple, model-agnostic approximation — labeled as an estimate
-    wherever it surfaces. Empty/None text counts as 0.
-    """
-    if not text:
-        return 0
-    return (len(text) + _CHARS_PER_TOKEN - 1) // _CHARS_PER_TOKEN
+__all__ = ["estimate_tokens", "full_haystack_tokens", "recalled_tokens", "summarize", "to_markdown"]
 
 
 def full_haystack_tokens(con) -> int:
