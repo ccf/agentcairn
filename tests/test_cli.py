@@ -420,3 +420,55 @@ def test_cli_recall_records_savings(tmp_path, monkeypatch):
     assert len(rows) == 1
     assert rows[0]["event"] == "recall"
     assert rows[0]["full"] > 0
+
+
+def test_savings_command_empty(tmp_path, monkeypatch):
+    monkeypatch.setenv("CAIRN_USAGE_PATH", str(tmp_path / "u.jsonl"))
+    monkeypatch.delenv("CAIRN_USAGE", raising=False)
+    r = runner.invoke(app, ["savings"])
+    assert r.exit_code == 0, r.output
+    assert "No recalls recorded" in r.output
+
+
+def test_savings_command_reports(tmp_path, monkeypatch):
+    led = tmp_path / "u.jsonl"
+    led.write_text(
+        '{"v":1,"ts":"2026-06-01T00:00:00+00:00","event":"recall","k":5,"full":10000,"recalled":200}\n'
+    )
+    monkeypatch.setenv("CAIRN_USAGE_PATH", str(led))
+    monkeypatch.delenv("CAIRN_USAGE", raising=False)
+    r = runner.invoke(app, ["savings"])
+    assert r.exit_code == 0, r.output
+    assert "9,800" in r.output  # 10000 - 200 saved, comma-grouped
+    assert "1" in r.output  # recalls
+
+
+def test_savings_json(tmp_path, monkeypatch):
+    led = tmp_path / "u.jsonl"
+    led.write_text(
+        '{"v":1,"ts":"2026-06-01T00:00:00+00:00","event":"recall","k":5,"full":10000,"recalled":200}\n'
+    )
+    monkeypatch.setenv("CAIRN_USAGE_PATH", str(led))
+    r = runner.invoke(app, ["savings", "--json"])
+    assert r.exit_code == 0, r.output
+    data = json.loads(r.stdout)
+    assert data["recalls"] == 1
+    assert data["total_saved"] == 9800
+
+
+def test_savings_oneline(tmp_path, monkeypatch):
+    led = tmp_path / "u.jsonl"
+    led.write_text(
+        '{"v":1,"ts":"2026-06-01T00:00:00+00:00","event":"recall","k":5,"full":10000,"recalled":200}\n'
+    )
+    monkeypatch.setenv("CAIRN_USAGE_PATH", str(led))
+    r = runner.invoke(app, ["savings", "--oneline"])
+    assert r.exit_code == 0, r.output
+    assert "saved you" in r.stdout
+
+
+def test_savings_oneline_empty(tmp_path, monkeypatch):
+    monkeypatch.setenv("CAIRN_USAGE_PATH", str(tmp_path / "u.jsonl"))
+    r = runner.invoke(app, ["savings", "--oneline"])
+    assert r.exit_code == 0
+    assert r.stdout.strip() == ""

@@ -219,6 +219,44 @@ def init(
 
 
 @app.command()
+def savings(
+    as_json: bool = typer.Option(False, "--json", help="Emit the summary as JSON."),
+    oneline: bool = typer.Option(
+        False, "--oneline", help="One-line digest string (empty when no data)."
+    ),
+) -> None:
+    """How much context your recalls have saved (local, estimated, no telemetry)."""
+    from cairn import usage
+
+    s = usage.summarize()
+    if oneline:
+        line = usage.oneline(s)
+        if line:
+            typer.echo(line)
+        return
+    if as_json:
+        typer.echo(json.dumps(s))
+        return
+    if not usage.enabled():
+        typer.echo("Usage tracking is OFF (CAIRN_USAGE=0).")
+    if s["recalls"] == 0:
+        typer.echo("No recalls recorded yet — use recall and check back.")
+        typer.echo(f"(local ledger: {usage.ledger_path()})")
+        return
+    typer.echo(f"Tokens saved:  ~{s['total_saved']:,}  (estimated, ~4 chars/token)")
+    typer.echo(f"Recalls:       {s['recalls']}")
+    typer.echo(
+        f"Reduction:     {s['lifetime_factor']:.1f}x lifetime  "
+        f"({s['mean_factor']:.1f}x mean / {s['median_factor']:.1f}x median per recall)"
+    )
+    if s["first_ts"] and s["last_ts"]:
+        typer.echo(f"Span:          {s['first_ts'][:10]} -> {s['last_ts'][:10]}")
+    typer.echo("")
+    typer.echo("vs. dumping your whole vault — a model of context size, not a measured cost.")
+    typer.echo(f"Local ledger:  {usage.ledger_path()}  (disable with CAIRN_USAGE=0)")
+
+
+@app.command()
 def serve(
     vault: Path = typer.Option(None, "--vault", help="Vault root (enables `remember`)."),
     index: Path = typer.Option(None, "--index", help="Index .duckdb path."),
