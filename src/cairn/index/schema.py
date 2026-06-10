@@ -70,3 +70,19 @@ def set_meta(con: duckdb.DuckDBPyConnection, key: str, value: str) -> None:
 def get_meta(con: duckdb.DuckDBPyConnection, key: str) -> str | None:
     row = con.execute("SELECT value FROM meta WHERE key = ?", [key]).fetchone()
     return row[0] if row else None
+
+
+def cached_haystack_tokens(con: duckdb.DuckDBPyConnection) -> int:
+    """Whole-haystack token estimate. Reads the value cached at reindex time
+    (meta key 'haystack_tokens'); falls back to a one-off scan if absent (an
+    index built before this feature). Same per-chunk model as estimate_tokens."""
+    cached = get_meta(con, "haystack_tokens")
+    if cached is not None:
+        try:
+            return int(cached)
+        except ValueError:
+            pass
+    row = con.execute(
+        "SELECT COALESCE(SUM(CAST((LENGTH(text)+3)/4 AS BIGINT)),0) FROM chunks"
+    ).fetchone()
+    return int(row[0])

@@ -374,3 +374,25 @@ def test_default_index_honors_cairn_index_env(monkeypatch, tmp_path):
 
     monkeypatch.delenv("CAIRN_INDEX", raising=False)
     assert cli_mod._default_index() == Path.home() / ".cache" / "agentcairn" / "index.duckdb"
+
+
+def test_reindex_caches_haystack_tokens(tmp_path):
+    import duckdb
+
+    from cairn.index.schema import get_meta
+
+    v = tmp_path / "vault"
+    v.mkdir()
+    (v / "a.md").write_text("---\ntitle: A\npermalink: a\n---\nalpha beta gamma delta\n")
+    idx = tmp_path / "i.duckdb"
+    r = runner.invoke(app, ["reindex", str(v), "--index", str(idx), "--embedder", "fake"])
+    assert r.exit_code == 0, r.output
+    con = duckdb.connect(str(idx))
+    cached = get_meta(con, "haystack_tokens")
+    assert cached is not None
+    # Equals the sum of per-chunk ceil(len/4) over the chunks table.
+    expected = con.execute(
+        "SELECT COALESCE(SUM(CAST((LENGTH(text)+3)/4 AS BIGINT)),0) FROM chunks"
+    ).fetchone()[0]
+    assert int(cached) == int(expected)
+    assert int(cached) > 0

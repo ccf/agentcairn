@@ -199,6 +199,20 @@ def reconcile(
 
     if stats.added or stats.updated or stats.deleted or stats.rebuilt:
         build_fts(con)
+    # Cache the whole-haystack token estimate for `cairn savings` (read cheaply
+    # at recall time; recomputed only here, off the hot path). Recompute on any
+    # change, or once if the key is missing (index built before this feature).
+    if (
+        stats.added
+        or stats.updated
+        or stats.deleted
+        or stats.rebuilt
+        or get_meta(con, "haystack_tokens") is None
+    ):
+        total = con.execute(
+            "SELECT COALESCE(SUM(CAST((LENGTH(text)+3)/4 AS BIGINT)),0) FROM chunks"
+        ).fetchone()[0]
+        set_meta(con, "haystack_tokens", str(int(total)))
     return stats
 
 
