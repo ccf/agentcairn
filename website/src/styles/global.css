@@ -10,11 +10,12 @@
   --color-bg: #ffffff;
   --color-surface: #fafaf8;
   --color-ink: #191919;
-  --color-ink-muted: rgba(25, 25, 25, 0.70);
+  --color-ink-muted: rgba(25, 25, 25, 0.64);
   --color-ink-faint: rgba(25, 25, 25, 0.60);
   --color-border: rgba(0, 0, 0, 0.10);
   --color-border-faint: rgba(0, 0, 0, 0.05);
-  --color-accent: #2563eb;
+  --color-accent: #317cff;
+  --color-accent-text: #2563eb;
   --color-accent-warm: #e89b3c;
 
   --font-serif: "Newsreader Variable", Georgia, "Times New Roman", serif;
@@ -32,11 +33,12 @@
    (Tailwind v4 tree-shakes @theme vars not used by utilities) */
 :root {
   --color-surface: #fafaf8;
-  --color-ink-muted: rgba(25, 25, 25, 0.70);
+  --color-ink-muted: rgba(25, 25, 25, 0.64);
   --color-ink-faint: rgba(25, 25, 25, 0.60);
   --color-border: rgba(0, 0, 0, 0.10);
   --color-border-faint: rgba(0, 0, 0, 0.05);
-  --color-accent: #2563eb;
+  --color-accent: #317cff;
+  --color-accent-text: #2563eb;
   --color-accent-warm: #e89b3c;
   --spacing-section: 96px;
   --container-frame: 1100px;
@@ -57,4 +59,22 @@ h1, h2, h3, .font-sans { font-family: var(--font-sans); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+}
+
+/* ---- Hero diagram entrance: pure CSS (SSR/no-JS/crawler/reduced-motion safe) ---- */
+@keyframes hd-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes hd-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes hd-pop  { from { opacity: 0; transform: scale(0); } to { opacity: 1; transform: scale(1); } }
+@keyframes hd-pulse { 0%, 100% { opacity: 0.45; } 8% { opacity: 1; } 16% { opacity: 0.45; } }
+.hd-panel { animation: hd-rise 0.5s var(--ease-out-expo) backwards; }
+.hd-panel.hd-p2 { animation-delay: 0.45s; }
+.hd-panel.hd-p3 { animation-delay: 1.05s; }
+.hd-edge { stroke-dasharray: 1; animation: hd-draw 0.8s var(--ease-out-expo) 0.35s backwards; }
+.hd-edge.hd-e2 { animation-delay: 0.95s; }
+.hd-node { animation: hd-pop 0.4s var(--ease-out-expo) 0.62s backwards; }
+.hd-node.hd-n2 { animation-delay: 0.70s; }
+.hd-recall { animation: hd-rise 0.5s var(--ease-out-expo) 1.15s backwards; }
+.hd-edge-mid { stroke-dasharray: 1; animation: hd-draw 0.8s var(--ease-out-expo) 0.6s backwards, hd-pulse 7s ease-in-out 2.5s infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .hd-panel, .hd-edge, .hd-node, .hd-recall, .hd-edge-mid { animation: none; }
 }
