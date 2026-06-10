@@ -1,0 +1,27 @@
+{
+  "name": "agentcairn",
+  "displayName": "agentcairn",
+  "description": "Local-first agent memory for Claude Code — recall, remember, and ambient capture into a Markdown vault you own.",
+  "version": "0.1.0",
+  "author": { "name": "Charles C. Figueiredo", "email": "ccf@ccf.io" },
+  "homepage": "https://agentcairn.dev",
+  "repository": "https://github.com/ccf/agentcairn",
+  "license": "Apache-2.0",
+  "keywords": ["memory", "mcp", "obsidian", "agent", "local-first"],
+  "userConfig": {
+    "vault_path": {
+      "type": "directory",
+      "title": "agentcairn vault",
+      "description": "Folder for your Markdown memory vault (auto-created on first session).",
+      "default": "~/agentcairn"
+    },
+    "index_path": {
+      "type": "string",
+      "title": "Index path",
+      "description": "DuckDB index location (rebuildable cache).",
+      "default": "~/.cache/agentcairn/index.duckdb"
+    }
+  },
+  "mcpServers": "./.mcp.json",
+  "hooks": "./hooks/hooks.json"
+}

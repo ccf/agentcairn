@@ -1,0 +1,10 @@
+{
+  "name": "agentcairn",
+  "plugins": [
+    {
+      "name": "agentcairn",
+      "source": "./plugin",
+      "description": "Local-first agent memory for Claude Code — recall, remember, ambient capture."
+    }
+  ]
+}
