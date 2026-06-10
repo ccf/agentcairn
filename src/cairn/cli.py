@@ -135,6 +135,16 @@ def recall(
     emb = None if embedder == "none" else get_embedder(embedder)
     con = open_search(str(idx))
     hits = search(con, query, embedder=emb, k=k, rerank=resolve_rerank(rerank))
+    # Best-effort savings ledger — must never break recall.
+    try:
+        from cairn import usage
+        from cairn.index.schema import cached_haystack_tokens
+
+        full = cached_haystack_tokens(con)
+        recalled = sum(usage.estimate_tokens(h.snippet) for h in hits)
+        usage.record("recall", full=full, recalled=recalled, k=k)
+    except Exception:
+        pass
     if not hits:
         typer.echo("(no results)")
         return

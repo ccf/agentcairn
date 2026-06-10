@@ -396,3 +396,27 @@ def test_reindex_caches_haystack_tokens(tmp_path):
     ).fetchone()[0]
     assert int(cached) == int(expected)
     assert int(cached) > 0
+
+
+def test_cli_recall_records_savings(tmp_path, monkeypatch):
+    v = tmp_path / "vault"
+    v.mkdir()
+    (v / "a.md").write_text("---\ntitle: A\npermalink: a\n---\nalpha apple brewing\n")
+    idx = tmp_path / "i.duckdb"
+    assert (
+        runner.invoke(app, ["reindex", str(v), "--index", str(idx), "--embedder", "fake"]).exit_code
+        == 0
+    )
+    led = tmp_path / "usage.jsonl"
+    monkeypatch.setenv("CAIRN_USAGE_PATH", str(led))
+    monkeypatch.delenv("CAIRN_USAGE", raising=False)
+    r = runner.invoke(
+        app, ["recall", "apple brewing", "--index", str(idx), "--embedder", "fake", "--no-rerank"]
+    )
+    assert r.exit_code == 0, r.output
+    import json as _j
+
+    rows = [_j.loads(x) for x in led.read_text().splitlines() if x.strip()]
+    assert len(rows) == 1
+    assert rows[0]["event"] == "recall"
+    assert rows[0]["full"] > 0
