@@ -20,7 +20,7 @@
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "^4.0.0",
     "astro": "^6.4.6",
-    "motion": "^11.11.0",
+    "motion": "^12.40.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwindcss": "^4.0.0"
