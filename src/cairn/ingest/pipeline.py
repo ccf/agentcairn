@@ -49,7 +49,9 @@ def ingest_transcript(
 ) -> IngestReport:
     distiller = distiller or ExtractiveDistiller()
     report = IngestReport()
-    report.event_kinds = dict(Counter(e.kind.value for e in transcript.events))
+    report.event_kinds = dict(transcript.kind_counts) or dict(
+        Counter(e.kind.value for e in transcript.events)
+    )
     candidates = select_candidates(transcript)
     report.authored = len(candidates)
     for cand in candidates:

@@ -9,6 +9,7 @@ line (the last line may be partially written)."""
 from __future__ import annotations
 
 import json
+from collections import Counter
 from pathlib import Path
 
 from cairn.ingest.events import EventKind, NormalizedEvent, project_from_cwd
@@ -93,6 +94,7 @@ def parse_transcript(path: Path) -> Transcript:
     cwd: str | None = None
     git_branch: str | None = None
     events: list[NormalizedEvent] = []
+    kind_counts: Counter = Counter()
     for raw in path.read_text(errors="replace").splitlines():
         raw = raw.strip()
         if not raw:
@@ -105,6 +107,8 @@ def parse_transcript(path: Path) -> Transcript:
             continue
         if obj.get("type") not in _CONTENT_TYPES:
             continue  # only user/assistant rows carry conversational content
+        kind = classify_claude_code(obj)
+        kind_counts[kind.value] += 1
         msg = obj.get("message")
         if not isinstance(msg, dict):
             continue
@@ -120,7 +124,7 @@ def parse_transcript(path: Path) -> Transcript:
             git_branch = obj.get("gitBranch")
         events.append(
             NormalizedEvent(
-                kind=classify_claude_code(obj),
+                kind=kind,
                 role=msg.get("role", obj["type"]),
                 text=text,
                 timestamp=obj.get("timestamp"),
@@ -130,4 +134,11 @@ def parse_transcript(path: Path) -> Transcript:
                 source_path=path,
             )
         )
-    return Transcript(session_id=session_id, cwd=cwd, git_branch=git_branch, path=path, events=events)
+    return Transcript(
+        session_id=session_id,
+        cwd=cwd,
+        git_branch=git_branch,
+        path=path,
+        events=events,
+        kind_counts=dict(kind_counts),
+    )
