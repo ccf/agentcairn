@@ -294,6 +294,61 @@ def warm() -> None:
 
 
 @app.command()
+def install(
+    host: str = typer.Argument(
+        None, help="Host id: cursor / claude-desktop / windsurf / gemini / codex."
+    ),
+    all_hosts: bool = typer.Option(False, "--all", help="Configure every detected host."),
+    print_only: bool = typer.Option(False, "--print", help="Print the config; write nothing."),
+    vault: Path = typer.Option(None, "--vault", help="Vault path (default ~/agentcairn)."),
+    index: Path = typer.Option(
+        None, "--index", help="Index path (default ~/.cache/agentcairn/index.duckdb)."
+    ),
+) -> None:
+    """Wire the agentcairn MCP server into another MCP host (Cursor, Codex, …)."""
+    from cairn.hosts import HOSTS, detected_hosts, get_host
+    from cairn.hosts.entry import mcp_entry
+    from cairn.hosts.writers import write_host
+
+    v = str((vault or (Path.home() / "agentcairn")).expanduser().resolve())
+    idx = str(
+        (index or (Path.home() / ".cache" / "agentcairn" / "index.duckdb")).expanduser().resolve()
+    )
+    entry = mcp_entry(v, idx)
+    ids = ", ".join(h.id for h in HOSTS)
+
+    if host is None and not all_hosts:  # detect + preview, write nothing
+        present = detected_hosts()
+        if not present:
+            typer.echo(f"No supported MCP hosts detected. Supported: {ids}")
+            return
+        typer.echo("Detected hosts — run `cairn install <id>` (or `--all`):")
+        for h in present:
+            typer.echo(f"  {h.id:15} {h.label}  → {h.config_path()}")
+        return
+
+    if all_hosts:
+        targets = detected_hosts()
+    else:
+        h = get_host(host)
+        if h is None:
+            typer.echo(f"unknown host '{host}'. Supported: {ids}")
+            raise typer.Exit(1)
+        targets = [h]
+
+    failures = 0
+    for h in targets:
+        try:
+            out = write_host(h, entry, dry=print_only)
+            typer.echo(out if print_only else f"✓ {h.label}: {out}")
+        except Exception as e:  # best-effort per host; continue under --all
+            failures += 1
+            typer.echo(f"✗ {h.label}: {e}")
+    if failures:
+        raise typer.Exit(1)
+
+
+@app.command()
 def serve(
     vault: Path = typer.Option(None, "--vault", help="Vault root (enables `remember`)."),
     index: Path = typer.Option(None, "--index", help="Index .duckdb path."),

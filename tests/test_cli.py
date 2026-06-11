@@ -546,3 +546,41 @@ def test_warm_forces_embedder_probe_via_dim(monkeypatch):
     r = runner.invoke(app, ["warm"])
     assert r.exit_code == 0, r.output
     assert touched["dim"] is True
+
+
+def test_install_cursor_writes_entry(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / ".cursor").mkdir()
+    r = runner.invoke(app, ["install", "cursor", "--vault", str(tmp_path / "v")])
+    assert r.exit_code == 0, r.output
+    import json as _j
+
+    data = _j.loads((tmp_path / ".cursor" / "mcp.json").read_text())
+    ac = data["mcpServers"]["agentcairn"]
+    assert ac["command"] == "uvx" and ac["args"] == ["agentcairn"]
+    assert ac["env"]["CAIRN_VAULT"] == str((tmp_path / "v").resolve())  # absolute
+
+
+def test_install_print_writes_nothing(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / ".cursor").mkdir()
+    r = runner.invoke(app, ["install", "cursor", "--print"])
+    assert r.exit_code == 0, r.output
+    assert "agentcairn" in r.output
+    assert not (tmp_path / ".cursor" / "mcp.json").exists()
+
+
+def test_install_no_arg_previews(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / ".cursor").mkdir()
+    r = runner.invoke(app, ["install"])
+    assert r.exit_code == 0, r.output
+    assert "cursor" in r.output.lower()
+    assert not (tmp_path / ".cursor" / "mcp.json").exists()  # preview only
+
+
+def test_install_unknown_host_errors(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    r = runner.invoke(app, ["install", "nope"])
+    assert r.exit_code == 1
+    assert "unknown host" in r.output.lower()
