@@ -22,6 +22,15 @@ def test_marketplace_lists_the_plugin():
     assert "agentcairn" in names
 
 
+def test_marketplace_has_required_owner():
+    # Claude Code's marketplace schema requires a top-level `owner` object with a
+    # name — without it, `claude plugin marketplace add` fails to parse and the
+    # plugin is uninstallable for everyone.
+    mkt = _json(ROOT / ".claude-plugin" / "marketplace.json")
+    assert isinstance(mkt.get("owner"), dict)
+    assert mkt["owner"].get("name")
+
+
 def test_plugin_manifest_valid():
     man = _json(PLUGIN / ".claude-plugin" / "plugin.json")
     assert man["name"] == "agentcairn"
