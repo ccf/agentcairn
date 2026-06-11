@@ -31,6 +31,6 @@
     "@playwright/test": "^1.48.0",
     "@types/node": "^25.9.3",
     "typescript": "^6.0.3",
-    "wrangler": "^4.99.0"
+    "wrangler": "^4.100.0"
   }
 }
