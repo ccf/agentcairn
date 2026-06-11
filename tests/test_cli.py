@@ -390,11 +390,13 @@ def test_reindex_caches_haystack_tokens(tmp_path):
     con = duckdb.connect(str(idx))
     cached = get_meta(con, "haystack_tokens")
     assert cached is not None
-    # Equals the sum of per-chunk ceil(len/4) over the chunks table.
-    expected = con.execute(
-        "SELECT COALESCE(SUM(CAST((LENGTH(text)+3)/4 AS BIGINT)),0) FROM chunks"
-    ).fetchone()[0]
-    assert int(cached) == int(expected)
+    # Must equal the shared Python estimator summed per chunk — the cached SQL
+    # value and estimate_tokens are claimed to be the identical model, so assert
+    # it directly (a rounding SQL would diverge here).
+    from cairn.usage import estimate_tokens
+
+    texts = [row[0] for row in con.execute("SELECT text FROM chunks").fetchall()]
+    assert int(cached) == sum(estimate_tokens(t) for t in texts)
     assert int(cached) > 0
 
 

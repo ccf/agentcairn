@@ -210,7 +210,7 @@ def reconcile(
         or get_meta(con, "haystack_tokens") is None
     ):
         total = con.execute(
-            "SELECT COALESCE(SUM(CAST((LENGTH(text)+3)/4 AS BIGINT)),0) FROM chunks"
+            "SELECT COALESCE(SUM(CAST(FLOOR((LENGTH(text) + 3) / 4.0) AS BIGINT)), 0) FROM chunks"
         ).fetchone()[0]
         set_meta(con, "haystack_tokens", str(int(total)))
     return stats

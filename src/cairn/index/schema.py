@@ -83,6 +83,6 @@ def cached_haystack_tokens(con: duckdb.DuckDBPyConnection) -> int:
         except ValueError:
             pass
     row = con.execute(
-        "SELECT COALESCE(SUM(CAST((LENGTH(text)+3)/4 AS BIGINT)),0) FROM chunks"
+        "SELECT COALESCE(SUM(CAST(FLOOR((LENGTH(text) + 3) / 4.0) AS BIGINT)), 0) FROM chunks"
     ).fetchone()
     return int(row[0])

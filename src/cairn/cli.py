@@ -135,7 +135,10 @@ def recall(
     emb = None if embedder == "none" else get_embedder(embedder)
     con = open_search(str(idx))
     hits = search(con, query, embedder=emb, k=k, rerank=resolve_rerank(rerank))
-    # Best-effort savings ledger — must never break recall.
+    # Best-effort savings ledger — must never break recall. Note: this CLI path
+    # returns snippets, so `recalled` is the snippet payload (smaller than the
+    # MCP recall_tool's full-note payload); both honestly reflect what each
+    # surface actually returned.
     try:
         from cairn import usage
         from cairn.index.schema import cached_haystack_tokens
