@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
+import json as _json
+
 from cairn.hosts import detected_hosts, get_host
 from cairn.hosts.entry import mcp_entry
+from cairn.hosts.writers import write_json_mcp
 
 
 def test_mcp_entry_shape():
@@ -29,3 +32,59 @@ def test_detected_hosts_uses_home(tmp_path, monkeypatch):
     (tmp_path / ".cursor").mkdir()
     ids = {h.id for h in detected_hosts()}
     assert "cursor" in ids
+
+
+_ENTRY = mcp_entry("/v", "/i")
+
+
+def test_json_writer_creates_and_writes(tmp_path):
+    p = tmp_path / "sub" / "mcp.json"  # parent absent → must be created
+    summary = write_json_mcp(p, _ENTRY)
+    data = _json.loads(p.read_text())
+    assert data["mcpServers"]["agentcairn"] == _ENTRY
+    assert str(p) in summary
+
+
+def test_json_writer_preserves_other_servers_and_keys(tmp_path):
+    p = tmp_path / "mcp.json"
+    p.write_text(_json.dumps({"theme": "dark", "mcpServers": {"other": {"command": "x"}}}))
+    write_json_mcp(p, _ENTRY)
+    data = _json.loads(p.read_text())
+    assert data["theme"] == "dark"  # unrelated key survives
+    assert data["mcpServers"]["other"] == {"command": "x"}  # other server survives
+    assert data["mcpServers"]["agentcairn"] == _ENTRY
+    assert (p.with_name("mcp.json.bak")).exists()  # backed up
+
+
+def test_json_writer_idempotent(tmp_path):
+    p = tmp_path / "mcp.json"
+    write_json_mcp(p, _ENTRY)
+    write_json_mcp(p, _ENTRY)
+    data = _json.loads(p.read_text())
+    assert list(data["mcpServers"]).count("agentcairn") == 1
+
+
+def test_json_writer_dry_writes_nothing(tmp_path):
+    p = tmp_path / "mcp.json"
+    out = write_json_mcp(p, _ENTRY, dry=True)
+    assert not p.exists()
+    assert "agentcairn" in out and "uvx" in out
+
+
+def test_json_writer_rejects_malformed_without_clobber(tmp_path):
+    p = tmp_path / "mcp.json"
+    p.write_text("{ not json")
+    import pytest
+
+    with pytest.raises(ValueError):
+        write_json_mcp(p, _ENTRY)
+    assert p.read_text() == "{ not json"  # original untouched
+
+
+def test_write_host_dispatches_json(tmp_path):
+    p = tmp_path / "mcp.json"
+    h = get_host("cursor")
+    # point the host at our temp path via monkeypatchless override: call writer directly
+    write_json_mcp(p, _ENTRY)
+    assert _json.loads(p.read_text())["mcpServers"]["agentcairn"]["command"] == "uvx"
+    assert h.format == "mcpServers"
