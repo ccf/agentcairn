@@ -27,9 +27,12 @@ def _atomic_write(path: Path, text: str) -> None:
     os.replace(tmp, path)
 
 
-def write_json_mcp(path: Path, entry: dict, *, dry: bool = False) -> str:
-    """Set mcpServers['agentcairn'] = entry in a JSON config, preserving all other
-    content. Returns the rendered content (dry) or a write summary."""
+def write_json_mcp(
+    path: Path, entry: dict, *, root_key: str = "mcpServers", dry: bool = False
+) -> str:
+    """Set <root_key>['agentcairn'] = entry in a JSON config, preserving all other
+    content. `root_key` is the top-level servers map — "mcpServers" for most hosts,
+    "servers" for VS Code. Returns the rendered content (dry) or a write summary."""
     data: dict = {}
     if path.exists():
         if not dry:
@@ -40,9 +43,9 @@ def write_json_mcp(path: Path, entry: dict, *, dry: bool = False) -> str:
             raise ValueError(f"{path} is not valid JSON ({e}); fix it or use --print") from e
         if not isinstance(data, dict):
             raise ValueError(f"{path} is not a JSON object; fix it or use --print")
-    servers = data.setdefault("mcpServers", {})
+    servers = data.setdefault(root_key, {})
     if not isinstance(servers, dict):
-        raise ValueError(f"{path}: 'mcpServers' is not an object; fix it or use --print")
+        raise ValueError(f"{path}: '{root_key}' is not an object; fix it or use --print")
     servers["agentcairn"] = entry
     rendered = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
     if dry:
@@ -54,8 +57,8 @@ def write_json_mcp(path: Path, entry: dict, *, dry: bool = False) -> str:
 
 def write_host(host: Host, entry: dict, *, dry: bool = False) -> str:
     """Dispatch to the right writer for the host's config format."""
-    if host.format == "mcpServers":
-        return write_json_mcp(host.config_path(), entry, dry=dry)
+    if host.format == "json":
+        return write_json_mcp(host.config_path(), entry, root_key=host.root_key, dry=dry)
     if host.format == "codex-toml":
         return write_codex_toml(host.config_path(), entry, dry=dry)
     raise ValueError(f"unknown host format: {host.format!r}")

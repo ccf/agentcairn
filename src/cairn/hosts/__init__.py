@@ -12,8 +12,11 @@ from pathlib import Path
 class Host:
     id: str
     label: str
-    format: str  # "mcpServers" (JSON) | "codex-toml"
+    format: str  # "json" (an mcpServers/servers JSON config) | "codex-toml"
     path_template: str  # may start with ~ ; expanded by config_path()
+    root_key: str = (
+        "mcpServers"  # JSON top-level key holding the servers map (VS Code uses "servers")
+    )
 
     def config_path(self) -> Path:
         return Path(self.path_template).expanduser()
@@ -27,11 +30,20 @@ def _claude_desktop_path() -> str:
     return "~/.config/Claude/claude_desktop_config.json"
 
 
+def _vscode_path() -> str:
+    if sys.platform == "darwin":
+        return "~/Library/Application Support/Code/User/mcp.json"
+    if sys.platform.startswith("win"):
+        return "~/AppData/Roaming/Code/User/mcp.json"
+    return "~/.config/Code/User/mcp.json"
+
+
 HOSTS: list[Host] = [
-    Host("cursor", "Cursor", "mcpServers", "~/.cursor/mcp.json"),
-    Host("claude-desktop", "Claude Desktop", "mcpServers", _claude_desktop_path()),
-    Host("windsurf", "Windsurf", "mcpServers", "~/.codeium/windsurf/mcp_config.json"),
-    Host("gemini", "Gemini CLI", "mcpServers", "~/.gemini/settings.json"),
+    Host("cursor", "Cursor", "json", "~/.cursor/mcp.json"),
+    Host("claude-desktop", "Claude Desktop", "json", _claude_desktop_path()),
+    Host("vscode", "VS Code", "json", _vscode_path(), root_key="servers"),
+    Host("gemini", "Gemini CLI", "json", "~/.gemini/settings.json"),
+    Host("antigravity", "Antigravity", "json", "~/.gemini/config/mcp_config.json"),
     Host("codex", "Codex CLI", "codex-toml", "~/.codex/config.toml"),
 ]
 

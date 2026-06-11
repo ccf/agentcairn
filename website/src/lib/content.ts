@@ -102,8 +102,9 @@ export const agents = {
     { host: "Claude Code", support: "First-class plugin", setup: "claude plugin install agentcairn@agentcairn", ambient: true },
     { host: "Cursor", support: "MCP server", setup: "cairn install cursor", ambient: false },
     { host: "Claude Desktop", support: "MCP server", setup: "cairn install claude-desktop", ambient: false },
-    { host: "Windsurf", support: "MCP server", setup: "cairn install windsurf", ambient: false },
+    { host: "VS Code (Copilot)", support: "MCP server", setup: "cairn install vscode", ambient: false },
     { host: "Gemini CLI", support: "MCP server", setup: "cairn install gemini", ambient: false },
+    { host: "Antigravity", support: "MCP server", setup: "cairn install antigravity", ambient: false },
     { host: "Codex CLI", support: "MCP server", setup: "cairn install codex", ambient: false },
   ],
   install: [
@@ -113,7 +114,7 @@ export const agents = {
     "cairn install codex --print   # just print the snippet, change nothing",
   ],
   note:
-    "Cursor / Claude Desktop / Windsurf / Gemini take a JSON mcpServers entry; Codex takes a " +
+    "Most hosts take a JSON mcpServers entry (VS Code uses its servers key); Codex takes a " +
     "TOML table (comments and other servers preserved). Writes are non-destructive, idempotent, " +
     "and backup-first. Ambient capture (auto recall-at-start, capture-at-end) is Claude-Code-only today.",
 };
