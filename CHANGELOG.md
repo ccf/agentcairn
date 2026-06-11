@@ -5,6 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-11
+
+### Added
+- `cairn install` now supports **VS Code (Copilot)** (`cairn install vscode`) and **Antigravity** (`cairn install antigravity`). VS Code's config uses a `servers` top-level key (not `mcpServers`); the JSON writer now takes a configurable `root_key` to handle it. Antigravity reads `~/.gemini/config/mcp_config.json`.
+
+### Removed
+- Dropped the **Windsurf** host — Windsurf was renamed to Devin Desktop (2026-06-02) and its Cascade agent is EOL; the old `~/.codeium/windsurf` config path is no longer current. (Use `cairn install … --print` to wire up any unsupported host by hand.)
+
 ## [0.5.0] - 2026-06-11
 
 ### Added
@@ -44,7 +52,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Out-of-band capture from coding-agent transcripts (redacted, non-lossy `remember`).
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
-[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/ccf/agentcairn/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/ccf/agentcairn/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/ccf/agentcairn/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/ccf/agentcairn/compare/v0.2.0...v0.3.0

@@ -81,8 +81,9 @@ agentcairn works at two levels. **Claude Code** gets a first-class plugin — th
 | **Claude Code** | 🟢 First-class plugin | `claude plugin install agentcairn@agentcairn` | ✅ recall-at-start + capture-at-end |
 | Cursor | 🔌 MCP server | `cairn install cursor` | — |
 | Claude Desktop | 🔌 MCP server | `cairn install claude-desktop` | — |
-| Windsurf | 🔌 MCP server | `cairn install windsurf` | — |
+| VS Code (Copilot) | 🔌 MCP server | `cairn install vscode` | — |
 | Gemini CLI | 🔌 MCP server | `cairn install gemini` | — |
+| Antigravity | 🔌 MCP server | `cairn install antigravity` | — |
 | Codex CLI | 🔌 MCP server | `cairn install codex` | — |
 | Any other MCP host | 🔌 MCP server | `uvx agentcairn` (paste the `cairn install … --print` snippet) | — |
 
@@ -93,7 +94,7 @@ cairn install --all           # configure every detected host
 cairn install codex --print   # just print the snippet, change nothing
 ```
 
-Cursor/Claude Desktop/Windsurf/Gemini take a JSON `mcpServers` entry; Codex takes a TOML `[mcp_servers.agentcairn]` table (comments and other tables are preserved). Ambient memory (auto recall-at-start, capture-at-end) is Claude-Code-only today — cross-host capture is tracked in [#36](https://github.com/ccf/agentcairn/issues/36).
+Most hosts take a JSON `mcpServers` entry (VS Code uses its `servers` key); Codex takes a TOML `[mcp_servers.agentcairn]` table (comments and other tables preserved). Ambient memory (auto recall-at-start, capture-at-end) is Claude-Code-only today — cross-host capture is tracked in [#36](https://github.com/ccf/agentcairn/issues/36).
 
 ## Benchmarks measured
 

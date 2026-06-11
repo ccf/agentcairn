@@ -19,9 +19,19 @@ def test_mcp_entry_shape():
 
 
 def test_get_host_known_and_unknown():
-    assert get_host("cursor").format == "mcpServers"
+    assert get_host("cursor").format == "json"
     assert get_host("codex").format == "codex-toml"
     assert get_host("nope") is None
+    assert get_host("windsurf") is None  # dropped — renamed to Devin Desktop
+
+
+def test_antigravity_and_vscode_registered():
+    ag = get_host("antigravity")
+    assert ag is not None and ag.format == "json"
+    assert ag.config_path().name == "mcp_config.json"
+    vs = get_host("vscode")
+    assert vs is not None and vs.format == "json"
+    assert vs.root_key == "servers"  # VS Code uses "servers", not "mcpServers"
 
 
 def test_detected_hosts_uses_home(tmp_path, monkeypatch):
@@ -54,6 +64,28 @@ def test_json_writer_preserves_other_servers_and_keys(tmp_path):
     assert data["mcpServers"]["other"] == {"command": "x"}  # other server survives
     assert data["mcpServers"]["agentcairn"] == _ENTRY
     assert (p.with_name("mcp.json.bak")).exists()  # backed up
+
+
+def test_json_writer_custom_root_key_for_vscode(tmp_path):
+    p = tmp_path / "mcp.json"
+    # VS Code keeps an existing "servers" map + unrelated keys; we must merge under "servers"
+    p.write_text(_json.dumps({"inputs": [], "servers": {"other": {"command": "x"}}}))
+    write_json_mcp(p, _ENTRY, root_key="servers")
+    data = _json.loads(p.read_text())
+    assert data["inputs"] == []  # unrelated key survives
+    assert data["servers"]["other"] == {"command": "x"}  # other server survives
+    assert data["servers"]["agentcairn"] == _ENTRY  # written under "servers", not "mcpServers"
+    assert "mcpServers" not in data
+
+
+def test_write_host_vscode_uses_servers_key(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    from cairn.hosts.writers import write_host
+
+    h = get_host("vscode")
+    write_host(h, _ENTRY)
+    data = _json.loads(h.config_path().read_text())
+    assert data["servers"]["agentcairn"] == _ENTRY
 
 
 def test_json_writer_idempotent(tmp_path):
@@ -89,7 +121,7 @@ def test_write_host_dispatches_json(tmp_path):
     # point the host at our temp path via monkeypatchless override: call writer directly
     write_json_mcp(p, _ENTRY)
     assert _json.loads(p.read_text())["mcpServers"]["agentcairn"]["command"] == "uvx"
-    assert h.format == "mcpServers"
+    assert h.format == "json"
 
 
 def test_codex_writer_adds_tables_and_preserves(tmp_path):
