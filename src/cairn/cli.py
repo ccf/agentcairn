@@ -494,13 +494,17 @@ def ingest(
     if not paths:
         typer.echo("No transcripts found.")
         return
-    totals: dict[str, int] = {
+    from collections import Counter
+
+    totals = {
+        "authored": 0,
         "candidates": 0,
         "redactions": 0,
         "deduped": 0,
         "gated_out": 0,
         "written": 0,
     }
+    kinds: Counter = Counter()
     for tp in paths:
         rep = ingest_transcript(
             parse_transcript(tp),
@@ -509,14 +513,20 @@ def ingest(
             threshold=threshold,
             dry_run=dry_run,
         )
+        totals["authored"] += rep.authored
         totals["candidates"] += rep.candidates
         totals["redactions"] += rep.redactions
         totals["deduped"] += rep.deduped
         totals["gated_out"] += rep.gated_out
         totals["written"] += len(rep.written)
+        kinds.update(rep.event_kinds)
     prefix = "[dry-run] " if dry_run else ""
     typer.echo(
-        f"{prefix}{totals['candidates']} candidates · {totals['redactions']} redactions · "
-        f"{totals['deduped']} deduped · {totals['gated_out']} gated · "
-        f"{totals['written']} written"
+        f"{prefix}{totals['authored']} authored · {totals['candidates']} candidates · "
+        f"{totals['redactions']} redactions · {totals['deduped']} deduped · "
+        f"{totals['gated_out']} gated · {totals['written']} written"
     )
+    skipped = {k: v for k, v in kinds.items() if k != "authored_user"}
+    if skipped:
+        breakdown = ", ".join(f"{v} {k}" for k, v in sorted(skipped.items(), key=lambda kv: -kv[1]))
+        typer.echo(f"  skipped (non-authored): {breakdown}")
