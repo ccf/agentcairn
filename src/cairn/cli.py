@@ -329,6 +329,9 @@ def install(
 
     if all_hosts:
         targets = detected_hosts()
+        if not targets:
+            typer.echo(f"No supported MCP hosts detected. Supported: {ids}")
+            return
     else:
         h = get_host(host)
         if h is None:
@@ -340,7 +343,11 @@ def install(
     for h in targets:
         try:
             out = write_host(h, entry, dry=print_only)
-            typer.echo(out if print_only else f"✓ {h.label}: {out}")
+            if print_only:
+                typer.echo(f"# {h.label} ({h.config_path()})")
+                typer.echo(out)
+            else:
+                typer.echo(f"✓ {h.label}: {out}")
         except Exception as e:  # best-effort per host; continue under --all
             failures += 1
             typer.echo(f"✗ {h.label}: {e}")

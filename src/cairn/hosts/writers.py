@@ -5,6 +5,7 @@ backup-first. With dry=True, render the would-be file content and write nothing.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from pathlib import Path
 
@@ -18,13 +19,21 @@ def _backup(path: Path) -> None:
         shutil.copy2(path, path.with_name(path.name + ".bak"))
 
 
+def _atomic_write(path: Path, text: str) -> None:
+    """Write text to a temp file in the same dir, then atomically rename into place,
+    so a crash/disk-full mid-write can never corrupt the existing config."""
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
+
+
 def write_json_mcp(path: Path, entry: dict, *, dry: bool = False) -> str:
     """Set mcpServers['agentcairn'] = entry in a JSON config, preserving all other
     content. Returns the rendered content (dry) or a write summary."""
     data: dict = {}
     if path.exists():
         try:
-            data = json.loads(path.read_text() or "{}")
+            data = json.loads(path.read_text(encoding="utf-8") or "{}")
         except json.JSONDecodeError as e:
             raise ValueError(f"{path} is not valid JSON ({e}); fix it or use --print") from e
         if not isinstance(data, dict):
@@ -33,12 +42,12 @@ def write_json_mcp(path: Path, entry: dict, *, dry: bool = False) -> str:
     if not isinstance(servers, dict):
         raise ValueError(f"{path}: 'mcpServers' is not an object; fix it or use --print")
     servers["agentcairn"] = entry
-    rendered = json.dumps(data, indent=2) + "\n"
+    rendered = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
     if dry:
         return rendered
     path.parent.mkdir(parents=True, exist_ok=True)
     _backup(path)
-    path.write_text(rendered)
+    _atomic_write(path, rendered)
     return f"wrote agentcairn → {path}"
 
 
@@ -57,7 +66,7 @@ def write_codex_toml(path: Path, entry: dict, *, dry: bool = False) -> str:
     doc = tomlkit.document()
     if path.exists():
         try:
-            doc = tomlkit.parse(path.read_text())
+            doc = tomlkit.parse(path.read_text(encoding="utf-8"))
         except Exception as e:  # tomlkit raises ParseError/ValueError variants
             raise ValueError(f"{path} is not valid TOML ({e}); fix it or use --print") from e
     servers = doc.get("mcp_servers")
@@ -77,5 +86,5 @@ def write_codex_toml(path: Path, entry: dict, *, dry: bool = False) -> str:
         return rendered
     path.parent.mkdir(parents=True, exist_ok=True)
     _backup(path)
-    path.write_text(rendered)
+    _atomic_write(path, rendered)
     return f"wrote [mcp_servers.agentcairn] → {path}"

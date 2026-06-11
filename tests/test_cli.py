@@ -584,3 +584,22 @@ def test_install_unknown_host_errors(tmp_path, monkeypatch):
     r = runner.invoke(app, ["install", "nope"])
     assert r.exit_code == 1
     assert "unknown host" in r.output.lower()
+
+
+def test_install_all_with_none_detected_reports_and_exits_0(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))  # empty HOME → no host dirs present
+    r = runner.invoke(app, ["install", "--all"])
+    assert r.exit_code == 0, r.output
+    assert "no supported mcp hosts detected" in r.output.lower()
+
+
+def test_install_all_print_labels_each_host(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / ".cursor").mkdir()
+    (tmp_path / ".codex").mkdir()
+    r = runner.invoke(app, ["install", "--all", "--print"])
+    assert r.exit_code == 0, r.output
+    # each detected host's snippet is preceded by a labeled comment header
+    assert "# Cursor" in r.output
+    assert "# Codex CLI" in r.output
+    assert not (tmp_path / ".cursor" / "mcp.json").exists()  # --print writes nothing

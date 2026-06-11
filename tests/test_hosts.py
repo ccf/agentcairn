@@ -130,3 +130,23 @@ def test_codex_writer_dry_writes_nothing(tmp_path):
     out = write_codex_toml(p, _ENTRY, dry=True)
     assert not p.exists()
     assert "[mcp_servers.agentcairn]" in out
+
+
+def test_json_writer_preserves_non_ascii_literally(tmp_path):
+    p = tmp_path / "mcp.json"
+    p.write_text(
+        _json.dumps({"mcpServers": {"other": {"env": {"NOTE": "café—naïve"}}}}),
+        encoding="utf-8",
+    )
+    write_json_mcp(p, _ENTRY)
+    text = p.read_text(encoding="utf-8")
+    assert "café—naïve" in text  # written literally, not \u-escaped
+    assert "\\u" not in text
+    data = _json.loads(text)
+    assert data["mcpServers"]["other"]["env"]["NOTE"] == "café—naïve"
+
+
+def test_json_writer_no_tmp_left_behind(tmp_path):
+    p = tmp_path / "mcp.json"
+    write_json_mcp(p, _ENTRY)
+    assert not p.with_name("mcp.json.tmp").exists()  # atomic-rename cleaned up
