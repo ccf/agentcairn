@@ -148,3 +148,71 @@ def test_session_id_from_first_content_line(tmp_path):
     assert tr.session_id == "first-session", (
         f"session_id should be from first content line, got {tr.session_id!r}"
     )
+
+
+def test_classify_authored_user():
+    from cairn.ingest.events import EventKind
+    from cairn.ingest.locate import classify_claude_code
+
+    obj = {"type": "user", "message": {"role": "user", "content": "fix the bug please"}}
+    assert classify_claude_code(obj) == EventKind.AUTHORED_USER
+
+
+def test_classify_tool_result():
+    from cairn.ingest.events import EventKind
+    from cairn.ingest.locate import classify_claude_code
+
+    assert (
+        classify_claude_code({"type": "user", "toolUseResult": {}, "message": {}})
+        == EventKind.TOOL_RESULT
+    )
+
+
+def test_classify_meta_via_isMeta():
+    from cairn.ingest.events import EventKind
+    from cairn.ingest.locate import classify_claude_code
+
+    assert (
+        classify_claude_code({"type": "user", "isMeta": True, "message": {}})
+        == EventKind.META_INJECTION
+    )
+
+
+def test_classify_meta_via_origin_task_notification():
+    # <task-notification> carries NO isMeta/toolUseResult — only an `origin` object.
+    from cairn.ingest.events import EventKind
+    from cairn.ingest.locate import classify_claude_code
+
+    obj = {"type": "user", "origin": {"kind": "task-notification"}, "message": {}}
+    assert classify_claude_code(obj) == EventKind.META_INJECTION
+
+
+def test_classify_compact_summary():
+    from cairn.ingest.events import EventKind
+    from cairn.ingest.locate import classify_claude_code
+
+    obj = {
+        "type": "user",
+        "isCompactSummary": True,
+        "isVisibleInTranscriptOnly": True,
+        "message": {},
+    }
+    assert classify_claude_code(obj) == EventKind.COMPACT_SUMMARY
+
+
+def test_classify_assistant_and_system():
+    from cairn.ingest.events import EventKind
+    from cairn.ingest.locate import classify_claude_code
+
+    assert (
+        classify_claude_code({"type": "assistant", "message": {}}) == EventKind.AUTHORED_ASSISTANT
+    )
+    assert classify_claude_code({"type": "system"}) == EventKind.SYSTEM
+
+
+def test_classify_unknown_is_failclosed():
+    from cairn.ingest.events import EventKind
+    from cairn.ingest.locate import classify_claude_code
+
+    assert classify_claude_code({"type": "last-prompt"}) == EventKind.UNKNOWN
+    assert classify_claude_code({}) == EventKind.UNKNOWN

@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from cairn.ingest.events import EventKind
 from cairn.ingest.models import Transcript, Turn
 from cairn.ingest.sanitize import sanitize_text
 
@@ -61,6 +62,27 @@ def _extract_text(content: object) -> str:
         ]
         return sanitize_text("\n".join(parts)).strip()
     return ""
+
+
+def classify_claude_code(obj: dict) -> EventKind:
+    """Positive-identification, fail-closed classification of a raw Claude Code
+    JSONL entry. A user turn is AUTHORED_USER only when it carries NONE of the
+    harness's injection markers. Order matters: compact-summary first (it also
+    sets isVisibleInTranscriptOnly), then tool results, then meta/injected."""
+    t = obj.get("type")
+    if t == "user":
+        if obj.get("isCompactSummary"):
+            return EventKind.COMPACT_SUMMARY
+        if "toolUseResult" in obj:
+            return EventKind.TOOL_RESULT
+        if obj.get("isMeta") or obj.get("isVisibleInTranscriptOnly") or obj.get("origin"):
+            return EventKind.META_INJECTION
+        return EventKind.AUTHORED_USER
+    if t == "assistant":
+        return EventKind.AUTHORED_ASSISTANT
+    if t == "system":
+        return EventKind.SYSTEM
+    return EventKind.UNKNOWN
 
 
 def parse_transcript(path: Path) -> Transcript:
