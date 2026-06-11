@@ -37,6 +37,18 @@ def test_plugin_manifest_valid():
     assert "vault_path" in man["userConfig"]
 
 
+def test_plugin_manifest_does_not_reexplicit_autodiscovered_hooks():
+    # Claude Code AUTO-DISCOVERS plugin/hooks/hooks.json. The manifest's `hooks`
+    # field is only for ADDITIONAL hook files; pointing it back at the standard
+    # hooks/hooks.json triggers a "Duplicate hooks file" load failure (the plugin
+    # shows "failed to load"). So the manifest must not reference it, and the file
+    # must still exist for auto-discovery. (mcpServers IS referenced explicitly —
+    # MCP config has no auto-discovery, so that one is correct.)
+    man = _json(PLUGIN / ".claude-plugin" / "plugin.json")
+    assert man.get("hooks") != "./hooks/hooks.json"
+    assert (PLUGIN / "hooks" / "hooks.json").exists()
+
+
 def test_mcp_config_wires_uvx_agentcairn():
     mcp = _json(PLUGIN / ".mcp.json")
     srv = mcp["mcpServers"]["agentcairn"]
