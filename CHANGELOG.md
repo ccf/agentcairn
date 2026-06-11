@@ -5,6 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-11
+
+### Changed
+- **Ingestion now selects candidates by transcript structure, not text patterns.** A new normalized `EventKind` taxonomy + a positive-identification, fail-closed Claude Code classifier (keyed on `isMeta`/`toolUseResult`/`isCompactSummary`/`isVisibleInTranscriptOnly`/`origin`) means only genuinely human-authored turns become memories. This deterministically excludes tool output, slash-command/skill injections, `<task-notification>` events, and compaction summaries — without enumerating their text. An unmapped entry type or new harness yields zero candidates (safe, loud) rather than noise. `cairn ingest` now reports a per-kind skip tally; event provenance (origin project) is preserved through the pipeline for future use.
+
+### Removed
+- The text-pattern `is_framing_noise` denylist (0.6.1/0.6.2) — subsumed by structural classification. `sanitize_text` (escape/control stripping) stays.
+
 ## [0.6.2] - 2026-06-11
 
 ### Fixed
@@ -63,7 +71,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Out-of-band capture from coding-agent transcripts (redacted, non-lossy `remember`).
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
-[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/ccf/agentcairn/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/ccf/agentcairn/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/ccf/agentcairn/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/ccf/agentcairn/compare/v0.5.0...v0.6.0
