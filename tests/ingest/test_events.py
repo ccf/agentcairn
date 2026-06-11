@@ -37,3 +37,96 @@ def test_normalized_event_is_frozen_and_carries_provenance():
     import dataclasses
 
     assert dataclasses.is_dataclass(e)
+
+
+def test_real_noise_shapes_are_not_authored(tmp_path):
+    """Lock the audited noise classes by their REAL structural shape — none may
+    classify as AUTHORED_USER, and none may survive parse->select as a candidate."""
+    import json
+
+    from cairn.ingest.events import EventKind
+    from cairn.ingest.locate import classify_claude_code, parse_transcript
+    from cairn.ingest.pipeline import select_candidates
+
+    noise = [
+        {
+            "type": "user",
+            "origin": {"kind": "task-notification"},
+            "sessionId": "s",
+            "message": {"role": "user", "content": "<task-notification> bg task done"},
+        },
+        {
+            "type": "user",
+            "isMeta": True,
+            "sessionId": "s",
+            "message": {
+                "role": "user",
+                "content": "Base directory for this skill: /Users/ccf/.claude/skills/x",
+            },
+        },
+        {
+            "type": "user",
+            "toolUseResult": {},
+            "sessionId": "s",
+            "message": {"role": "user", "content": "\x1b[1mContext Usage\x1b[22m 49.8k/1m tokens"},
+        },
+        {
+            "type": "user",
+            "isCompactSummary": True,
+            "isVisibleInTranscriptOnly": True,
+            "sessionId": "s",
+            "message": {
+                "role": "user",
+                "content": "This session is being continued from a previous conversation.",
+            },
+        },
+    ]
+    for obj in noise:
+        assert classify_claude_code(obj) != EventKind.AUTHORED_USER
+
+    authored = {
+        "type": "user",
+        "sessionId": "s",
+        "cwd": "/Users/x/proj",
+        "message": {"role": "user", "content": "we decided to always rebase-merge the branch"},
+    }
+    t = tmp_path / "mixed.jsonl"
+    t.write_text("\n".join(json.dumps(o) for o in [*noise, authored]) + "\n")
+    tr = parse_transcript(t)
+    cands = select_candidates(tr)
+    assert [c.text for c in cands] == ["we decided to always rebase-merge the branch"]
+    # ANSI was stripped from the (excluded) tool-result during parse, too
+    assert all("\x1b" not in e.text for e in tr.events)
+
+
+def test_unknown_entry_shape_fails_closed(tmp_path):
+    import json
+
+    from cairn.ingest.locate import parse_transcript
+    from cairn.ingest.pipeline import select_candidates
+
+    # an unrecognized type, and a user row with a known injection flag -> excluded
+    t = tmp_path / "weird.jsonl"
+    t.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "type": "future-thing",
+                        "sessionId": "s",
+                        "message": {"role": "x", "content": "hi"},
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "user",
+                        "isMeta": True,
+                        "sessionId": "s",
+                        "message": {"role": "user", "content": "injected content here"},
+                    }
+                ),
+            ]
+        )
+        + "\n"
+    )
+    assert select_candidates(parse_transcript(t)) == []
