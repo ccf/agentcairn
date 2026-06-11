@@ -9,8 +9,8 @@ export const site = {
 export const nav = [
   { label: "How it works", href: "#how" },
   { label: "Benchmarks", href: "#measured" },
-  { label: "Any host", href: "#hosts" },
   { label: "Quickstart", href: "#quickstart" },
+  { label: "Any host", href: "#hosts" },
   { label: "GitHub", href: site.repo },
 ];
 
