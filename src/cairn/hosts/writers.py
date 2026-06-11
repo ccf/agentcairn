@@ -8,6 +8,8 @@ import json
 import shutil
 from pathlib import Path
 
+import tomlkit
+
 from cairn.hosts import Host
 
 
@@ -49,5 +51,31 @@ def write_host(host: Host, entry: dict, *, dry: bool = False) -> str:
     raise ValueError(f"unknown host format: {host.format!r}")
 
 
-def write_codex_toml(path: Path, entry: dict, *, dry: bool = False) -> str:  # replaced in Task 3
-    raise NotImplementedError("codex writer lands in Task 3")
+def write_codex_toml(path: Path, entry: dict, *, dry: bool = False) -> str:
+    """Set [mcp_servers.agentcairn] (+ .env) in a Codex TOML config, preserving all
+    other tables and comments (tomlkit round-trips)."""
+    doc = tomlkit.document()
+    if path.exists():
+        try:
+            doc = tomlkit.parse(path.read_text())
+        except Exception as e:  # tomlkit raises ParseError/ValueError variants
+            raise ValueError(f"{path} is not valid TOML ({e}); fix it or use --print") from e
+    servers = doc.get("mcp_servers")
+    if servers is None:
+        servers = tomlkit.table(is_super_table=True)
+        doc["mcp_servers"] = servers
+    ac = tomlkit.table()
+    ac["command"] = entry["command"]
+    ac["args"] = entry["args"]
+    env = tomlkit.table()
+    for k, v in entry["env"].items():
+        env[k] = v
+    ac["env"] = env
+    servers["agentcairn"] = ac
+    rendered = tomlkit.dumps(doc)
+    if dry:
+        return rendered
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _backup(path)
+    path.write_text(rendered)
+    return f"wrote [mcp_servers.agentcairn] → {path}"
