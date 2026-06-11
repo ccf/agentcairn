@@ -527,3 +527,22 @@ def test_warm_skips_reranker_when_disabled(monkeypatch):
     r = runner.invoke(app, ["warm"])
     assert r.exit_code == 0, r.output
     assert called["n"] == 0  # reranker not warmed when disabled
+
+
+def test_warm_forces_embedder_probe_via_dim(monkeypatch):
+    # ollama probes the server lazily on .dim; warm must touch .dim so it
+    # actually loads/validates instead of just constructing the object.
+    monkeypatch.setenv("CAIRN_EMBEDDER", "ollama")
+    monkeypatch.setenv("CAIRN_RERANK", "0")
+    touched = {"dim": False}
+
+    class _Emb:
+        @property
+        def dim(self):
+            touched["dim"] = True
+            return 768
+
+    monkeypatch.setattr("cairn.cli.get_embedder", lambda name: _Emb())
+    r = runner.invoke(app, ["warm"])
+    assert r.exit_code == 0, r.output
+    assert touched["dim"] is True

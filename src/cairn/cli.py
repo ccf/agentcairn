@@ -271,7 +271,10 @@ def warm() -> None:
     embedder = os.environ.get("CAIRN_EMBEDDER") or "fastembed"
     if embedder in ("fastembed", "ollama"):
         try:
-            get_embedder(embedder)
+            # Touch `.dim` to force the actual load: fastembed downloads in its
+            # constructor, but ollama probes the server lazily on first dim/embed
+            # — so without this, warming ollama would validate/load nothing.
+            _ = get_embedder(embedder).dim
             typer.echo(f"embedder ready: {embedder}")
         except Exception as exc:  # best-effort pre-fetch — never crash
             typer.echo(f"embedder warm failed ({embedder}): {exc}")
