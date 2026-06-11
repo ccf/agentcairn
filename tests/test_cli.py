@@ -605,3 +605,57 @@ def test_install_all_print_labels_each_host(tmp_path, monkeypatch):
     assert "# Cursor" in r.output
     assert "# Codex CLI" in r.output
     assert not (tmp_path / ".cursor" / "mcp.json").exists()  # --print writes nothing
+
+
+def test_ingest_reports_per_kind_skips(tmp_path, monkeypatch):
+    import json as _j
+
+    # a transcript with one authored user turn + one tool-result + one task-notification
+    proj = tmp_path / "projects" / "-Users-x-proj"
+    proj.mkdir(parents=True)
+    lines = [
+        _j.dumps(
+            {
+                "type": "user",
+                "sessionId": "s",
+                "cwd": "/Users/x/proj",
+                "message": {
+                    "role": "user",
+                    "content": "we decided to always rebase-merge the branch",
+                },
+            }
+        ),
+        _j.dumps(
+            {
+                "type": "user",
+                "sessionId": "s",
+                "toolUseResult": {},
+                "message": {"role": "user", "content": "tool output blah blah blah blah blah"},
+            }
+        ),
+        _j.dumps(
+            {
+                "type": "user",
+                "sessionId": "s",
+                "origin": {"kind": "task-notification"},
+                "message": {"role": "user", "content": "<task-notification> done done done done"},
+            }
+        ),
+    ]
+    (proj / "t.jsonl").write_text("\n".join(lines) + "\n")
+    vault = tmp_path / "vault"
+    r = runner.invoke(
+        app,
+        [
+            "ingest",
+            "--vault",
+            str(vault),
+            "--transcripts-dir",
+            str(tmp_path / "projects"),
+            "--ledger",
+            str(tmp_path / "led.sha256"),
+        ],
+    )
+    assert r.exit_code == 0, r.output
+    assert "1 authored" in r.output
+    assert "tool_result" in r.output and "meta_injection" in r.output
