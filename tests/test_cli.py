@@ -474,3 +474,56 @@ def test_savings_oneline_empty(tmp_path, monkeypatch):
     r = runner.invoke(app, ["savings", "--oneline"])
     assert r.exit_code == 0
     assert r.stdout.strip() == ""
+
+
+def test_warm_fake_embedder_rerank_off_is_noop(monkeypatch):
+    monkeypatch.setenv("CAIRN_EMBEDDER", "fake")
+    monkeypatch.setenv("CAIRN_RERANK", "0")
+    r = runner.invoke(app, ["warm"])
+    assert r.exit_code == 0, r.output
+    assert "fake" in r.output  # nothing to warm for the fake embedder
+    assert "skipped" in r.output.lower()  # reranker skipped
+
+
+def test_warm_embedder_failure_is_best_effort(monkeypatch):
+    monkeypatch.setenv("CAIRN_EMBEDDER", "fastembed")
+    monkeypatch.setenv("CAIRN_RERANK", "0")
+
+    def _boom(name):
+        raise RuntimeError("download blew up")
+
+    monkeypatch.setattr("cairn.cli.get_embedder", _boom)
+    r = runner.invoke(app, ["warm"])
+    assert r.exit_code == 0, r.output  # best-effort: never crashes
+    assert "fail" in r.output.lower()
+
+
+def test_warm_warms_reranker_when_enabled(monkeypatch):
+    monkeypatch.setenv("CAIRN_EMBEDDER", "fake")  # skip the embedder download
+    monkeypatch.delenv("CAIRN_RERANK", raising=False)  # default: rerank ON
+    called = {}
+
+    def _spy(query, candidates, **kw):
+        called["args"] = (query, candidates)
+        return candidates
+
+    monkeypatch.setattr("cairn.search.rerank_candidates", _spy)
+    r = runner.invoke(app, ["warm"])
+    assert r.exit_code == 0, r.output
+    assert called["args"][0] == "warm"
+    assert called["args"][1] == [{"text": "hello"}]
+
+
+def test_warm_skips_reranker_when_disabled(monkeypatch):
+    monkeypatch.setenv("CAIRN_EMBEDDER", "fake")
+    monkeypatch.setenv("CAIRN_RERANK", "0")
+    called = {"n": 0}
+
+    def _spy(query, candidates, **kw):
+        called["n"] += 1
+        return candidates
+
+    monkeypatch.setattr("cairn.search.rerank_candidates", _spy)
+    r = runner.invoke(app, ["warm"])
+    assert r.exit_code == 0, r.output
+    assert called["n"] == 0  # reranker not warmed when disabled

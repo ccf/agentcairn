@@ -260,6 +260,37 @@ def savings(
 
 
 @app.command()
+def warm() -> None:
+    """Pre-download the configured embedder + reranker models (best-effort).
+
+    Reads CAIRN_EMBEDDER (default 'fastembed') and CAIRN_RERANK. Idempotent —
+    near-instant once the models are cached. The plugin's detached first-run job
+    calls this so the first real sweep/recall isn't slow; also handy before
+    first CLI use.
+    """
+    embedder = os.environ.get("CAIRN_EMBEDDER") or "fastembed"
+    if embedder in ("fastembed", "ollama"):
+        try:
+            get_embedder(embedder)
+            typer.echo(f"embedder ready: {embedder}")
+        except Exception as exc:  # best-effort pre-fetch — never crash
+            typer.echo(f"embedder warm failed ({embedder}): {exc}")
+    else:
+        typer.echo(f"embedder: nothing to warm ({embedder})")
+
+    if resolve_rerank():
+        try:
+            from cairn.search import rerank_candidates
+
+            rerank_candidates("warm", [{"text": "hello"}])
+            typer.echo("reranker ready")
+        except Exception as exc:  # best-effort pre-fetch — never crash
+            typer.echo(f"reranker warm failed: {exc}")
+    else:
+        typer.echo("reranker: skipped (CAIRN_RERANK=0)")
+
+
+@app.command()
 def serve(
     vault: Path = typer.Option(None, "--vault", help="Vault root (enables `remember`)."),
     index: Path = typer.Option(None, "--index", help="Index .duckdb path."),
