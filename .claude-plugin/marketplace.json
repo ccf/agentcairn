@@ -1,5 +1,9 @@
 {
   "name": "agentcairn",
+  "owner": {
+    "name": "Charles C. Figueiredo",
+    "email": "ccf@ccf.io"
+  },
   "plugins": [
     {
       "name": "agentcairn",
