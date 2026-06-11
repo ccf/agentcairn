@@ -11,8 +11,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from cairn.ingest.events import EventKind
-from cairn.ingest.models import Transcript, Turn
+from cairn.ingest.events import EventKind, NormalizedEvent, project_from_cwd
+from cairn.ingest.models import Transcript
 from cairn.ingest.sanitize import sanitize_text
 
 _CLAUDE_ROOT = Path.home() / ".claude" / "projects"
@@ -86,13 +86,13 @@ def classify_claude_code(obj: dict) -> EventKind:
 
 
 def parse_transcript(path: Path) -> Transcript:
-    """Parse a jsonl transcript into a Transcript. Skips metadata lines and any
-    line that fails to parse. Session-level provenance is taken from the first
-    content line that carries it."""
+    """Parse a jsonl transcript into a Transcript of NormalizedEvents. Skips
+    metadata/bookkeeping lines and malformed lines. Each user/assistant content
+    row is classified structurally and sanitized; provenance is preserved per row."""
     session_id = path.stem
     cwd: str | None = None
     git_branch: str | None = None
-    turns: list[Turn] = []
+    events: list[NormalizedEvent] = []
     for raw in path.read_text(errors="replace").splitlines():
         raw = raw.strip()
         if not raw:
@@ -104,22 +104,30 @@ def parse_transcript(path: Path) -> Transcript:
         if not isinstance(obj, dict):
             continue
         if obj.get("type") not in _CONTENT_TYPES:
-            continue
+            continue  # only user/assistant rows carry conversational content
         msg = obj.get("message")
         if not isinstance(msg, dict):
             continue
         text = _extract_text(msg.get("content"))
         if not text:
             continue
-        # Provenance comes from the first ACCEPTED content turn, not from a
-        # content-typed row we end up skipping (no message / empty text).
         if session_id == path.stem:
             session_id = obj.get("sessionId") or session_id
+        line_cwd = obj.get("cwd")
         if cwd is None:
-            cwd = obj.get("cwd")
+            cwd = line_cwd
         if git_branch is None:
             git_branch = obj.get("gitBranch")
-        turns.append(
-            Turn(role=msg.get("role", obj["type"]), text=text, timestamp=obj.get("timestamp"))
+        events.append(
+            NormalizedEvent(
+                kind=classify_claude_code(obj),
+                role=msg.get("role", obj["type"]),
+                text=text,
+                timestamp=obj.get("timestamp"),
+                session_id=obj.get("sessionId") or session_id,
+                project=project_from_cwd(line_cwd or cwd),
+                git_branch=obj.get("gitBranch") or git_branch,
+                source_path=path,
+            )
         )
-    return Transcript(session_id=session_id, cwd=cwd, git_branch=git_branch, path=path, turns=turns)
+    return Transcript(session_id=session_id, cwd=cwd, git_branch=git_branch, path=path, events=events)

@@ -70,7 +70,7 @@ def test_session_id_comes_from_first_accepted_turn(tmp_path):
     )
     tr = parse_transcript(t)
     assert tr.session_id == "real-sess"
-    assert [turn.text for turn in tr.turns] == ["real question here"]
+    assert [e.text for e in tr.events] == ["real question here"]
 
 
 def test_find_transcripts_project_filter_tolerates_trailing_slash(tmp_path):
@@ -105,11 +105,13 @@ def test_parse_transcript_extracts_turns_and_provenance(tmp_path):
     assert tr.session_id == "sess-1"
     assert tr.cwd == "/Users/x/proj"
     assert tr.git_branch == "main"
-    # only user string + assistant text block survive; thinking/tool_use/metadata dropped
-    assert [(turn.role, turn.text) for turn in tr.turns] == [
-        ("user", "fix the bug"),
-        ("assistant", "Fixed it."),
+    from cairn.ingest.events import EventKind
+
+    assert [(e.role, e.text, e.kind) for e in tr.events] == [
+        ("user", "fix the bug", EventKind.AUTHORED_USER),
+        ("assistant", "Fixed it.", EventKind.AUTHORED_ASSISTANT),
     ]
+    assert tr.events[0].project == "proj"  # provenance from cwd
 
 
 def test_parse_transcript_unknown_harness_raises():
