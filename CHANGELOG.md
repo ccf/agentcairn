@@ -5,6 +5,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-11
+
+### Added
+- `cairn install <host>` — wire the agentcairn MCP server into other MCP hosts beyond Claude Code. Supports **Cursor**, **Claude Desktop**, **Windsurf**, **Gemini CLI** (JSON `mcpServers`) and **Codex** (TOML `[mcp_servers.agentcairn]`). `cairn install` with no argument detects installed hosts and previews (writes nothing); `--all` configures every detected host; `--print` emits the snippet without touching disk; `--vault`/`--index` override paths (absolute-ized before writing). Writes are non-destructive (other servers + unrelated keys preserved), idempotent, backup-first (`<config>.bak`), and atomic (temp file + rename, so a crash mid-write can't corrupt a live config); a malformed existing config is backed up and reported without being clobbered. The vault stays a single global `~/agentcairn`, so memory is shared across hosts.
+
+### Changed
+- README: new **"Agents supported"** matrix (Claude Code first-class plugin vs `cairn install` MCP-server hosts, with an ambient-capture column); the benchmark section ("Benchmarks measured") now presents LongMemEval-S as a table alongside LoCoMo and context efficiency as a table.
+
+### Dependencies
+- Added **`tomlkit`** (round-trips Codex TOML comments/formatting when merging the MCP entry).
+
 ## [0.4.0] - 2026-06-10
 
 ### Added
@@ -33,7 +44,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Out-of-band capture from coding-agent transcripts (redacted, non-lossy `remember`).
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
-[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/ccf/agentcairn/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/ccf/agentcairn/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/ccf/agentcairn/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ccf/agentcairn/compare/v0.1.0...v0.2.0

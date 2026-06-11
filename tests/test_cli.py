@@ -64,9 +64,11 @@ def test_ingest_command(tmp_path):
 
 
 def test_version_flag_prints_version():
+    import cairn
+
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert "0.4.0" in result.stdout
+    assert cairn.__version__ in result.stdout  # track the package version, not a literal
 
 
 def test_parse_command_outputs_json(tmp_path: Path):
