@@ -5,6 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-06-11
+
+### Fixed
+- **Terminal escape sequences no longer leak into the vault.** Ingestion now strips ANSI/OSC escape codes and stray C0 control bytes from transcript text before anything is hashed, scored, or written — slash-command output (e.g. `/context`) and tool dumps were previously stored with raw `\e[…m` sequences and box-drawing art.
+- **Harness framing is no longer ingested as memories.** User-role turns that are mechanically injected by the harness — slash-command output/markers (`<local-command-stdout>`, `<command-name>`, …), tool-result dumps (`<bash-stdout>`/`<bash-stderr>`), and "This session is being continued from a previous conversation…" compaction summaries — are now filtered out at candidate selection. (They were clearing the importance gate because their length, inflated by escape-code digits, scored above threshold.)
+
 ## [0.6.0] - 2026-06-11
 
 ### Added
@@ -52,7 +58,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Out-of-band capture from coding-agent transcripts (redacted, non-lossy `remember`).
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
-[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/ccf/agentcairn/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/ccf/agentcairn/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/ccf/agentcairn/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/ccf/agentcairn/compare/v0.3.0...v0.4.0

@@ -14,10 +14,13 @@ from cairn.ingest.distill import Distiller, ExtractiveDistiller, write_derived_n
 from cairn.ingest.importance import KEEP_THRESHOLD, is_important
 from cairn.ingest.models import Candidate, IngestReport, Transcript
 from cairn.ingest.redact import redact
+from cairn.ingest.sanitize import is_framing_noise
 
 
 def _candidates(transcript: Transcript) -> list[Candidate]:
-    """v1 segmentation: one candidate per user turn."""
+    """v1 segmentation: one candidate per real user turn. Harness-injected framing
+    (slash-command output, tool dumps, compaction summaries) is dropped — it's not
+    user prose and must not become a memory."""
     return [
         Candidate(
             text=t.text,
@@ -28,7 +31,7 @@ def _candidates(transcript: Transcript) -> list[Candidate]:
             source_path=transcript.path,
         )
         for t in transcript.turns
-        if t.role == "user"
+        if t.role == "user" and not is_framing_noise(t.text)
     ]
 
 

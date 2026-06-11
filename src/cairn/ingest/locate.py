@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 
 from cairn.ingest.models import Transcript, Turn
+from cairn.ingest.sanitize import sanitize_text
 
 _CLAUDE_ROOT = Path.home() / ".claude" / "projects"
 _CONTENT_TYPES = {"user", "assistant"}
@@ -48,16 +49,17 @@ def find_transcripts(
 
 def _extract_text(content: object) -> str:
     """User content is a str; assistant content is a list of blocks. Keep only
-    plain text (drop thinking/tool_use/tool_result)."""
+    plain text (drop thinking/tool_use/tool_result). Terminal escape sequences and
+    stray control bytes are stripped so they never reach the vault."""
     if isinstance(content, str):
-        return content.strip()
+        return sanitize_text(content).strip()
     if isinstance(content, list):
         parts = [
             b["text"]
             for b in content
             if isinstance(b, dict) and b.get("type") == "text" and isinstance(b.get("text"), str)
         ]
-        return "\n".join(parts).strip()
+        return sanitize_text("\n".join(parts)).strip()
     return ""
 
 
