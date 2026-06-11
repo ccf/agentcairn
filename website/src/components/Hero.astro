@@ -8,9 +8,9 @@ import HeroDiagram from "./HeroDiagram.astro";
   <h1 class="font-sans font-medium text-[32px] md:text-[38px] leading-[1.15] tracking-[-0.02em] max-w-[18ch] mb-6">{hero.h1}</h1>
   <p class="prose-measure font-serif text-[20px] leading-[1.55] text-[var(--color-ink-muted)] mb-9">{hero.subhead}</p>
   <div class="flex items-center gap-5 flex-wrap">
-    <div class="font-mono text-[14px] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-4 py-3 flex items-center gap-3">
-      <span><span class="text-[var(--color-accent)]" aria-hidden="true">$</span>&nbsp;{hero.install}</span>
-      <CopyButton text={hero.install} />
+    <div class="font-mono text-[14px] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-4 py-3 flex items-start gap-3">
+      <code class="whitespace-pre leading-[1.7]">{hero.install.map((c) => `$ ${c}`).join("\n")}</code>
+      <CopyButton text={hero.install.join("\n")} />
     </div>
   </div>
   <HeroDiagram />

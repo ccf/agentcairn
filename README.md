@@ -18,6 +18,19 @@ Most agent-memory systems make a database or cloud store the source of truth and
 - **🪶 Daemonless, zero external DB.** One embedded DuckDB file does semantic vector search, BM25 full-text, and graph traversal. No always-on server, no Neo4j/Postgres/Qdrant, no required cloud key — just a `cairn` CLI and an on-demand MCP server.
 - **🔍 Honestly measured.** A reproducible LongMemEval-S + LoCoMo harness ships in [`benchmarks/`](benchmarks/) — with real numbers, ablations, and explicit caveats instead of one cherry-picked headline (see below).
 
+## Install
+
+The easiest way to use agentcairn is the **[Claude Code](https://claude.com/claude-code) plugin** — one install wires up the MCP server, ambient memory (recall at session start, capture at session end), a memory skill, and slash commands:
+
+```bash
+claude plugin marketplace add ccf/agentcairn
+claude plugin install agentcairn@agentcairn
+```
+
+On install you pick a vault path (default `~/agentcairn`); it's **auto-created** on the first session — no Obsidian setup required. From then on agentcairn surfaces relevant memory at the start of each session, distills each session into your vault, and gives you `/agentcairn:recall`, `/remember`, `/memory`, `/savings`, and `/ingest`. Nothing to pip-install — the plugin runs the published package via `uvx`.
+
+> Not on Claude Code? agentcairn is also a standalone MCP server + CLI for any host — see [Using it directly](#using-it-directly).
+
 ## How it works
 
 ```mermaid
@@ -45,13 +58,16 @@ flowchart LR
 - **Hybrid intelligence:** offline local embeddings (FastEmbed / `nomic-embed-text-v1.5` by default) out of the box — strong on its own *and* in the hybrid fusion (with `nomic`, vector-only edges out BM25 even on short turns; see the benchmark). Set `CAIRN_EMBED_MODEL` to pick another FastEmbed model, or run `CAIRN_EMBEDDER=ollama` / a cloud tier to go further.
 - **Temporal memory:** notes may carry `valid_from`/`valid_until`/`superseded_by` frontmatter. Recall is validity-aware — it soft-demotes superseded and expired facts (the *current* fact wins) without ever hiding them (non-lossy), and annotates each result's status (`current`/`superseded`/`expired`/`not_yet_valid`) plus an `as_of` anchor so the agent can reason over time. Inert for notes with no validity fields.
 
-### CLI
+## Using it directly
+
+The plugin is the easiest path, but agentcairn is just a package — use it without Claude Code via the on-demand MCP server (for any MCP host) or the `cairn` CLI:
 
 ```bash
-uvx agentcairn                                       # on-demand MCP server for your agent harness
+uvx agentcairn                                       # on-demand MCP server for any MCP host
 cairn ingest --vault ~/vault                         # distill recent agent sessions into the vault
 cairn sweep  --vault ~/vault                          # ingest + reindex in one pass (cron-friendly)
 cairn recall "how did we fix the auth bug?"          # hybrid recall from the CLI
+cairn savings                                        # how much context recall has saved you
 cairn reindex ~/vault                                # rebuild the index from Markdown (always safe)
 cairn doctor                                         # health-check the index
 ```
@@ -91,10 +107,6 @@ QA-accuracy numbers (LLM-judged) are available too, but use an Anthropic judge r
   - ✅ **Bi-temporal validity** — frontmatter `valid_from`/`valid_until`/`superseded_by`; recall soft-demotes superseded/expired facts (non-lossy — never hidden) and annotates each result's currency + an `as_of` anchor, so the *current* fact wins and the agent can reason over time. *(shipped)*
   - In-memory HNSW for large-vault retrieval latency.
 - **v2** — Obsidian plugin surface, MotherDuck cloud sync, optional LLM entity extraction.
-
-## Prior art & thanks
-
-Learning from [basic-memory](https://github.com/basicmachines-co/basic-memory) (Markdown-as-memory + rebuildable index), Simon Späti's [Obsidian RAG on DuckDB](https://www.ssp.sh/blog/obsidian-rag-duckdb-sql/), and [DuckDB](https://duckdb.org)'s VSS + FTS extensions. Benchmarks use [LongMemEval](https://github.com/xiaowu0162/LongMemEval) (MIT) and [LoCoMo](https://github.com/snap-research/locomo) (CC BY-NC 4.0).
 
 ## Development
 

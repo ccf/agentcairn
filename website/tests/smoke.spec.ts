@@ -5,10 +5,10 @@ test("page renders with brand and nav", async ({ page }) => {
   await expect(page.getByRole("link", { name: /agentcairn/ }).first()).toBeVisible();
 });
 
-test("hero shows the inversion headline and install line", async ({ page }) => {
+test("hero shows the inversion headline and plugin install line", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("made it your files");
-  await expect(page.getByText("uvx agentcairn").first()).toBeVisible();
+  await expect(page.getByText("claude plugin install agentcairn@agentcairn").first()).toBeVisible();
 });
 
 test("inversion + differentiators render", async ({ page }) => {

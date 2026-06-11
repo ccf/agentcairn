@@ -18,7 +18,10 @@ export const hero = {
   h1: "Most agent memory makes a database the source of truth. We made it your files.",
   subhead:
     "agentcairn inverts the stack: human-readable Markdown with [[wikilinks]] is the truth, and a rebuildable DuckDB index gives your agent fast hybrid retrieval. Hand-edit a fact in Obsidian and the agent picks it up.",
-  install: "uvx agentcairn",
+  install: [
+    "claude plugin marketplace add ccf/agentcairn",
+    "claude plugin install agentcairn@agentcairn",
+  ],
 };
 
 export const footer = {
@@ -73,11 +76,14 @@ export const benchmark = {
 };
 
 export const cli = [
+  "# Claude Code plugin (recommended)",
+  "claude plugin marketplace add ccf/agentcairn",
+  "claude plugin install agentcairn@agentcairn",
+  "",
+  "# ...or use it directly — MCP server + CLI, any host",
   "uvx agentcairn                      # on-demand MCP server",
-  "cairn ingest --vault ~/vault        # distill recent sessions",
-  "cairn sweep  --vault ~/vault        # ingest + reindex",
   "cairn recall \"how did we fix auth?\"  # hybrid recall",
-  "cairn reindex ~/vault               # rebuild from Markdown",
+  "cairn savings                       # context recall has saved you",
   "cairn doctor                        # health-check the index",
 ];
 export const trust = [
