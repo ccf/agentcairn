@@ -25,6 +25,18 @@ def test_get_host_known_and_unknown():
     assert get_host("windsurf") is None  # dropped — renamed to Devin Desktop
 
 
+def test_antigravity_only_does_not_falsely_detect_gemini(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    # Antigravity-only: ~/.gemini/config exists, but no settings.json.
+    (tmp_path / ".gemini" / "config").mkdir(parents=True)
+    ids = {h.id for h in detected_hosts()}
+    assert "antigravity" in ids
+    assert "gemini" not in ids  # Gemini CLI keys off settings.json, not the shared ~/.gemini dir
+    # Now a real Gemini CLI install (settings.json present) is detected.
+    (tmp_path / ".gemini" / "settings.json").write_text("{}")
+    assert "gemini" in {h.id for h in detected_hosts()}
+
+
 def test_antigravity_and_vscode_registered():
     ag = get_host("antigravity")
     assert ag is not None and ag.format == "json"
