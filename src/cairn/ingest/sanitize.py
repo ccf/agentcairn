@@ -42,16 +42,18 @@ def sanitize_text(text: str) -> str:
 
 
 # User-role turns whose text starts with one of these are harness framing, not prose:
-# slash-command output/markers and tool-result dumps Claude Code injects as "user".
+# background-task events, slash-command output/markers/caveats, tool-result dumps, and
+# hook output that Claude Code injects as "user" messages.
 _FRAMING_PREFIXES = (
-    "<local-command-stdout",
-    "<local-command-stderr",
+    "<task-notification",
+    "<local-command",  # -stdout / -stderr / -caveat
     "<bash-stdout",
     "<bash-stderr",
     "<command-name",
     "<command-message",
     "<command-args",
     "<system-reminder",
+    "<user-prompt-submit-hook",
 )
 # Compaction summaries the harness injects when a conversation is continued.
 _CONTINUED_PREFIX = "this session is being continued from a previous conversation"

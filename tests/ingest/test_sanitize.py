@@ -34,9 +34,13 @@ def test_sanitize_is_idempotent():
 
 
 def test_framing_noise_detects_harness_turns():
+    assert is_framing_noise("<task-notification>\n<task-id>abc</task-id>\n</task-notification>")
     assert is_framing_noise("<local-command-stdout>...</local-command-stdout>")
+    assert is_framing_noise("<local-command-stderr>boom</local-command-stderr>")
+    assert is_framing_noise("<local-command-caveat>Caveat: messages below…</local-command-caveat>")
     assert is_framing_noise("<bash-stdout>terraform plan</bash-stdout>")
     assert is_framing_noise("<command-name>/context</command-name>")
+    assert is_framing_noise("<user-prompt-submit-hook>...")
     assert is_framing_noise("  <system-reminder>do x</system-reminder>")  # leading ws tolerated
     assert is_framing_noise(
         "This session is being continued from a previous conversation that ran out of context."

@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-06-11
+
+### Fixed
+- **Broaden harness-framing filter to the full family.** 0.6.1 filtered slash-command and tool-output turns; this also drops `<task-notification>` background-task events (by far the most common — they were a large fraction of ingested noise), `<local-command-caveat>` boilerplate, and `<user-prompt-submit-hook>` output. The `<local-command*>` variants are now matched by prefix so future ones are covered too.
+
 ## [0.6.1] - 2026-06-11
 
 ### Fixed
@@ -58,7 +63,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Out-of-band capture from coding-agent transcripts (redacted, non-lossy `remember`).
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
-[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/ccf/agentcairn/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/ccf/agentcairn/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/ccf/agentcairn/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/ccf/agentcairn/compare/v0.4.0...v0.5.0
