@@ -1,0 +1,33 @@
+---
+import Section from "./Section.astro";
+import { agents } from "../lib/content";
+---
+<Section id="hosts" eyebrow={agents.eyebrow} eyebrowHeading={false}>
+  <h2 class="font-sans font-medium text-[24px] md:text-[28px] tracking-[-0.015em] max-w-[26ch] mb-4">{agents.h2}</h2>
+  <p
+    class="prose-measure font-serif text-[16px] leading-[1.55] text-[var(--color-ink-muted)]"
+    set:html={agents.body.replace(/`(.+?)`/g, '<code class="font-mono text-[0.85em]">$1</code>')}
+  />
+  <div class="prose-measure mt-6 overflow-x-auto">
+    <table class="w-full border-collapse font-mono text-[13px]">
+      <thead><tr class="text-[var(--color-ink-muted)] text-left border-b border-[var(--color-border)]">
+        <th class="py-2 font-normal">host</th>
+        <th class="py-2 font-normal">support</th>
+        <th class="py-2 font-normal">set up with</th>
+        <th class="py-2 font-normal">ambient</th>
+      </tr></thead>
+      <tbody>
+        {agents.rows.map((r) => (
+          <tr class={"border-b border-[var(--color-border-faint)] " + (r.ambient ? "text-[var(--color-ink)] font-medium" : "text-[var(--color-ink-muted)]")}>
+            <td class="py-2 pr-4">{r.host}</td>
+            <td class="pr-4">{r.support}</td>
+            <td class="pr-4">{r.setup}</td>
+            <td>{r.ambient ? "✓" : "—"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+  <pre class="prose-measure font-mono text-[13px] leading-[1.7] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 overflow-x-auto mt-6">{agents.install.join("\n")}</pre>
+  <p class="prose-measure font-serif text-[14px] text-[var(--color-ink-faint)] mt-3">{agents.note}</p>
+</Section>

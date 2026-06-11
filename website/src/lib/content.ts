@@ -9,6 +9,7 @@ export const site = {
 export const nav = [
   { label: "How it works", href: "#how" },
   { label: "Benchmarks", href: "#measured" },
+  { label: "Any host", href: "#hosts" },
   { label: "Quickstart", href: "#quickstart" },
   { label: "GitHub", href: site.repo },
 ];
@@ -82,10 +83,40 @@ export const cli = [
   "",
   "# ...or use it directly — MCP server + CLI, any host",
   "uvx agentcairn                      # on-demand MCP server",
+  "cairn install cursor                # wire the server into another host",
   "cairn recall \"how did we fix auth?\"  # hybrid recall",
   "cairn savings                       # context recall has saved you",
   "cairn doctor                        # health-check the index",
 ];
+
+export const agents = {
+  eyebrow: "Use it in any MCP host",
+  h2: "First-class in Claude Code. Portable everywhere else.",
+  body:
+    "Claude Code gets the full plugin — ambient recall at session start, capture at " +
+    "session end, a memory skill, and slash commands. Every other MCP host gets the same " +
+    "recall/search/`remember` tools via the portable server; `cairn install` wires it in " +
+    "non-destructively (your other servers are preserved, the original backed up to " +
+    "`<config>.bak`). One global `~/agentcairn` vault, shared across every host.",
+  rows: [
+    { host: "Claude Code", support: "First-class plugin", setup: "claude plugin install agentcairn@agentcairn", ambient: true },
+    { host: "Cursor", support: "MCP server", setup: "cairn install cursor", ambient: false },
+    { host: "Claude Desktop", support: "MCP server", setup: "cairn install claude-desktop", ambient: false },
+    { host: "Windsurf", support: "MCP server", setup: "cairn install windsurf", ambient: false },
+    { host: "Gemini CLI", support: "MCP server", setup: "cairn install gemini", ambient: false },
+    { host: "Codex CLI", support: "MCP server", setup: "cairn install codex", ambient: false },
+  ],
+  install: [
+    "cairn install                 # detect installed hosts + preview (writes nothing)",
+    "cairn install cursor          # configure one host",
+    "cairn install --all           # configure every detected host",
+    "cairn install codex --print   # just print the snippet, change nothing",
+  ],
+  note:
+    "Cursor / Claude Desktop / Windsurf / Gemini take a JSON mcpServers entry; Codex takes a " +
+    "TOML table (comments and other servers preserved). Writes are non-destructive, idempotent, " +
+    "and backup-first. Ambient capture (auto recall-at-start, capture-at-end) is Claude-Code-only today.",
+};
 export const trust = [
   { k: "Redaction before write", v: "regex + entropy + URL-credential" },
   { k: "Localhost-only MCP", v: "READ_ONLY queries, no exposed ports" },
