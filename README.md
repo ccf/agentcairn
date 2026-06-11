@@ -72,11 +72,36 @@ cairn reindex ~/vault                                # rebuild the index from Ma
 cairn doctor                                         # health-check the index
 ```
 
-## Honestly measured
+## Agents supported
+
+agentcairn works at two levels. **Claude Code** gets a first-class plugin — the full ambient loop (recall at session start, capture at session end), a memory skill, and slash commands. **Every other MCP host** gets the same recall/search/`remember` tools via the portable MCP server; `cairn install` wires it in non-destructively (your other servers are preserved, the original is backed up to `<config>.bak`). The vault stays a single global `~/agentcairn`, so memory is shared across every host.
+
+| Host | Support | Set up with | Ambient capture |
+|---|---|---|---|
+| **Claude Code** | 🟢 First-class plugin | `claude plugin install agentcairn@agentcairn` | ✅ recall-at-start + capture-at-end |
+| Cursor | 🔌 MCP server | `cairn install cursor` | — |
+| Claude Desktop | 🔌 MCP server | `cairn install claude-desktop` | — |
+| Windsurf | 🔌 MCP server | `cairn install windsurf` | — |
+| Gemini CLI | 🔌 MCP server | `cairn install gemini` | — |
+| Codex CLI | 🔌 MCP server | `cairn install codex` | — |
+| Any other MCP host | 🔌 MCP server | `uvx agentcairn` (paste the `cairn install … --print` snippet) | — |
+
+```bash
+cairn install                 # detect installed hosts + preview (writes nothing)
+cairn install cursor          # configure one host
+cairn install --all           # configure every detected host
+cairn install codex --print   # just print the snippet, change nothing
+```
+
+Cursor/Claude Desktop/Windsurf/Gemini take a JSON `mcpServers` entry; Codex takes a TOML `[mcp_servers.agentcairn]` table (comments and other tables are preserved). Ambient memory (auto recall-at-start, capture-at-end) is Claude-Code-only today — cross-host capture is tracked in [#36](https://github.com/ccf/agentcairn/issues/36).
+
+## Benchmarks measured
 
 We benchmark agentcairn the way we'd want a memory system measured — **reproducibly, with ablations, and without a single cherry-picked headline number.** The harness ([`benchmarks/`](benchmarks/)) runs **LongMemEval-S** and **LoCoMo** through a version-pinned downloader (datasets are never vendored), scores retrieval deterministically (recall/nDCG@k, MRR — no API key needed, runs in CI on a synthetic fixture), and offers an opt-in LLM-judged QA layer.
 
-Retrieval ablation on the full LoCoMo set (turn-level, macro-avg, FastEmbed `nomic-embed-text-v1.5` — the default):
+### Retrieval — LoCoMo
+
+Full LoCoMo set, turn-level, macro-avg, FastEmbed `nomic-embed-text-v1.5` (the default embedder):
 
 | arm | recall@5 | recall@10 | MRR |
 |---|---|---|---|
@@ -92,9 +117,34 @@ What we read from this — and say out loud:
 - **The embedder default now pulls its weight** — with `nomic`, vector-only *edges out* BM25 (0.536 vs 0.527); switching from the old `bge-small` default (which trailed at 0.483) closed the gap. A 5-model FastEmbed sweep settled the pick — `nomic` (768-d) wins on quality-per-dim; bigger 1024-d models don't beat it. Full table: [`benchmarks/README.md`](benchmarks/README.md).
 - **graph-boost is inert on these corpora** — LoCoMo/LongMemEval have no native `[[wikilink]]` graph, so the boost has nothing to fire on. It's for *real interlinked vaults*, not chat logs, and we don't pretend otherwise.
 
-**LongMemEval-S** (full 500-instance set) is an easier retrieval task with well-separated evidence sessions. At **session level** (the granularity prior work reports) hybrid+reranker reaches **0.969 recall@5** (nDCG@10 0.961 / MRR 0.963) — right alongside prior work's ≈0.95 over the same 500; at the finer **turn level**, hybrid+reranker reaches **0.788 recall@5**. Read honestly: at full scale session-recall@5 *discriminates* (0.920 BM25 → 0.969 reranker) rather than saturating as it does on a small sample; and turn level is corpus-revealing — here BM25-only (0.680) beats the RRF hybrid (0.640) because vector-only is weak on single-turn spans, and the reranker is what pulls the default ahead.
+### Retrieval — LongMemEval-S
 
-**Context efficiency.** On LongMemEval-S's ~136k-token sessions, agentcairn answers from the ~2,200 tokens it *recalls* (top-10) rather than the full history — a **~65× reduction** in what the model has to read (64.7× mean / 61.6× median; estimate, ~4 chars/token; full 500-set, 470 answerable queries). It measures context *size*, independent of retrieval quality.
+Full 500-instance set — an easier task with well-separated evidence sessions. Session level is the granularity prior work reports; turn level is the finer, corpus-revealing slice:
+
+| arm | session r@5 | session MRR | turn r@5 | turn r@10 | turn MRR |
+|---|---|---|---|---|---|
+| BM25 only | 0.920 | 0.918 | 0.680 | 0.791 | 0.638 |
+| vector only | 0.936 | 0.916 | 0.507 | 0.692 | 0.454 |
+| hybrid (RRF) | 0.954 | 0.938 | 0.640 | 0.798 | 0.544 |
+| **hybrid + reranker** | **0.969** | **0.963** | **0.788** | **0.891** | **0.716** |
+
+Read honestly:
+- **Our 0.969 session recall@5 sits right alongside prior work's ≈0.95** over the same full 500-question set — and at full scale it *discriminates* (0.920 BM25 → 0.969 reranker) rather than saturating the way a small sample does.
+- **The reranker is again the biggest lever** — turn r@5 0.640 → 0.788, session r@5 0.954 → 0.969.
+- **Turn level is corpus-revealing:** here BM25-only (0.680) *beats* the RRF hybrid (0.640) because vector-only is weak on these single-turn evidence spans (0.507); the reranker is what pulls the default ahead. (Contrast LoCoMo, where vector-only edges out BM25.)
+
+### Context efficiency
+
+How much smaller is the context agentcairn *recalls* than the full history you'd otherwise carry into the model? Default config (hybrid + reranker, k=10):
+
+| dataset | queries | mean haystack | mean recalled (k=10) | context reduction |
+|---|---|---|---|---|
+| LoCoMo (3 convos) | 497 | 25,646 tok | 529 tok | **51.1× mean / 50.3× median** |
+| LongMemEval-S (full 500) | 470 | 136,552 tok | 2,207 tok | **64.7× mean / 61.6× median** |
+
+Estimate (~4 chars/token), not a billed cost; "haystack" = the full indexed history, "recalled" = the top-k chunks returned. It measures context *size*, independent of retrieval quality.
+
+### QA accuracy
 
 QA-accuracy numbers (LLM-judged) are available too, but use an Anthropic judge rather than the papers' GPT-4o, so they are **not comparable to published leaderboards** — valid for relative ablation signal only. See [`benchmarks/README.md`](benchmarks/README.md) for how to run it and how to read the numbers.
 
