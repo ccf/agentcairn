@@ -13,14 +13,13 @@
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
-    "@astrojs/cloudflare": "12",
-    "@astrojs/react": "^4.0.0",
+    "@astrojs/react": "^5.0.7",
     "@fontsource-variable/geist": "^5.0.0",
     "@fontsource-variable/geist-mono": "^5.0.0",
     "@fontsource-variable/newsreader": "^5.0.0",
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "^4.0.0",
-    "astro": "^5.0.0",
+    "astro": "^6.4.6",
     "motion": "^11.11.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -31,7 +30,7 @@
     "@axe-core/playwright": "^4.10.0",
     "@playwright/test": "^1.48.0",
     "@types/node": "^25.9.3",
-    "typescript": "^5.6.0",
+    "typescript": "^6.0.3",
     "wrangler": "^4.99.0"
   }
 }
