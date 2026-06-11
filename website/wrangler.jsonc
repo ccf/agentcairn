@@ -5,13 +5,9 @@
   "observability": {
     "enabled": true
   },
-  "main": "dist/_worker.js/index.js",
-  "compatibility_flags": [
-    "global_fetch_strictly_public",
-    "nodejs_compat"
-  ],
+  // Static-assets-only Worker: serve the built `dist/` directly. No worker
+  // entrypoint (`main`) because the site is fully static (no SSR).
   "assets": {
-    "binding": "ASSETS",
     "directory": "dist"
   }
 }
