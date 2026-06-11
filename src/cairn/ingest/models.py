@@ -46,6 +46,8 @@ class IngestReport:
     redactions: int = 0
     deduped: int = 0  # skipped as already-seen
     gated_out: int = 0  # below importance threshold
+    authored: int = 0  # AUTHORED_USER events selected before redact/dedup/gate
+    event_kinds: dict[str, int] = field(default_factory=dict)  # all event kinds seen
     written: list[Path] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -55,5 +57,7 @@ class IngestReport:
             "redactions": self.redactions,
             "deduped": self.deduped,
             "gated_out": self.gated_out,
+            "authored": self.authored,
+            "event_kinds": self.event_kinds,
             "written": [str(p) for p in self.written],
         }

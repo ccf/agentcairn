@@ -4,10 +4,26 @@
 import json
 
 from cairn.ingest.dedup import DedupLedger
-from cairn.ingest.models import IngestReport, Transcript, Turn
+from cairn.ingest.events import EventKind, NormalizedEvent
+from cairn.ingest.models import IngestReport, Transcript
 from cairn.ingest.pipeline import ingest_transcript
 
 SECRET = "ghp_16C7e42F292c6912E7710c838347Ae178B4a"
+
+
+def _ev(kind, text, ts="t0"):
+    from pathlib import Path
+
+    return NormalizedEvent(
+        kind=kind,
+        role="user",
+        text=text,
+        timestamp=ts,
+        session_id="sess-1",
+        project="proj",
+        git_branch="main",
+        source_path=Path("/tmp/sess-1.jsonl"),
+    )
 
 
 def _transcript(tmp_path) -> Transcript:
@@ -16,10 +32,13 @@ def _transcript(tmp_path) -> Transcript:
         cwd="/Users/x/proj",
         git_branch="main",
         path=tmp_path / "sess-1.jsonl",
-        turns=[
-            Turn("user", "thanks!", "t0"),  # trivial -> gated out
-            Turn("user", f"We decided to always rotate the token; the old one was {SECRET}.", "t1"),
-            Turn("assistant", "Understood, rotating now.", "t2"),  # not a user turn -> skipped
+        events=[
+            _ev(EventKind.AUTHORED_USER, "thanks!"),  # authored but trivial -> gated out
+            _ev(
+                EventKind.AUTHORED_USER,
+                f"We decided to always rotate the token; the old one was {SECRET}.",
+            ),
+            _ev(EventKind.AUTHORED_ASSISTANT, "Understood, rotating now."),  # not a candidate
         ],
     )
 
@@ -41,52 +60,41 @@ def test_pipeline_redacts_before_write_and_gates(tmp_path):
     assert "[REDACTED" in blob
 
 
-def test_pipeline_drops_harness_framing_turns(tmp_path):
-    """Slash-command output, tool dumps, command markers, and compaction summaries
-    are harness-injected user turns — they must never become memories, even though
-    they're long enough to clear the importance gate."""
+def test_pipeline_ingests_only_authored_user_events(tmp_path):
+    """Tool results, meta injections, summaries, and assistant turns are excluded
+    by KIND — no text patterns involved. The per-kind tally is reported."""
     vault = tmp_path / "vault"
     vault.mkdir()
     ledger = DedupLedger(tmp_path / "led.sha256")
-    transcript = Transcript(
-        session_id="sess-fr",
+    tr = Transcript(
+        session_id="s",
         cwd="/Users/x/proj",
         git_branch="main",
-        path=tmp_path / "sess-fr.jsonl",
-        turns=[
-            Turn(
-                "user",
-                "<local-command-stdout> Context Usage: 49.8k/1m tokens; system prompt 6.7k",
-                "t0",
+        path=tmp_path / "s.jsonl",
+        events=[
+            _ev(EventKind.TOOL_RESULT, "Context Usage 49.8k/1m tokens; system prompt 6.7k"),
+            _ev(EventKind.META_INJECTION, "<task-notification> background task done"),
+            _ev(
+                EventKind.COMPACT_SUMMARY,
+                "This session is being continued from a previous conversation.",
             ),
-            Turn("user", "<command-name>/context</command-name> show the context usage now", "t1"),
-            Turn(
-                "user",
-                "This session is being continued from a previous conversation that ran out "
-                "of context. The summary below covers the earlier portion of the work done.",
-                "t2",
-            ),
-            Turn(
-                "user",
-                "We decided to always rebase-merge approved PRs and delete the branch after.",
-                "t3",
+            _ev(
+                EventKind.AUTHORED_USER, "We decided to always rebase-merge and delete the branch."
             ),
         ],
     )
-    report = ingest_transcript(transcript, vault_root=vault, ledger=ledger)
-    assert report.candidates == 1  # only the genuine decision turn survives
+    report = ingest_transcript(tr, vault_root=vault, ledger=ledger)
+    assert report.authored == 1
+    assert report.candidates == 1
+    assert report.event_kinds == {
+        "tool_result": 1,
+        "meta_injection": 1,
+        "compact_summary": 1,
+        "authored_user": 1,
+    }
     blob = "\n".join(p.read_text() for p in vault.rglob("*.md"))
-    assert "local-command-stdout" not in blob
-    assert "continued from a previous conversation" not in blob
     assert "rebase-merge" in blob
-
-
-def test_pipeline_strips_ansi_from_written_notes(tmp_path):
-    """A user turn with ANSI escapes that survives the gate is written clean."""
-    from cairn.ingest.locate import _extract_text
-
-    # extraction sanitizes raw content (escapes never reach a Turn/Candidate)
-    assert "\x1b" not in _extract_text("\x1b[1mWe must always rotate keys after a leak\x1b[0m")
+    assert "task-notification" not in blob and "Context Usage" not in blob
 
 
 def test_pipeline_dedup_skips_on_second_run(tmp_path):
@@ -138,6 +146,8 @@ def test_ingest_report_to_dict_is_json_serializable(tmp_path):
     assert parsed["deduped"] == 1
     assert parsed["gated_out"] == 1
     assert parsed["written"] == ["/vault/memories/note-abc.md"]
+    assert parsed["authored"] == 0
+    assert parsed["event_kinds"] == {}
 
 
 # ---------------------------------------------------------------------------

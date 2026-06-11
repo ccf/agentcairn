@@ -2,14 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Text hygiene for ingested transcript content.
 
-Two concerns, both about keeping non-prose junk out of the Markdown vault:
-
-1. `sanitize_text` strips terminal escape sequences (ANSI SGR colors, cursor
-   moves, OSC) and stray C0 control bytes. Slash-command output and tool dumps
-   captured in transcripts carry these, and they were leaking verbatim into notes.
-2. `is_framing_noise` recognizes harness-injected user-role turns — slash-command
-   output/markers and compaction summaries — that are not real user prose and
-   should never become memories.
+`sanitize_text` strips terminal escape sequences (ANSI SGR colors, cursor moves,
+OSC) and stray C0 control bytes. Slash-command output and tool dumps captured in
+transcripts carry these, and they were leaking verbatim into notes.
 """
 
 from __future__ import annotations
@@ -39,30 +34,3 @@ def sanitize_text(text: str) -> str:
     out = _ANSI_RE.sub("", text)
     out = _CTRL_RE.sub("", out)
     return out
-
-
-# User-role turns whose text starts with one of these are harness framing, not prose:
-# background-task events, slash-command output/markers/caveats, tool-result dumps, and
-# hook output that Claude Code injects as "user" messages.
-_FRAMING_PREFIXES = (
-    "<task-notification",
-    "<local-command",  # -stdout / -stderr / -caveat
-    "<bash-stdout",
-    "<bash-stderr",
-    "<command-name",
-    "<command-message",
-    "<command-args",
-    "<system-reminder",
-    "<user-prompt-submit-hook",
-)
-# Compaction summaries the harness injects when a conversation is continued.
-_CONTINUED_PREFIX = "this session is being continued from a previous conversation"
-
-
-def is_framing_noise(text: str) -> bool:
-    """True if a user-role turn is harness-injected framing (slash-command output,
-    tool dumps, command markers, or a compaction summary) rather than real prose."""
-    s = text.lstrip()
-    if s.startswith(_FRAMING_PREFIXES):
-        return True
-    return s[: len(_CONTINUED_PREFIX) + 8].lower().startswith(_CONTINUED_PREFIX)

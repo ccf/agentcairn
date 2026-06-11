@@ -2,36 +2,38 @@
 # SPDX-License-Identifier: Apache-2.0
 """Ingest orchestrator. Enforces the mandatory pipeline order (spec §9):
 redact -> dedup -> importance gate -> distill -> write. Redaction is FIRST so no
-unredacted secret is ever hashed or written."""
+unredacted secret is ever hashed or written. Candidates are selected structurally:
+only genuinely-authored user events (EventKind.AUTHORED_USER) qualify."""
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import replace
 from pathlib import Path
 
 from cairn.ingest.dedup import DedupLedger, content_hash
 from cairn.ingest.distill import Distiller, ExtractiveDistiller, write_derived_note
+from cairn.ingest.events import EventKind
 from cairn.ingest.importance import KEEP_THRESHOLD, is_important
 from cairn.ingest.models import Candidate, IngestReport, Transcript
 from cairn.ingest.redact import redact
-from cairn.ingest.sanitize import is_framing_noise
 
 
-def _candidates(transcript: Transcript) -> list[Candidate]:
-    """v1 segmentation: one candidate per real user turn. Harness-injected framing
-    (slash-command output, tool dumps, compaction summaries) is dropped — it's not
-    user prose and must not become a memory."""
+def select_candidates(transcript: Transcript) -> list[Candidate]:
+    """One candidate per genuinely-authored user event. Everything else (tool
+    results, meta injections, summaries, assistant turns) is excluded by kind."""
     return [
         Candidate(
-            text=t.text,
-            session_id=transcript.session_id,
+            text=e.text,
+            session_id=e.session_id or transcript.session_id,
             cwd=transcript.cwd,
-            git_branch=transcript.git_branch,
-            timestamp=t.timestamp,
-            source_path=transcript.path,
+            git_branch=e.git_branch,
+            timestamp=e.timestamp,
+            source_path=e.source_path,
+            project=e.project,
         )
-        for t in transcript.turns
-        if t.role == "user" and not is_framing_noise(t.text)
+        for e in transcript.events
+        if e.kind == EventKind.AUTHORED_USER
     ]
 
 
@@ -47,7 +49,10 @@ def ingest_transcript(
 ) -> IngestReport:
     distiller = distiller or ExtractiveDistiller()
     report = IngestReport()
-    for cand in _candidates(transcript):
+    report.event_kinds = dict(Counter(e.kind.value for e in transcript.events))
+    candidates = select_candidates(transcript)
+    report.authored = len(candidates)
+    for cand in candidates:
         # 1. REDACT FIRST — everything downstream sees only redacted text.
         red = redact(cand.text)
         report.redactions += red.count
