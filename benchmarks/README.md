@@ -38,29 +38,30 @@ PYTHONPATH=benchmarks uv run --group bench python -m cairn_bench.run --dataset l
 - LongMemEval "paper-style" `recall_all@k`/`ndcg_any@k` are labeled separately from our
   fractional `recall@k`; don't conflate.
 
-## LongMemEval-S retrieval (50-instance sample, FastEmbed `nomic`)
+## LongMemEval-S retrieval (full 500-instance set, FastEmbed `nomic`)
 
 ```bash
-PYTHONPATH=benchmarks uv run --group bench python -m cairn_bench.run --dataset longmemeval-s --limit 50
+PYTHONPATH=benchmarks uv run --group bench python -m cairn_bench.run --dataset longmemeval-s --limit 500
 ```
 
 Session-level (the granularity prior work reports) + turn-level macro-avg:
 
 | arm | session r@5 | session MRR | turn r@5 | turn r@10 | turn MRR |
 |---|---|---|---|---|---|
-| bm25-only | 1.000 | 0.975 | 0.840 | 0.880 | 0.654 |
-| hybrid-rrf | 1.000 | 0.970 | 0.860 | 0.940 | 0.596 |
-| **hybrid+reranker** | **1.000** | **0.990** | **0.960** | **0.980** | **0.822** |
+| bm25-only | 0.920 | 0.918 | 0.680 | 0.791 | 0.638 |
+| vector-only | 0.936 | 0.916 | 0.507 | 0.692 | 0.454 |
+| hybrid-rrf | 0.954 | 0.938 | 0.640 | 0.798 | 0.544 |
+| **hybrid+reranker** | **0.969** | **0.963** | **0.788** | **0.891** | **0.716** |
 
 Read honestly:
-- **Session recall@5 saturates at 1.000 for every arm** (even BM25) — LongMemEval-S evidence
-  sessions are well-separated, so landing the right session in the top-5 is near-trivial. It is
-  *not* a discriminating metric here; use session nDCG/MRR or turn-level to compare arms.
-- **Turn-level is the discriminating view:** hybrid+reranker hits **0.960** r@5, and the reranker
-  is again the largest lever (+0.10 over hybrid).
-- LongMemEval-S retrieval is markedly *easier* than LoCoMo (turn r@5 0.84–0.96 vs 0.53–0.66).
-- 50/500 sample (10%) — comparable for relative signal, not a published-leaderboard claim. (Prior
-  work reports session recall@5 ≈ 0.95 over the full 500; our sample saturates at 1.0.)
+- **At full scale, session recall@5 discriminates** (0.920 BM25 → 0.969 reranker) — it does *not*
+  saturate the way a small sample does. Our **0.969** session r@5 sits right alongside prior work's
+  ≈0.95 over the same full 500-question set.
+- **The cross-encoder reranker is again the largest lever** — turn r@5 0.640 → **0.788**, session
+  r@5 0.954 → 0.969.
+- **Turn-level is corpus-revealing:** here BM25-only (0.680) *beats* the RRF hybrid (0.640) because
+  vector-only is weak on these single-turn evidence spans (0.507); the reranker is what pulls the
+  defaulted config ahead (0.788). (Contrast LoCoMo, where vector-only edges out BM25.)
 
 ## Embedding-model sweep (LoCoMo) — why `nomic` is the default
 
@@ -109,7 +110,7 @@ reranker, k=10), over a sample of each dataset:
 | dataset (sample) | queries | mean haystack | mean recalled (k=10) | context reduction |
 |---|---|---|---|---|
 | LoCoMo (3 convos) | 497 | 25,646 tok | 529 tok | **51.1× mean / 50.3× median** |
-| LongMemEval-S (`--limit 20`) | 20 | 136,104 tok | 2,528 tok | **54.8× mean / 53.7× median** |
+| LongMemEval-S (full 500) | 470 | 136,552 tok | 2,207 tok | **64.7× mean / 61.6× median** |
 
 ```bash
 PYTHONPATH=benchmarks uv run --group bench python -m cairn_bench.run \

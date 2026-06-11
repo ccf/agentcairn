@@ -67,12 +67,12 @@ export const benchmark = {
     "QA-accuracy numbers use an Anthropic judge, not GPT-4o — not comparable to published leaderboards.",
   ],
   contextEfficiency:
-    "On LongMemEval-S (~136k-token sessions), agentcairn answers from ~2,500 tokens of recalled " +
-    "context per query — a ~55× reduction in what the model has to read. Estimate; 20-query sample.",
+    "On LongMemEval-S (~136k-token sessions), agentcairn answers from ~2,200 tokens of recalled " +
+    "context per query — a ~65× reduction in what the model has to read. Estimate; full 500-set.",
   longmemeval:
-    "On LongMemEval-S — larger, well-separated sessions — session-level retrieval is essentially " +
-    "perfect (recall@5 = 1.00 across every arm, so it's near-ceiling), and turn-level reaches 0.96 " +
-    "recall@5 with the reranker.",
+    "On LongMemEval-S's full 500-instance set, session-level retrieval reaches 0.969 recall@5 with " +
+    "the reranker (right alongside prior work's ≈0.95), and turn-level reaches 0.788 — the " +
+    "cross-encoder reranker is the lever.",
 };
 
 export const cli = [
