@@ -1,0 +1,33 @@
+version: 2
+updates:
+  # GitHub Actions — keeps checkout/setup-uv/etc. current (e.g. the Node 20 -> 24
+  # runtime deprecation). Grouped so all action bumps arrive in one PR.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  # Python package (uv-managed: pyproject.toml + uv.lock).
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      python-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # Website (Astro / npm).
+  - package-ecosystem: "npm"
+    directory: "/website"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      website-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
