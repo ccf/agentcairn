@@ -40,12 +40,21 @@ for n in notes:
     print(f"- {t}")
 ' 2>/dev/null || true)
 
-[ -z "$LINES" ] && exit 0
+# Cumulative savings one-liner (empty when there are no recorded recalls).
+SAVINGS=$($CAIRN savings --oneline 2>/dev/null || true)
 
-CTX="## agentcairn — recent memory
+# Nothing to surface at all → emit nothing.
+[ -z "$LINES" ] && [ -z "$SAVINGS" ] && exit 0
+
+CTX=""
+[ -n "$SAVINGS" ] && CTX="$SAVINGS
+"
+if [ -n "$LINES" ]; then
+  CTX="$CTX## agentcairn — recent memory
 $LINES
 
 (Use the \`recall\` tool to pull full notes.)"
+fi
 python3 -c '
 import json,sys
 print(json.dumps({"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":sys.argv[1]}}))

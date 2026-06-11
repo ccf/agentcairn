@@ -80,7 +80,15 @@ def test_session_start_empty_emits_nothing(tmp_path):
     bindir = tmp_path / "bin"
     bindir.mkdir()
     stub = bindir / "uvx"
-    stub.write_text("#!/bin/sh\necho '{\"notes\":[]}'\n")
+    # savings --oneline prints nothing; recent returns empty notes list.
+    stub.write_text(
+        "#!/bin/sh\n"
+        'for a in "$@"; do\n'
+        '  if [ "$a" = "savings" ]; then exit 0; fi\n'
+        '  if [ "$a" = "recent" ]; then echo \'{"notes":[]}\'; exit 0; fi\n'
+        "done\n"
+        "exit 0\n"
+    )
     stub.chmod(0o755)
     vault = tmp_path / "agentcairn"
     vault.mkdir()
@@ -155,3 +163,75 @@ def test_command_has_frontmatter(cmd):
     text = (PLUGIN / "commands" / f"{cmd}.md").read_text()
     assert text.startswith("---")
     assert "description:" in text.split("---", 2)[1]
+
+
+def test_session_start_includes_savings_line(tmp_path):
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    stub = bindir / "uvx"
+    # Stub uvx: `cairn savings --oneline` -> a savings line; `cairn recent --json` -> one note.
+    note_json = '{"notes":[{"permalink":"a","title":"Note A","path":"a.md"}]}'
+    stub.write_text(
+        "#!/bin/sh\n"
+        'for a in "$@"; do\n'
+        '  if [ "$a" = "savings" ]; then\n'
+        '    echo "SAVED 1.2M tokens across 9 recalls"; exit 0\n'
+        "  fi\n"
+        '  if [ "$a" = "recent" ]; then\n'
+        f"    echo '{note_json}'; exit 0\n"
+        "  fi\n"
+        "done\n"
+        "exit 0\n"
+    )
+    stub.chmod(0o755)
+    vault = tmp_path / "agentcairn"
+    vault.mkdir()
+    (tmp_path / "i.duckdb").write_text("")  # index exists -> digest path
+    r = _run_hook(
+        "session-start.sh",
+        {"hook_event_name": "SessionStart", "cwd": "/Users/x/proj"},
+        {
+            "PATH": f"{bindir}:{os.environ['PATH']}",
+            "VAULT_ARG": str(vault),
+            "INDEX_ARG": str(tmp_path / "i.duckdb"),
+        },
+    )
+    assert r.returncode == 0, r.stderr
+    ctx = json.loads(r.stdout)["hookSpecificOutput"]["additionalContext"]
+    assert "SAVED 1.2M tokens across 9 recalls" in ctx
+    assert "Note A" in ctx  # the recent digest is still present
+
+
+def test_session_start_no_savings_line_when_empty(tmp_path):
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    stub = bindir / "uvx"
+    # savings --oneline prints nothing (no data); recent returns one note.
+    note_json = '{"notes":[{"permalink":"a","title":"Note A","path":"a.md"}]}'
+    stub.write_text(
+        "#!/bin/sh\n"
+        'for a in "$@"; do\n'
+        '  if [ "$a" = "savings" ]; then exit 0; fi\n'
+        '  if [ "$a" = "recent" ]; then\n'
+        f"    echo '{note_json}'; exit 0\n"
+        "  fi\n"
+        "done\n"
+        "exit 0\n"
+    )
+    stub.chmod(0o755)
+    vault = tmp_path / "agentcairn"
+    vault.mkdir()
+    (tmp_path / "i.duckdb").write_text("")
+    r = _run_hook(
+        "session-start.sh",
+        {"hook_event_name": "SessionStart", "cwd": "/Users/x/proj"},
+        {
+            "PATH": f"{bindir}:{os.environ['PATH']}",
+            "VAULT_ARG": str(vault),
+            "INDEX_ARG": str(tmp_path / "i.duckdb"),
+        },
+    )
+    assert r.returncode == 0, r.stderr
+    ctx = json.loads(r.stdout)["hookSpecificOutput"]["additionalContext"]
+    assert "SAVED" not in ctx
+    assert "Note A" in ctx
