@@ -13,7 +13,7 @@
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
-    "@astrojs/cloudflare": "12",
+    "@astrojs/cloudflare": "13",
     "@astrojs/react": "^4.0.0",
     "@fontsource-variable/geist": "^5.0.0",
     "@fontsource-variable/geist-mono": "^5.0.0",
