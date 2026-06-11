@@ -659,3 +659,48 @@ def test_ingest_reports_per_kind_skips(tmp_path, monkeypatch):
     assert r.exit_code == 0, r.output
     assert "1 authored" in r.output
     assert "tool_result" in r.output and "meta_injection" in r.output
+
+
+def test_ingest_counts_nontext_tool_results(tmp_path):
+    import json as _j
+
+    proj = tmp_path / "projects" / "-Users-x-proj"
+    proj.mkdir(parents=True)
+    lines = [
+        _j.dumps(
+            {
+                "type": "user",
+                "sessionId": "s",
+                "cwd": "/Users/x/proj",
+                "message": {
+                    "role": "user",
+                    "content": "we decided to always rebase-merge the branch",
+                },
+            }
+        ),
+        # tool result with NON-text content -> dropped from events, but must still be counted
+        _j.dumps(
+            {
+                "type": "user",
+                "sessionId": "s",
+                "toolUseResult": {},
+                "message": {"role": "user", "content": [{"type": "tool_result", "content": "x"}]},
+            }
+        ),
+    ]
+    (proj / "t.jsonl").write_text("\n".join(lines) + "\n")
+    vault = tmp_path / "vault"
+    r = runner.invoke(
+        app,
+        [
+            "ingest",
+            "--vault",
+            str(vault),
+            "--transcripts-dir",
+            str(tmp_path / "projects"),
+            "--ledger",
+            str(tmp_path / "led.sha256"),
+        ],
+    )
+    assert r.exit_code == 0, r.output
+    assert "1 tool_result" in r.output  # counted despite non-text content being dropped

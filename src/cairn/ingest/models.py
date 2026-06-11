@@ -18,6 +18,9 @@ class Transcript:
     git_branch: str | None
     path: Path
     events: list[NormalizedEvent] = field(default_factory=list)
+    kind_counts: dict[str, int] = field(
+        default_factory=dict
+    )  # all content-row kinds seen (pre text-drop)
 
 
 @dataclass
