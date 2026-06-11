@@ -21,7 +21,7 @@ mkdir -p "$VAULT" 2>/dev/null || true
 # exit. By the next session the index exists and the cache is warm, so the fast
 # digest path below runs in well under a second.
 if [ ! -f "$INDEX" ]; then
-  ( $CAIRN init "$VAULT" ) </dev/null >/dev/null 2>&1 &
+  ( $CAIRN init "$VAULT"; $CAIRN warm ) </dev/null >/dev/null 2>&1 &
   exit 0
 fi
 

@@ -202,6 +202,13 @@ def test_session_start_includes_savings_line(tmp_path):
     assert "Note A" in ctx  # the recent digest is still present
 
 
+def test_session_start_first_run_warms_models():
+    text = (PLUGIN / "scripts" / "session-start.sh").read_text()
+    # The first-run detached job pre-warms the models (after vault init) so the
+    # first sweep/recall isn't slow.
+    assert "$CAIRN warm" in text
+
+
 def test_session_start_no_savings_line_when_empty(tmp_path):
     bindir = tmp_path / "bin"
     bindir.mkdir()

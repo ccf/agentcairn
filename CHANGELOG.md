@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+### Added
+- `cairn warm` — pre-downloads the configured embedder + reranker models (best-effort, config-aware). The plugin's detached first-run job calls it so the first SessionEnd `sweep` and first `recall` aren't slowed by a model download.
+
 ## [0.3.0] - 2026-06-10
 
 ### Added
