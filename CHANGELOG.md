@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-10
+
 ### Added
 - `cairn warm` — pre-downloads the configured embedder + reranker models (best-effort, config-aware). The plugin's detached first-run job calls it so the first SessionEnd `sweep` and first `recall` aren't slowed by a model download.
 
@@ -31,7 +33,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Out-of-band capture from coding-agent transcripts (redacted, non-lossy `remember`).
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
-[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/ccf/agentcairn/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/ccf/agentcairn/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ccf/agentcairn/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ccf/agentcairn/releases/tag/v0.1.0
