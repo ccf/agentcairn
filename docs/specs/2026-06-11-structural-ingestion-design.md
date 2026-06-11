@@ -81,13 +81,13 @@ Property: every audited noise class is excluded **without being named in text** 
 
 ## Observability
 
-`IngestReport` gains a per-kind tally. `cairn ingest`/`sweep` (and `--json`) print, e.g.:
+`IngestReport` gains a per-kind tally **over every user/assistant content row, counted before any text-extraction drop** (so non-text tool-result rows still show up). `cairn ingest`/`sweep` (and `--json`) print, e.g.:
 
 ```
-authored: 142 kept · skipped: 9,516 tool_result, 696 meta_injection, 25 compact_summary, 0 unknown
+142 authored · 88 candidates · … · skipped (non-authored): 9,516 tool_result, 9,749 authored_assistant, 696 meta_injection, 25 compact_summary
 ```
 
-`unknown > 0` is a deliberate **loud signal** that the harness schema drifted or a new entry type appeared — prompting a classifier update rather than silent noise accumulation.
+The fail-closed guarantee is the primary drift signal, surfaced two ways: (1) within a mapped harness, an unrecognized content shape can never become a candidate (it routes to a non-`AUTHORED_USER` kind), and (2) a **brand-new / unmapped harness yields zero authored candidates** — a loud, obvious "write the adapter" signal. `SYSTEM`/`UNKNOWN` are fail-closed classifier buckets (for robustness and direct-call tests); they are not surfaced in the parse tally because parse only classifies user/assistant content rows — Claude Code's many benign non-content bookkeeping types (`mode`/`last-prompt`/`ai-title`/…) are intentionally not counted as `unknown` noise.
 
 ## Provenance (plumbing only)
 
@@ -110,7 +110,7 @@ authored: 142 kept · skipped: 9,516 tool_result, 696 meta_injection, 25 compact
 ## Rollout & sequencing
 
 - **Minor bump → 0.7.0.** Behavior change to ingestion; **vault note format unchanged** (`- [context] … #ingested`), so **no index/schema migration**.
-- This is the engine for the **3(b) vault rebuild**: ship → **dry-run verification** (`cairn ingest --dry-run` over the real transcripts; confirm the per-kind tally is sane — a few hundred authored, thousands skipped, `unknown` ≈ 0) → clear the dedup ledger → re-`sweep` on-disk transcripts → genuine authored memories re-created, structural noise excluded at source, **cross-project authored memories preserved** (a global vault is the correct default; provenance is a feature, not a filter). The dry-run is the guard against an injected class with no mapped structural marker.
+- This is the engine for the **3(b) vault rebuild**: ship → **dry-run verification** (`cairn ingest --dry-run` over the real transcripts; confirm the per-kind tally is sane — a few hundred authored candidates, thousands skipped as tool_result/authored_assistant/meta_injection) → clear the dedup ledger → re-`sweep` on-disk transcripts → genuine authored memories re-created, structural noise excluded at source, **cross-project authored memories preserved** (a global vault is the correct default; provenance is a feature, not a filter). The dry-run is the guard against an injected class with no mapped structural marker.
 - **Sequencing:** land the **redaction over-redaction fix first** (separate brainstorm — the entropy heuristic swallows paths/URLs/branches) so the rebuild does not re-create path-damaged memories. Net order: this design → redaction design → implement both → one clean rebuild.
 
 ## Out of scope (YAGNI / later)
