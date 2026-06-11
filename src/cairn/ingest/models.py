@@ -8,12 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-
-@dataclass
-class Turn:
-    role: str  # "user" | "assistant"
-    text: str  # plain text only (thinking/tool blocks already dropped)
-    timestamp: str | None = None
+from cairn.ingest.events import NormalizedEvent
 
 
 @dataclass
@@ -22,7 +17,7 @@ class Transcript:
     cwd: str | None
     git_branch: str | None
     path: Path
-    turns: list[Turn] = field(default_factory=list)
+    events: list[NormalizedEvent] = field(default_factory=list)
 
 
 @dataclass
@@ -35,6 +30,7 @@ class Candidate:
     git_branch: str | None
     timestamp: str | None
     source_path: Path
+    project: str | None = None  # origin project identity (provenance plumbing for #28)
 
 
 @dataclass
