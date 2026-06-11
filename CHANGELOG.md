@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-10
+
 ### Added
 - `cairn savings` — a local, no-telemetry cumulative token-savings ledger: records each real recall (`full_haystack_tokens` vs `recalled_tokens`) to `~/.cache/agentcairn/usage.jsonl` and reports how much context recall has saved vs. dumping the whole vault. Surfaced via `cairn savings` (`--json`/`--oneline`), the `/agentcairn:savings` plugin command, and a line in the SessionStart digest. On by default and local; disable with `CAIRN_USAGE=0`. (Estimated, ~4 chars/token — a model of context size, not a measured cost.)
 
@@ -26,6 +28,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Out-of-band capture from coding-agent transcripts (redacted, non-lossy `remember`).
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
-[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/ccf/agentcairn/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ccf/agentcairn/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ccf/agentcairn/releases/tag/v0.1.0
