@@ -1,0 +1,8 @@
+{"text": "We decided to always rebase-merge approved PRs and delete the branch.", "label": "durable"}
+{"text": "Key lesson: never trust role==user to mean a human wrote it.", "label": "durable"}
+{"text": "I prefer plain-text clarifying questions over popups.", "label": "durable"}
+{"text": "The root cause was the regex including slashes in the token class.", "label": "durable"}
+{"text": "Check CI on PR #76 and merge if green.", "label": "ephemeral"}
+{"text": "I reopened and merged pr12, make a quick pass.", "label": "ephemeral"}
+{"text": "Production branch is set to main, build watch paths are *.", "label": "ephemeral"}
+{"text": "Run the test suite again and paste the output.", "label": "ephemeral"}
