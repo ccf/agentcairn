@@ -494,6 +494,9 @@ def ingest(
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Report without writing (LLM judge is skipped on dry runs)."
     ),
+    embedder: str = typer.Option(
+        "fastembed", "--embedder", help="Embedder for the durability judge (mirrors sweep)."
+    ),
 ) -> None:
     """Ingest Claude Code transcripts into non-lossy derived memory notes."""
     # Keep ledger OUTSIDE the vault (dedup.py docstring + spec). Namespace
@@ -509,15 +512,18 @@ def ingest(
         typer.echo("No transcripts found.")
         return
     transcripts = [parse_transcript(tp) for tp in paths]
+    # Same --embedder flag as sweep, so the judge scores in the same embedding
+    # space regardless of which command ingests (lazy: tier "none" loads nothing).
+    loader = lambda: get_embedder(embedder)  # noqa: E731
     if dry_run:
         # A preview must not spend LLM tokens: force the judge tier below anthropic
         # (embedding unless explicitly disabled).
         env = dict(os.environ)
         if env.get("CAIRN_JUDGE", "embedding") != "none":
             env["CAIRN_JUDGE"] = "embedding"
-        judge = resolve_judge(env=env)
+        judge = resolve_judge(env=env, embedder_loader=loader)
     else:
-        judge = resolve_judge()
+        judge = resolve_judge(embedder_loader=loader)
     rep = ingest_transcripts(
         transcripts,
         vault_root=vault,

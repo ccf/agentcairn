@@ -805,3 +805,43 @@ def test_ingest_reports_judge_tier(tmp_path):
     )
     assert r.exit_code == 0, r.output
     assert "judge: none" in r.output
+
+
+def test_ingest_embedder_flag_drives_judge(tmp_path):
+    """Bugbot (PR #57): ingest must honor --embedder like sweep does, so the
+    judge scores in the same embedding space regardless of entry command."""
+    import json as _j
+
+    proj = tmp_path / "projects" / "-Users-x-proj"
+    proj.mkdir(parents=True)
+    (proj / "t.jsonl").write_text(
+        _j.dumps(
+            {
+                "type": "user",
+                "sessionId": "s",
+                "cwd": "/Users/x/proj",
+                "message": {
+                    "role": "user",
+                    "content": "we decided to always rebase-merge the branch",
+                },
+            }
+        )
+        + "\n"
+    )
+    r = runner.invoke(
+        app,
+        [
+            "ingest",
+            "--vault",
+            str(tmp_path / "vault"),
+            "--transcripts-dir",
+            str(tmp_path / "projects"),
+            "--ledger",
+            str(tmp_path / "led.sha256"),
+            "--embedder",
+            "fake",
+        ],
+        env={"CAIRN_JUDGE": "embedding"},
+    )
+    assert r.exit_code == 0, r.output
+    assert "judge: embedding" in r.output  # judge ran on the fake embedder (no model download)
