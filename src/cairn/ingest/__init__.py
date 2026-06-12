@@ -3,6 +3,7 @@
 from cairn.ingest.dedup import DedupLedger, content_hash
 from cairn.ingest.distill import Distiller, ExtractiveDistiller, write_derived_note
 from cairn.ingest.events import EventKind, NormalizedEvent
+from cairn.ingest.judge import Judgment, resolve_judge
 from cairn.ingest.locate import encode_cwd, find_transcripts, parse_transcript
 from cairn.ingest.models import (
     Candidate,
@@ -10,7 +11,7 @@ from cairn.ingest.models import (
     RedactionResult,
     Transcript,
 )
-from cairn.ingest.pipeline import ingest_transcript
+from cairn.ingest.pipeline import ingest_transcript, ingest_transcripts
 from cairn.ingest.redact import redact
 
 __all__ = [
@@ -20,6 +21,7 @@ __all__ = [
     "EventKind",
     "ExtractiveDistiller",
     "IngestReport",
+    "Judgment",
     "NormalizedEvent",
     "RedactionResult",
     "Transcript",
@@ -27,7 +29,9 @@ __all__ = [
     "encode_cwd",
     "find_transcripts",
     "ingest_transcript",
+    "ingest_transcripts",
     "parse_transcript",
     "redact",
+    "resolve_judge",
     "write_derived_note",
 ]

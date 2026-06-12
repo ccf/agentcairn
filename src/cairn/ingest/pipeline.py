@@ -14,7 +14,8 @@ from pathlib import Path
 from cairn.ingest.dedup import DedupLedger, content_hash
 from cairn.ingest.distill import Distiller, ExtractiveDistiller, write_derived_note
 from cairn.ingest.events import EventKind
-from cairn.ingest.importance import KEEP_THRESHOLD, is_important
+from cairn.ingest.importance import KEEP_THRESHOLD, score
+from cairn.ingest.judge import Judge
 from cairn.ingest.models import Candidate, IngestReport, Transcript
 from cairn.ingest.redact import redact
 
@@ -37,6 +38,85 @@ def select_candidates(transcript: Transcript) -> list[Candidate]:
     ]
 
 
+def _judge_tier_name(judge: Judge | None) -> str:
+    if judge is None:
+        return "none"
+    from cairn.ingest.judge import EmbeddingJudge, LLMJudge
+
+    if isinstance(judge, LLMJudge):
+        return "llm"
+    if isinstance(judge, EmbeddingJudge):
+        return "embedding"
+    return type(judge).__name__.lower()
+
+
+def ingest_transcripts(
+    transcripts: list[Transcript],
+    *,
+    vault_root: Path,
+    ledger: DedupLedger,
+    threshold: float = KEEP_THRESHOLD,
+    judge: Judge | None = None,
+    distiller: Distiller | None = None,
+    subdir: str = "memories",
+    dry_run: bool = False,
+) -> IngestReport:
+    """Ingest a batch of transcripts with ONE judge call across all new candidates.
+    Order per spec: redact -> dedup -> judge (batched) -> combined gate -> distill -> write."""
+    distiller = distiller or ExtractiveDistiller()
+    report = IngestReport()
+    report.judge_tier = _judge_tier_name(judge)
+    kind_totals: Counter = Counter()
+
+    # Phase A: collect redacted, deduped candidates across all transcripts.
+    pending: list[tuple[Candidate, str]] = []  # (candidate, content hash)
+    seen_this_run: set[str] = set()
+    for transcript in transcripts:
+        kind_totals.update(
+            transcript.kind_counts or Counter(e.kind.value for e in transcript.events)
+        )
+        candidates = select_candidates(transcript)
+        report.authored += len(candidates)
+        for cand in candidates:
+            red = redact(cand.text)
+            report.redactions += red.count
+            cand = replace(cand, text=red.text)
+            h = content_hash(cand.text)
+            if ledger.seen(h) or h in seen_this_run:
+                report.deduped += 1
+                continue
+            seen_this_run.add(h)
+            pending.append((cand, h))
+    report.event_kinds = dict(kind_totals)
+
+    # Phase B: ONE batched judge call (never raises; LLM degrades internally).
+    judgments = judge.judge([c.text for c, _ in pending]) if judge and pending else []
+    if judge is not None and hasattr(judge, "degraded"):
+        report.judge_degraded = judge.degraded
+
+    # Phase C: combined gate -> distill -> write.
+    for idx, (cand, h) in enumerate(pending):
+        heuristic = score(cand.text)
+        if judgments:
+            j = judgments[idx]
+            combined = max(0.0, min(1.0, 0.5 * heuristic + 0.5 * j.durability))
+            cand = replace(cand, judgment=j, importance=combined)
+        else:
+            combined = heuristic
+            cand = replace(cand, importance=combined)
+        if combined < threshold:
+            report.gated_out += 1
+            continue
+        report.candidates += 1
+        note = distiller.distill(cand)
+        if dry_run:
+            continue
+        path = write_derived_note(note, vault_root, subdir=subdir)
+        ledger.add(h)
+        report.written.append(path)
+    return report
+
+
 def ingest_transcript(
     transcript: Transcript,
     *,
@@ -47,39 +127,14 @@ def ingest_transcript(
     subdir: str = "memories",
     dry_run: bool = False,
 ) -> IngestReport:
-    distiller = distiller or ExtractiveDistiller()
-    report = IngestReport()
-    report.event_kinds = dict(transcript.kind_counts) or dict(
-        Counter(e.kind.value for e in transcript.events)
+    """Single-transcript wrapper (kept for API compatibility; judge-less)."""
+    return ingest_transcripts(
+        [transcript],
+        vault_root=vault_root,
+        ledger=ledger,
+        threshold=threshold,
+        judge=None,
+        distiller=distiller,
+        subdir=subdir,
+        dry_run=dry_run,
     )
-    candidates = select_candidates(transcript)
-    report.authored = len(candidates)
-    for cand in candidates:
-        # 1. REDACT FIRST — everything downstream sees only redacted text.
-        red = redact(cand.text)
-        report.redactions += red.count
-        cand = replace(cand, text=red.text)
-
-        # 2. DEDUP on the redacted content (spec §9: dedup before gate).
-        h = content_hash(cand.text)
-        if ledger.seen(h):
-            report.deduped += 1
-            continue
-
-        # 3. IMPORTANCE GATE.
-        if not is_important(cand.text, threshold=threshold):
-            report.gated_out += 1
-            continue
-
-        report.candidates += 1
-
-        # 4. DISTILL (non-lossy).
-        note = distiller.distill(cand)
-
-        # 5. WRITE (skipped on dry-run; ledger untouched on dry-run).
-        if dry_run:
-            continue
-        path = write_derived_note(note, vault_root, subdir=subdir)
-        ledger.add(h)
-        report.written.append(path)
-    return report

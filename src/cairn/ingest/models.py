@@ -54,6 +54,8 @@ class IngestReport:
     gated_out: int = 0  # below importance threshold
     authored: int = 0  # AUTHORED_USER events selected before redact/dedup/gate
     event_kinds: dict[str, int] = field(default_factory=dict)  # all event kinds seen
+    judge_tier: str = "none"  # "llm" | "embedding" | "none"
+    judge_degraded: int = 0  # candidates that fell back a tier
     written: list[Path] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -65,5 +67,7 @@ class IngestReport:
             "gated_out": self.gated_out,
             "authored": self.authored,
             "event_kinds": self.event_kinds,
+            "judge_tier": self.judge_tier,
+            "judge_degraded": self.judge_degraded,
             "written": [str(p) for p in self.written],
         }
