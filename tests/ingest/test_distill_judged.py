@@ -33,6 +33,11 @@ def test_truncate_title_short_text_unchanged():
     assert _truncate_title("short title") == "short title"
 
 
+def test_truncate_title_whitespace_only_falls_back():
+    assert _truncate_title("") == "memory"
+    assert _truncate_title("   \n\t  ") == "memory"
+
+
 def test_long_title_does_not_fold_in_yaml(tmp_path):
     from cairn.ingest.distill import write_derived_note
 

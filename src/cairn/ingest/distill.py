@@ -28,8 +28,11 @@ def _slugify(text: str, max_words: int = 6) -> str:
 
 def _truncate_title(text: str, limit: int = 80) -> str:
     """First line, cut at a word boundary with an ellipsis — never mid-word
-    (the '…malformed. Ca' bug)."""
-    first = text.strip().splitlines()[0].strip()
+    (the '…malformed. Ca' bug). Whitespace-only text falls back to 'memory'."""
+    lines = text.strip().splitlines()
+    if not lines:
+        return "memory"
+    first = lines[0].strip()
     if len(first) <= limit:
         return first
     cut = first[: limit - 1]

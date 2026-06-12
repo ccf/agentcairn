@@ -258,6 +258,117 @@ def test_ingest_transcript_singular_still_works(tmp_path):
     assert len(report.written) == 1  # unchanged public API
 
 
+def test_ingest_transcripts_survives_judge_raise(tmp_path):
+    """Phase B must NEVER raise: a judge whose judge() blows up (e.g. embedder
+    runtime failure) degrades to heuristic-only gating and counts in judge_degraded."""
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    class BoomJudge:
+        def judge(self, texts):
+            raise RuntimeError("embedder blew up at runtime")
+
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    ledger = DedupLedger(tmp_path / "led.sha256")
+    report = ingest_transcripts(
+        [_transcript(tmp_path)], vault_root=vault, ledger=ledger, judge=BoomJudge()
+    )
+    # judgments treated as absent -> heuristic-only gating, same as judge=None
+    assert len(report.written) == 1
+    assert report.gated_out == 1
+    assert report.judge_degraded == 2  # both pending candidates fell to heuristic
+
+
+# ---------------------------------------------------------------------------
+# Layer B — judged-durability cache (gated-out candidates never re-hit the LLM)
+# ---------------------------------------------------------------------------
+
+
+def _ephemeral_transcript(tmp_path) -> Transcript:
+    return Transcript(
+        session_id="s-eph",
+        cwd="/Users/x/p",
+        git_branch="main",
+        path=tmp_path / "s-eph.jsonl",
+        events=[
+            _ev(
+                EventKind.AUTHORED_USER,
+                "Check the CI status on PR #76 and merge it if everything is green "
+                "because we should ship.",
+            )
+        ],
+    )
+
+
+def test_judged_cache_skips_rejudging_gated_candidates(tmp_path):
+    from cairn.ingest.judge import JudgedCache, Judgment
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    calls: list[list[str]] = []
+
+    class SpyJudge:
+        def judge(self, texts):
+            calls.append(list(texts))
+            return [Judgment(durability=0.0) for _ in texts]  # everything gated out
+
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    ledger = DedupLedger(tmp_path / "led.sha256")
+    cache = JudgedCache(tmp_path / "judged.jsonl")
+
+    rep1 = ingest_transcripts(
+        [_ephemeral_transcript(tmp_path)],
+        vault_root=vault,
+        ledger=ledger,
+        judge=SpyJudge(),
+        judged_cache=cache,
+    )
+    assert rep1.gated_out == 1 and rep1.written == []
+    assert len(calls) == 1 and len(calls[0]) == 1  # judged once
+
+    # Second run (gated candidates are NOT ledgered, so they come back as pending):
+    # the cache must answer instead of the judge — ZERO texts reach judge().
+    rep2 = ingest_transcripts(
+        [_ephemeral_transcript(tmp_path)],
+        vault_root=vault,
+        ledger=ledger,
+        judge=SpyJudge(),
+        judged_cache=JudgedCache(tmp_path / "judged.jsonl"),  # reload from disk
+    )
+    assert len(calls) == 1  # no second judge call at all
+    assert rep2.gated_out == 1 and rep2.written == []  # cached durability still gates
+
+
+def test_judged_cache_hit_still_flows_through_phase_c(tmp_path):
+    """A cached durability is attached as a real Judgment: combined gating applies,
+    and a durable cached candidate writes WITHOUT any judge call."""
+    from cairn.ingest.dedup import content_hash
+    from cairn.ingest.judge import JudgedCache
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    class NeverCalledJudge:
+        def judge(self, texts):
+            raise AssertionError(f"judge must not be called, got {texts!r}")
+
+    text = "We decided to always rebase-merge approved PRs because it is important."
+    cache = JudgedCache(tmp_path / "judged.jsonl")
+    cache.put(content_hash(text), 1.0)
+    t = Transcript(
+        session_id="s-dur",
+        cwd="/Users/x/p",
+        git_branch="main",
+        path=tmp_path / "s-dur.jsonl",
+        events=[_ev(EventKind.AUTHORED_USER, text)],
+    )
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    ledger = DedupLedger(tmp_path / "led.sha256")
+    report = ingest_transcripts(
+        [t], vault_root=vault, ledger=ledger, judge=NeverCalledJudge(), judged_cache=cache
+    )
+    assert len(report.written) == 1  # 0.5*h + 0.5*1.0 >= threshold
+
+
 def test_report_judge_tier_recorded(tmp_path):
     from cairn.ingest.judge import EmbeddingJudge
     from cairn.ingest.pipeline import ingest_transcripts

@@ -143,11 +143,83 @@ def test_llm_judge_discards_overlong_distillation(monkeypatch):
     assert j.durability == 0.8 and j.distilled is None  # >4x verbatim length -> discarded
 
 
+def _echo_request(durability=0.5):
+    """Fake _anthropic_request answering every numbered input in the prompt."""
+    import re
+
+    def fake(payload, api_key, timeout):
+        body = payload["messages"][0]["content"]
+        idxs = [int(m) for m in re.findall(r"^\[(\d+)\]", body, flags=re.M)]
+        items = [{"i": i, "durability": durability, "title": None, "distilled": None} for i in idxs]
+        return {"content": [{"type": "text", "text": json.dumps(items)}]}
+
+    return fake
+
+
+def test_llm_judge_chunks_large_batches(monkeypatch):
+    import re
+
+    import cairn.ingest.judge as jmod
+
+    sizes: list[int] = []
+    inner = _echo_request(0.9)
+
+    def fake(payload, api_key, timeout):
+        body = payload["messages"][0]["content"]
+        sizes.append(len(re.findall(r"^\[\d+\]", body, flags=re.M)))
+        return inner(payload, api_key, timeout)
+
+    monkeypatch.setattr(jmod, "_anthropic_request", fake)
+    judge = jmod.LLMJudge(api_key="k", model="m", timeout=5.0)
+    out = judge.judge([f"text number {n}" for n in range(90)])
+    assert len(out) == 90
+    assert sizes == [40, 40, 10]  # chunked, never one giant truncation-prone call
+    assert judge.degraded == 0
+
+
+def test_llm_judge_chunk_failure_degrades_only_that_chunk(monkeypatch):
+    import cairn.ingest.judge as jmod
+
+    calls = {"n": 0}
+    inner = _echo_request(0.9)
+
+    def flaky(payload, api_key, timeout):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise TimeoutError("slow")
+        return inner(payload, api_key, timeout)
+
+    monkeypatch.setattr(jmod, "_anthropic_request", flaky)
+    judge = jmod.LLMJudge(api_key="k", model="m", timeout=5.0)  # no fallback -> neutral
+    out = judge.judge([f"text number {n}" for n in range(90)])
+    assert len(out) == 90
+    assert judge.degraded == 40  # ONLY the failed middle chunk
+    assert out[0].durability == 0.9  # chunk 1 judged
+    assert out[40].durability == 0.5  # chunk 2 neutral
+    assert out[80].durability == 0.9  # chunk 3 judged
+
+
+def test_judged_cache_roundtrip(tmp_path):
+    from cairn.ingest.judge import JudgedCache
+
+    p = tmp_path / "judged.jsonl"
+    c = JudgedCache(p)  # missing file -> empty
+    assert c.get("abc") is None
+    c.put("abc", 0.25)
+    assert c.get("abc") == 0.25
+    c.put("abc", 0.25)  # idempotent: no duplicate line
+    assert len([ln for ln in p.read_text().splitlines() if ln.strip()]) == 1
+    c2 = JudgedCache(p)  # reload from disk
+    assert c2.get("abc") == 0.25
+    assert c2.get("missing") is None
+
+
 def test_resolve_judge_modes(monkeypatch):
     from cairn.ingest.judge import LLMJudge, resolve_judge
 
-    # none -> None
+    # none / no -> None
     assert resolve_judge(env={"CAIRN_JUDGE": "none"}, embedder=StubEmbedder()) is None
+    assert resolve_judge(env={"CAIRN_JUDGE": "no"}, embedder=StubEmbedder()) is None
     # embedding (default) -> EmbeddingJudge
     j = resolve_judge(env={}, embedder=StubEmbedder())
     assert isinstance(j, EmbeddingJudge)

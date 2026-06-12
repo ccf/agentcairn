@@ -15,7 +15,7 @@ from cairn.ingest.dedup import DedupLedger, content_hash
 from cairn.ingest.distill import Distiller, ExtractiveDistiller, write_derived_note
 from cairn.ingest.events import EventKind
 from cairn.ingest.importance import KEEP_THRESHOLD, score
-from cairn.ingest.judge import Judge
+from cairn.ingest.judge import Judge, JudgedCache, Judgment
 from cairn.ingest.models import Candidate, IngestReport, Transcript
 from cairn.ingest.redact import redact
 
@@ -57,19 +57,24 @@ def ingest_transcripts(
     ledger: DedupLedger,
     threshold: float = KEEP_THRESHOLD,
     judge: Judge | None = None,
+    judged_cache: JudgedCache | None = None,
     distiller: Distiller | None = None,
     subdir: str = "memories",
     dry_run: bool = False,
 ) -> IngestReport:
     """Ingest a batch of transcripts with ONE judge call across all new candidates.
-    Order per spec: redact -> dedup -> judge (batched) -> combined gate -> distill -> write."""
+    Order per spec: redact -> dedup -> judge (batched) -> combined gate -> distill -> write.
+    `judged_cache` answers for candidates judged on earlier runs but gated out,
+    so they never re-hit the (possibly LLM) judge."""
     distiller = distiller or ExtractiveDistiller()
     report = IngestReport()
     report.judge_tier = _judge_tier_name(judge)
     kind_totals: Counter = Counter()
 
     # Phase A: collect redacted, deduped candidates across all transcripts.
+    # Cache hits get their Judgment attached immediately and skip Phase B.
     pending: list[tuple[Candidate, str]] = []  # (candidate, content hash)
+    judged: dict[int, Judgment] = {}  # pending index -> judgment (cached or fresh)
     seen_this_run: set[str] = set()
     for transcript in transcripts:
         kind_totals.update(
@@ -86,19 +91,32 @@ def ingest_transcripts(
                 report.deduped += 1
                 continue
             seen_this_run.add(h)
+            if judge is not None and judged_cache is not None:
+                cached = judged_cache.get(h)
+                if cached is not None:
+                    judged[len(pending)] = Judgment(durability=cached)
             pending.append((cand, h))
     report.event_kinds = dict(kind_totals)
 
-    # Phase B: ONE batched judge call (never raises; LLM degrades internally).
-    judgments = judge.judge([c.text for c, _ in pending]) if judge and pending else []
+    # Phase B: ONE batched judge call over the un-cached candidates. This phase
+    # must NEVER raise: any judge failure degrades those candidates to
+    # heuristic-only gating (LLM chunk failures also degrade internally).
+    to_judge = [i for i in range(len(pending)) if i not in judged]
+    if judge is not None and to_judge:
+        try:
+            results = judge.judge([pending[i][0].text for i in to_judge])
+            judged.update(zip(to_judge, results, strict=True))
+        except Exception:
+            report.judge_degraded += len(to_judge)
     if judge is not None and hasattr(judge, "degraded"):
-        report.judge_degraded = judge.degraded
+        report.judge_degraded += judge.degraded
 
-    # Phase C: combined gate -> distill -> write.
+    # Phase C: combined gate -> distill -> write. Gated-out judgments are cached
+    # so future runs never re-judge them (written ones are ledgered instead).
     for idx, (cand, h) in enumerate(pending):
         heuristic = score(cand.text)
-        if judgments:
-            j = judgments[idx]
+        j = judged.get(idx)
+        if j is not None:
             combined = max(0.0, min(1.0, 0.5 * heuristic + 0.5 * j.durability))
             cand = replace(cand, judgment=j, importance=combined)
         else:
@@ -106,6 +124,8 @@ def ingest_transcripts(
             cand = replace(cand, importance=combined)
         if combined < threshold:
             report.gated_out += 1
+            if judge is not None and judged_cache is not None and j is not None:
+                judged_cache.put(h, j.durability)
             continue
         report.candidates += 1
         note = distiller.distill(cand)

@@ -712,6 +712,64 @@ def test_ingest_counts_nontext_tool_results(tmp_path):
     assert "1 tool_result" in r.output  # counted despite non-text content being dropped
 
 
+def test_ingest_dry_run_skips_llm_judge(tmp_path, monkeypatch):
+    """--dry-run must never hit the live LLM: the judge is resolved with
+    CAIRN_JUDGE forced down to 'embedding' (or kept at 'none')."""
+    seen: dict = {}
+
+    def spy(**kw):
+        seen.update(kw)
+        return None
+
+    monkeypatch.setattr("cairn.cli.resolve_judge", spy)
+    projects = tmp_path / "projects"
+    cwd = "/Users/x/proj"
+    _seed_transcript(projects, cwd, "s-dry", [("user", "We decided to always do the thing.")])
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    r = runner.invoke(
+        app,
+        [
+            "ingest",
+            "--vault",
+            str(vault),
+            "--transcripts-dir",
+            str(projects),
+            "--ledger",
+            str(tmp_path / "led.sha256"),
+            "--dry-run",
+        ],
+        env={"CAIRN_JUDGE": "anthropic", "ANTHROPIC_API_KEY": "k"},
+    )
+    assert r.exit_code == 0, r.output
+    assert seen["env"]["CAIRN_JUDGE"] == "embedding"  # anthropic forced away on dry runs
+
+
+def test_ingest_notes_when_anthropic_tier_unavailable(tmp_path, monkeypatch):
+    """CAIRN_JUDGE=anthropic but the run used a lower tier -> one explanatory line."""
+    monkeypatch.setattr("cairn.cli.resolve_judge", lambda **kw: None)
+    projects = tmp_path / "projects"
+    cwd = "/Users/x/proj"
+    _seed_transcript(projects, cwd, "s-note", [("user", "We decided to always do the thing.")])
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    r = runner.invoke(
+        app,
+        [
+            "ingest",
+            "--vault",
+            str(vault),
+            "--transcripts-dir",
+            str(projects),
+            "--ledger",
+            str(tmp_path / "led.sha256"),
+        ],
+        env={"CAIRN_JUDGE": "anthropic"},  # no key -> tier degrades
+    )
+    assert r.exit_code == 0, r.output
+    assert "CAIRN_JUDGE=anthropic but LLM tier unavailable" in r.output
+
+
 def test_ingest_reports_judge_tier(tmp_path):
     import json as _j
 
