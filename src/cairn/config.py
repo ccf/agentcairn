@@ -60,3 +60,22 @@ def resolve_rerank(explicit: bool | None = None, env: Mapping[str, str] | None =
         return parse_bool(raw)
     except ValueError:
         return True
+
+
+_DEFAULT_JUDGE_MODEL = "claude-haiku-4-5"
+_DEFAULT_JUDGE_TIMEOUT = 10.0
+
+
+def judge_config(env: Mapping[str, str] | None = None) -> tuple[str, str, float]:
+    """Resolve (mode, model, timeout) for the Layer-B judge.
+    mode ← CAIRN_JUDGE: 'anthropic' | 'embedding' | 'none' (default 'embedding').
+    model ← CAIRN_JUDGE_MODEL; timeout ← CAIRN_JUDGE_TIMEOUT seconds."""
+    if env is None:
+        env = os.environ
+    mode = (env.get("CAIRN_JUDGE") or "embedding").strip().lower()
+    model = env.get("CAIRN_JUDGE_MODEL") or _DEFAULT_JUDGE_MODEL
+    try:
+        timeout = float(env.get("CAIRN_JUDGE_TIMEOUT") or _DEFAULT_JUDGE_TIMEOUT)
+    except ValueError:
+        timeout = _DEFAULT_JUDGE_TIMEOUT
+    return mode, model, timeout
