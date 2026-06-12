@@ -165,10 +165,18 @@ class LLMJudge:
                 out.extend(self._judge_llm(chunk))
             except Exception:
                 self.degraded += len(chunk)
+                # The fallback itself may fail (e.g. embedder dies mid-run); that
+                # must degrade THIS chunk to neutral, not nuke earlier chunks'
+                # successful results by escaping judge().
+                fell_back: list[Judgment] | None = None
                 if self._fallback is not None:
-                    out.extend(self._fallback.judge(chunk))
-                else:
-                    out.extend(Judgment(durability=0.5) for _ in chunk)
+                    try:
+                        fell_back = self._fallback.judge(chunk)
+                    except Exception:
+                        fell_back = None
+                if fell_back is None:
+                    fell_back = [Judgment(durability=0.5) for _ in chunk]
+                out.extend(fell_back)
         return out
 
     def _judge_llm(self, texts: list[str]) -> list[Judgment]:
