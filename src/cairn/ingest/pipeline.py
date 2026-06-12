@@ -118,7 +118,14 @@ def ingest_transcripts(
     for idx, (cand, h) in enumerate(pending):
         heuristic = score(cand.text)
         j = judged.get(idx)
-        if j is not None:
+        if j is not None and report.judge_tier == "llm":
+            # The LLM judge is the authority: its durability alone gates the keep,
+            # so an LLM-rated-ephemeral turn is dropped even when lexically long.
+            # (The 50/50 blend was diluting the paid verdict — dogfood finding.)
+            combined = j.durability
+            cand = replace(cand, judgment=j, importance=combined)
+        elif j is not None:
+            # Weaker (embedding) judge: blend its durability with the heuristic.
             combined = max(0.0, min(1.0, 0.5 * heuristic + 0.5 * j.durability))
             cand = replace(cand, judgment=j, importance=combined)
         else:

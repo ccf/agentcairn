@@ -528,3 +528,56 @@ def test_llm_run_ignores_embedding_cache_entry(tmp_path, monkeypatch):
     )
     blob = "\n".join(p.read_text() for p in vault.rglob("*.md"))
     assert "Always rebase-merge." in blob  # LLM re-judged despite the embedding cache entry
+
+
+def test_llm_tier_gates_on_durability_not_heuristic_blend(tmp_path, monkeypatch):
+    """On the LLM tier the judge's durability gates the keep — a lexically long,
+    marker-heavy turn the LLM rates ephemeral (durability ~0, null distilled) is
+    DROPPED, even though 0.5*heuristic+0.5*durability would have kept it.
+    Dogfood finding: the 50/50 blend was diluting the paid LLM verdict."""
+    import json as _json
+
+    import cairn.ingest.judge as jmod
+    from cairn.ingest.judge import LLMJudge
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    # long + marker-heavy -> high heuristic score; LLM says ephemeral.
+    ephemeral = (
+        "Ok so we should probably always remember to check the CI status on the pull "
+        "request and then merge it because we decided that is important, but honestly "
+        "this is really just routine coordination and process chatter that we do every "
+        "single time after pushing any change to the branch."
+    )
+    monkeypatch.setattr(
+        jmod,
+        "_anthropic_request",
+        lambda payload, api_key, timeout: {
+            "content": [
+                {
+                    "type": "text",
+                    "text": _json.dumps(
+                        [{"i": 0, "durability": 0.05, "title": None, "distilled": None}]
+                    ),
+                }
+            ]
+        },
+    )
+    vault = tmp_path / "v"
+    vault.mkdir()
+    tr = Transcript(
+        session_id="s",
+        cwd="/Users/x/p",
+        git_branch="main",
+        path=tmp_path / "s.jsonl",
+        events=[_ev(EventKind.AUTHORED_USER, ephemeral)],
+    )
+    rep = ingest_transcripts(
+        [tr],
+        vault_root=vault,
+        ledger=DedupLedger(tmp_path / "l.sha256"),
+        judge=LLMJudge(api_key="k", model="m", timeout=5.0),
+        judged_cache=None,
+    )
+    assert rep.judge_tier == "llm"
+    assert rep.written == []  # dropped: durability 0.05 < 0.5 (NOT 0.5*high_heuristic+0.5*0.05)
+    assert rep.gated_out == 1
