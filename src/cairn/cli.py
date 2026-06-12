@@ -6,6 +6,7 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import json
+import os
 from pathlib import Path
 
 import typer
@@ -353,6 +354,51 @@ def install(
             typer.echo(f"✗ {h.label}: {e}")
     if failures:
         raise typer.Exit(1)
+
+
+@app.command()
+def config(
+    init: bool = typer.Option(False, "--init", help="Write a commented template config file."),
+) -> None:
+    """Show every setting's effective value and source (env / file / default),
+    or scaffold ~/.agentcairn/config.toml with --init."""
+    from cairn.config import KNOBS, _config_path, config_file_values
+
+    path = _config_path()
+    if init:
+        if path.exists():
+            typer.echo(f"config file already exists: {path}")
+            return
+        lines = [
+            "# agentcairn configuration — env vars override these values.",
+            "# Uncomment a line to set it. Docs: https://github.com/ccf/agentcairn",
+            "",
+        ]
+        for k in KNOBS:
+            lines.append(f"# {k.description}")
+            lines.append(f'# {k.key} = "{k.default}"')
+            lines.append("")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("\n".join(lines), encoding="utf-8")
+        path.chmod(0o600)  # the API key may live here
+        import cairn.config as _cfg
+
+        _cfg._reset()
+        typer.echo(f"wrote {path} (mode 0600) — uncomment lines to configure")
+        return
+
+    file_vals = config_file_values()
+    typer.echo(f"config file: {path}{'' if path.exists() else ' (not present)'}")
+    for k in KNOBS:
+        if k.env in os.environ:
+            value, source = os.environ[k.env], "env"
+        elif k.env in file_vals:
+            value, source = file_vals[k.env], "file"
+        else:
+            value, source = k.default, "default"
+        if k.secret and value:
+            value = f"{value[:7]}…{value[-4:]}" if len(value) > 11 else "…set…"
+        typer.echo(f"  {k.key:18} = {value:42} [{source}]")
 
 
 @app.command()
