@@ -58,6 +58,20 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ),
 ]
 
+# Bare AWS-style secret value: exactly 40 chars of base64-ish material (may
+# contain '/' and '+'), standing alone (not inside a longer run). The narrowed
+# _TOKEN_RE cannot span '/', so this shape gets a dedicated, guarded pass.
+_AWS_SECRET_VALUE_RE = re.compile(r"(?<![A-Za-z0-9+/=])[A-Za-z0-9+/]{40}(?![A-Za-z0-9+/=])")
+
+
+def _mixed_charset(token: str) -> bool:
+    return (
+        bool(re.search(r"[A-Z]", token))
+        and bool(re.search(r"[a-z]", token))
+        and bool(re.search(r"[0-9]", token))
+    )
+
+
 # Entropy heuristic bounds: only long, structureless tokens are candidates.
 _ENTROPY_MIN_LEN = 24
 _ENTROPY_BITS = 3.5
@@ -98,7 +112,9 @@ def redact(text: str) -> RedactionResult:
 
     URL credential pass runs first (before entropy) so short passwords in
     connection strings are caught even if they fall below the entropy threshold.
-    Entropy heuristic runs second for long high-entropy standalone tokens.
+    The bare AWS secret-value pass runs second, before entropy, so the entropy
+    pass cannot partially consume a separator-bearing 40-char secret.
+    Entropy heuristic runs third for long high-entropy standalone tokens.
     Named patterns run last for precise well-known credential shapes."""
     kinds: list[str] = []
     out = text
@@ -111,7 +127,21 @@ def redact(text: str) -> RedactionResult:
 
     out = _URL_CRED_RE.sub(_url_sub, out)
 
-    # Pass 1: entropy heuristic — catches long high-entropy tokens before named
+    # Pass 1: bare AWS-style secret values — exactly-40-char base64 runs with a
+    # mixed-charset guard (hex SHAs and prose-ish strings are single-case or
+    # letter-only and never fire). Must run BEFORE the entropy pass: the
+    # narrowed _TOKEN_RE would otherwise consume the segment after a '/' and
+    # leak the prefix (e.g. 'wJalr/' before '[REDACTED:high_entropy]').
+    def _aws_sub(m: re.Match[str]) -> str:
+        tok = m.group(0)
+        if _mixed_charset(tok):
+            kinds.append("aws_secret_value")
+            return "[REDACTED:aws_secret_value]"
+        return tok
+
+    out = _AWS_SECRET_VALUE_RE.sub(_aws_sub, out)
+
+    # Pass 2: entropy heuristic — catches long high-entropy tokens before named
     # patterns consume them.
     def _entropy_sub(m: re.Match[str]) -> str:
         tok = m.group(0)
@@ -122,7 +152,7 @@ def redact(text: str) -> RedactionResult:
 
     out = _TOKEN_RE.sub(_entropy_sub, out)
 
-    # Pass 2: named-pattern regexes — precise matches for known credential shapes.
+    # Pass 3: named-pattern regexes — precise matches for known credential shapes.
     for kind, pat in _PATTERNS:
 
         def _sub(m: re.Match[str], _kind: str = kind) -> str:

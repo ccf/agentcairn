@@ -287,3 +287,46 @@ def test_structured_identifiers_survive_unredacted(name, text):
     result = redact(text)
     assert result.text == text, f"{name} was wrongly redacted: {result.text!r}"
     assert result.count == 0
+
+
+# ---------------------------------------------------------------------------
+# Bare AWS secret value — exactly-40-char base64 (may contain / and +), no
+# key-name prefix. The narrowed entropy class can't span '/', so this shape
+# needs its own pattern. Guarded: must contain upper+lower+digit.
+# ---------------------------------------------------------------------------
+
+_BARE_AWS = "wJalr/UtnFEMIK7MDENGbPxRfiCY+EXAMPLEKEYz"  # 40 chars, has / + upper lower digit
+
+
+def test_bare_aws_secret_value_redacted():
+    text = f"the old secret was {_BARE_AWS} rotate it"
+    result = redact(text)
+    assert result.count >= 1, "bare 40-char AWS secret value was not redacted"
+    assert _BARE_AWS not in result.text
+    assert "aws_secret_value" in result.kinds
+
+
+def test_contiguous_base64_still_caught_by_entropy():
+    # 32+ contiguous mixed-case alnum (no separators) — entropy net territory
+    tok = "Zk9Q2mVx7Lp4Rt6Yw1Nf3Hd8Bc5Jg0Ks2Pv4Ua7"
+    result = redact(f"value {tok} end")
+    assert result.count >= 1
+    assert tok not in result.text
+
+
+def test_aws_guard_rejects_lowercase_only():
+    # 40 chars, lowercase-only -> fails the upper+lower+digit guard. Deliberately
+    # repetitive (low Shannon entropy) so the entropy net can't fire either —
+    # this isolates the aws_secret_value guard.
+    s = "abcdabcdabcdabcdabcdabcdabcdabcdabcdabcd"
+    assert len(s) == 40
+    result = redact(s)
+    assert result.text == s
+    assert result.count == 0
+
+
+def test_aws_guard_rejects_40char_hex_sha():
+    sha = "f3d17de96b66ad5f56a3f29cf8bcb57b7aed83fe"  # git SHA-1: single-case hex
+    result = redact(f"commit {sha} on main")
+    assert sha in result.text
+    assert result.count == 0
