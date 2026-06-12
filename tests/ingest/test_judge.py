@@ -298,3 +298,47 @@ def test_llm_prompt_clips_huge_texts(monkeypatch):
     judge = jmod.LLMJudge(api_key="k", model="m", timeout=5.0)
     judge.judge(["y" * 300_000])
     assert seen["len"] < 5000  # prompt + clipped text, not 300KB
+
+
+def test_llm_chunk_survives_failing_fallback(monkeypatch):
+    """Bugbot (PR #57): if a chunk's LLM call fails AND the fallback raises,
+    the exception must not escape — that chunk degrades to neutral judgments
+    and earlier chunks' successful results are preserved."""
+    import json as _json
+
+    import cairn.ingest.judge as jmod
+
+    calls = {"n": 0}
+
+    def flaky_request(payload, api_key, timeout):
+        calls["n"] += 1
+        if calls["n"] == 2:  # second chunk's LLM call fails
+            raise TimeoutError("slow")
+        body = payload["messages"][0]["content"]
+        count = sum(1 for line in body.splitlines() if line.startswith("["))
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": _json.dumps(
+                        [
+                            {"i": i, "durability": 0.9, "title": None, "distilled": None}
+                            for i in range(count)
+                        ]
+                    ),
+                }
+            ]
+        }
+
+    class ExplodingFallback:
+        def judge(self, texts):
+            raise RuntimeError("embedder died")
+
+    monkeypatch.setattr(jmod, "_anthropic_request", flaky_request)
+    judge = jmod.LLMJudge(api_key="k", model="m", timeout=1.0, fallback=ExplodingFallback())
+    texts = [f"text {i}" for i in range(80)]  # two chunks of 40
+    out = judge.judge(texts)
+    assert len(out) == 80  # nothing lost
+    assert all(j.durability == 0.9 for j in out[:40])  # chunk 1 results preserved
+    assert all(j.durability == 0.5 for j in out[40:])  # chunk 2 neutral, not raised
+    assert judge.degraded == 40  # counted once, not twice
