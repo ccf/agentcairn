@@ -116,8 +116,9 @@ def redact(text: str) -> RedactionResult:
     connection strings are caught even if they fall below the entropy threshold.
     The bare AWS secret-value pass runs second, before entropy, so the entropy
     pass cannot partially consume a separator-bearing 40-char secret.
-    Entropy heuristic runs third for long high-entropy standalone tokens.
-    Named patterns run last for precise well-known credential shapes."""
+    Named patterns run third (precise vendor shapes) so a hyphenated key is
+    consumed whole; the entropy heuristic runs LAST as a catch-all for unknown
+    high-entropy tokens."""
     kinds: list[str] = []
     out = text
 
@@ -143,8 +144,22 @@ def redact(text: str) -> RedactionResult:
 
     out = _AWS_SECRET_VALUE_RE.sub(_aws_sub, out)
 
-    # Pass 2: entropy heuristic — catches long high-entropy tokens before named
-    # patterns consume them.
+    # Pass 2: named-pattern regexes — PRECISE known-credential shapes run BEFORE
+    # the entropy heuristic, so a vendor key (e.g. sk-ant-…, which contains
+    # hyphens) is consumed whole. Running entropy first would slice the hyphen-free
+    # middle of such a key and leak its hyphen-delimited ends (dogfood bug,
+    # 2026-06-12: a real sk-ant key fragmented into [REDACTED:high_entropy] with
+    # the prefix and tail surviving).
+    for kind, pat in _PATTERNS:
+
+        def _sub(m: re.Match[str], _kind: str = kind) -> str:
+            kinds.append(_kind)
+            return f"[REDACTED:{_kind}]"
+
+        out = pat.sub(_sub, out)
+
+    # Pass 3: entropy heuristic — last-resort catch-all for long high-entropy
+    # tokens that no named pattern recognized.
     def _entropy_sub(m: re.Match[str]) -> str:
         tok = m.group(0)
         if _looks_secret(tok):
@@ -153,14 +168,5 @@ def redact(text: str) -> RedactionResult:
         return tok
 
     out = _TOKEN_RE.sub(_entropy_sub, out)
-
-    # Pass 3: named-pattern regexes — precise matches for known credential shapes.
-    for kind, pat in _PATTERNS:
-
-        def _sub(m: re.Match[str], _kind: str = kind) -> str:
-            kinds.append(_kind)
-            return f"[REDACTED:{_kind}]"
-
-        out = pat.sub(_sub, out)
 
     return RedactionResult(text=out, count=len(kinds), kinds=kinds)
