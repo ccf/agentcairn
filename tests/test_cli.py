@@ -55,6 +55,7 @@ def test_ingest_command(tmp_path):
             "--project",
             cwd,
         ],
+        env={"CAIRN_JUDGE": "none"},  # hermetic: don't load the fastembed judge
     )
     assert result.exit_code == 0, result.output
     written = list(vault.rglob("*.md"))
@@ -127,6 +128,7 @@ def test_default_ledger_is_outside_vault(tmp_path, monkeypatch):
             "--project",
             cwd,
         ],
+        env={"CAIRN_JUDGE": "none"},  # hermetic: don't load the fastembed judge
     )
     assert result.exit_code == 0, result.output
     # No .sha256 file and no .cairn/ directory anywhere inside the vault
@@ -183,6 +185,7 @@ def test_sweep_command(tmp_path):
             "--embedder",
             "fake",
         ],
+        env={"CAIRN_JUDGE": "none"},  # hermetic: don't load the fastembed judge
     )
     assert result.exit_code == 0, result.output
     # a memory note was written AND the index now contains it
@@ -231,6 +234,7 @@ def test_sweep_closes_index_when_reconcile_fails(tmp_path, monkeypatch):
             "--embedder",
             "fake",
         ],
+        env={"CAIRN_JUDGE": "none"},  # hermetic: don't load the fastembed judge
     )
     assert result.exit_code != 0
     assert closed["v"] is True, "sweep leaked the index connection on failure"
@@ -655,6 +659,7 @@ def test_ingest_reports_per_kind_skips(tmp_path, monkeypatch):
             "--ledger",
             str(tmp_path / "led.sha256"),
         ],
+        env={"CAIRN_JUDGE": "none"},  # hermetic: don't load the fastembed judge
     )
     assert r.exit_code == 0, r.output
     assert "1 authored" in r.output
@@ -701,6 +706,44 @@ def test_ingest_counts_nontext_tool_results(tmp_path):
             "--ledger",
             str(tmp_path / "led.sha256"),
         ],
+        env={"CAIRN_JUDGE": "none"},  # hermetic: don't load the fastembed judge
     )
     assert r.exit_code == 0, r.output
     assert "1 tool_result" in r.output  # counted despite non-text content being dropped
+
+
+def test_ingest_reports_judge_tier(tmp_path):
+    import json as _j
+
+    proj = tmp_path / "projects" / "-Users-x-proj"
+    proj.mkdir(parents=True)
+    (proj / "t.jsonl").write_text(
+        _j.dumps(
+            {
+                "type": "user",
+                "sessionId": "s",
+                "cwd": "/Users/x/proj",
+                "message": {
+                    "role": "user",
+                    "content": "we decided to always rebase-merge the branch",
+                },
+            }
+        )
+        + "\n"
+    )
+    vault = tmp_path / "vault"
+    r = runner.invoke(
+        app,
+        [
+            "ingest",
+            "--vault",
+            str(vault),
+            "--transcripts-dir",
+            str(tmp_path / "projects"),
+            "--ledger",
+            str(tmp_path / "led.sha256"),
+        ],
+        env={"CAIRN_JUDGE": "none"},
+    )
+    assert r.exit_code == 0, r.output
+    assert "judge: none" in r.output

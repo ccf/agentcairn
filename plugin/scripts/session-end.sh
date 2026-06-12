@@ -10,5 +10,7 @@ INPUT=$(cat 2>/dev/null || true)
 CWD=$(printf '%s' "$INPUT" | sed -n 's/.*"cwd"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 
 [ -d "$VAULT" ] || $CAIRN init "$VAULT" >/dev/null 2>&1 || true
-$CAIRN sweep --vault "$VAULT" --index "$INDEX" ${CWD:+--project "$CWD"} >/dev/null 2>&1 || true
+# Detach: the sweep (and any LLM judge call inside it) must never block session
+# teardown. nohup + & + disown-equivalent; logs discarded by design.
+nohup sh -c "$CAIRN sweep --vault \"$VAULT\" --index \"$INDEX\" ${CWD:+--project \"$CWD\"}" >/dev/null 2>&1 &
 exit 0
