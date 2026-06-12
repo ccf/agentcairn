@@ -219,7 +219,7 @@ class JudgedCache:
 
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
-        self._mem: dict[str, Judgment] = {}
+        self._mem: dict[str, tuple[Judgment, str]] = {}  # h -> (judgment, tier)
         if self.path.exists():
             for ln in self.path.read_text(encoding="utf-8").splitlines():
                 ln = ln.strip()
@@ -227,29 +227,44 @@ class JudgedCache:
                     continue
                 try:
                     obj = json.loads(ln)
-                    self._mem[str(obj["h"])] = Judgment(
+                    j = Judgment(
                         durability=float(obj["d"]),
                         title=obj.get("t") or None,
                         distilled=obj.get("s") or None,
                     )
+                    # Legacy rows (pre-0.9.1) have no tier — treat as "embedding"
+                    # so an LLM run re-judges them (auto-heals a key-less-window
+                    # poisoned cache).
+                    self._mem[str(obj["h"])] = (j, obj.get("tier") or "embedding")
                 except Exception:
                     continue  # tolerate torn/corrupt lines — it's a rebuildable cache
 
-    def get(self, h: str) -> Judgment | None:
+    def get(self, h: str) -> tuple[Judgment, str] | None:
+        """Return (judgment, tier) for a cached hash, or None."""
         return self._mem.get(h)
 
-    def put(self, h: str, judgment: Judgment) -> None:
-        if self._mem.get(h) == judgment:
+    def put(self, h: str, judgment: Judgment, tier: str = "embedding") -> None:
+        if self._mem.get(h) == (judgment, tier):
             return  # idempotent: no duplicate appends across runs
-        self._mem[h] = judgment
+        self._mem[h] = (judgment, tier)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        row = {"h": h, "d": judgment.durability}
+        row: dict = {"h": h, "d": judgment.durability, "tier": tier}
         if judgment.title:
             row["t"] = judgment.title
         if judgment.distilled:
             row["s"] = judgment.distilled
         with self.path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(row) + "\n")
+
+
+_TIER_RANK = {"none": 0, "embedding": 1, "llm": 2}
+
+
+def tier_at_least(cached_tier: str, current_tier: str) -> bool:
+    """Is a cached verdict good enough to reuse on a run at `current_tier`?
+    An llm entry is reusable on an embedding run; an embedding entry is NOT
+    reusable on an llm run (the LLM must re-judge for distillation)."""
+    return _TIER_RANK.get(cached_tier, 0) >= _TIER_RANK.get(current_tier, 0)
 
 
 def resolve_judge(
