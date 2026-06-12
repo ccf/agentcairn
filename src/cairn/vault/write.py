@@ -23,7 +23,7 @@ def write_note(note: Note) -> str:
     post = frontmatter.Post(note.body, **fm)
     # frontmatter.dumps emits "---\n<yaml>---\n\n<body>"; normalize trailing newline.
     # sort_keys=False preserves the order in which keys appear in the original file.
-    text = frontmatter.dumps(post, sort_keys=False)
+    text = frontmatter.dumps(post, sort_keys=False, width=4096)
     if not text.endswith("\n"):
         text += "\n"
     return text
