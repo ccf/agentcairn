@@ -26,6 +26,18 @@ def _slugify(text: str, max_words: int = 6) -> str:
     return "-".join(words[:max_words]) or "memory"
 
 
+def _truncate_title(text: str, limit: int = 80) -> str:
+    """First line, cut at a word boundary with an ellipsis — never mid-word
+    (the '…malformed. Ca' bug)."""
+    first = text.strip().splitlines()[0].strip()
+    if len(first) <= limit:
+        return first
+    cut = first[: limit - 1]
+    if " " in cut:
+        cut = cut[: cut.rfind(" ")]
+    return cut.rstrip(" ,;:.") + "…"
+
+
 class Distiller(Protocol):
     def distill(self, candidate: Candidate) -> Note: ...
 
@@ -37,7 +49,7 @@ class ExtractiveDistiller:
     def distill(self, candidate: Candidate) -> Note:
         h = content_hash(candidate.text)
         slug = f"{_slugify(candidate.text)}-{h[:8]}"
-        title = candidate.text.strip().splitlines()[0][:80]
+        title = _truncate_title(candidate.text)
         frontmatter = {
             "title": title,
             "type": "memory",
