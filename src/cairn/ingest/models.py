@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from cairn.ingest.events import NormalizedEvent
+from cairn.ingest.judge import Judgment
 
 
 @dataclass
@@ -34,6 +35,8 @@ class Candidate:
     timestamp: str | None
     source_path: Path
     project: str | None = None  # origin project identity (provenance plumbing for #28)
+    judgment: Judgment | None = None  # Layer-B verdict (set by the pipeline)
+    importance: float | None = None  # combined score (heuristic x judge); distiller uses it
 
 
 @dataclass

@@ -53,3 +53,45 @@ def test_long_title_does_not_fold_in_yaml(tmp_path):
         "source",
         "importance",
     }
+
+
+def test_distill_with_llm_judgment_writes_distilled_plus_verbatim():
+    from cairn.ingest.judge import Judgment
+
+    cand = _cand(
+        "we should always run the corpus replay before changing redaction",
+        judgment=Judgment(
+            durability=0.9,
+            title="Corpus replay before redaction changes",
+            distilled="Always run the corpus replay before changing redaction.",
+        ),
+        importance=0.83,
+    )
+    note = ExtractiveDistiller().distill(cand)
+    assert note.frontmatter["title"] == "Corpus replay before redaction changes"
+    assert note.frontmatter["importance"] == 0.83
+    assert (
+        "- [context] Always run the corpus replay before changing redaction. #ingested" in note.body
+    )
+    assert "- [verbatim] we should always run the corpus replay" in note.body
+
+
+def test_distill_without_judgment_keeps_verbatim_format():
+    cand = _cand("we decided to always do the thing")
+    note = ExtractiveDistiller().distill(cand)
+    assert note.body.startswith("- [context] we decided to always do the thing")
+    assert "[verbatim]" not in note.body
+
+
+def test_dedup_identity_unchanged_by_judgment():
+    from cairn.ingest.dedup import content_hash
+    from cairn.ingest.judge import Judgment
+
+    text = "we decided to always do the thing"
+    plain = ExtractiveDistiller().distill(_cand(text))
+    judged = ExtractiveDistiller().distill(
+        _cand(text, judgment=Judgment(durability=0.9, title="T", distilled="D."), importance=0.9)
+    )
+    # permalink (slug + content hash) is derived from the VERBATIM text only
+    assert plain.permalink == judged.permalink
+    assert content_hash(text) in plain.permalink or plain.permalink.endswith(content_hash(text)[:8])
