@@ -120,7 +120,7 @@ def config_file_values() -> dict[str, str]:
     Missing/malformed/unreadable file -> {} (config must never break a run)."""
     global _file_cache
     if _file_cache is not None:
-        return _file_cache
+        return dict(_file_cache)  # copy: callers must not mutate the live cache
     path = _config_path()
     values: dict[str, str] = {}
     try:
@@ -132,12 +132,13 @@ def config_file_values() -> dict[str, str]:
                     print(f"agentcairn: unknown config key {key!r} in {path}", file=sys.stderr)
                 values[_translate(key)] = _coerce(raw)
     except Exception as e:  # malformed TOML, unreadable file, ...
-        if "file" not in _warned_keys:
-            _warned_keys.add("file")
+        # "\x00file" can't collide with a real config key (unlike plain "file").
+        if "\x00file" not in _warned_keys:
+            _warned_keys.add("\x00file")
             print(f"agentcairn: ignoring config file {path}: {e}", file=sys.stderr)
         values = {}
     _file_cache = values
-    return values
+    return dict(values)
 
 
 def cairn_env(env: Mapping[str, str] | None = None) -> Mapping[str, str]:

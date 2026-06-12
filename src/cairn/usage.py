@@ -33,8 +33,14 @@ def estimate_tokens(text: str | None) -> int:
 
 
 def enabled() -> bool:
-    """Usage tracking is on unless CAIRN_USAGE=0."""
-    return cairn_env().get("CAIRN_USAGE", "1") != "0"
+    """Usage tracking is on unless CAIRN_USAGE is set falsy (0/false/no/off)."""
+    from cairn.config import parse_bool
+
+    raw = cairn_env().get("CAIRN_USAGE", "1")
+    try:
+        return parse_bool(raw)
+    except ValueError:
+        return True
 
 
 def ledger_path() -> Path:

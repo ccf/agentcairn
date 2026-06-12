@@ -67,12 +67,14 @@ def reindex(
         None, "--index", help="Index .duckdb path (default ~/.cache/agentcairn/index.duckdb)."
     ),
     embedder: str = typer.Option(
-        "fastembed",
+        None,
         "--embedder",
-        help="'fastembed' or 'fake'; 'ollama' (CAIRN_EMBED_MODEL/OLLAMA_HOST).",
+        help="'fastembed' or 'fake'; 'ollama' (CAIRN_EMBED_MODEL/OLLAMA_HOST) "
+        "(default: CAIRN_EMBEDDER setting or fastembed).",
     ),
 ) -> None:
     """Reconcile the DuckDB index with the vault (incremental)."""
+    embedder = embedder or cairn_env().get("CAIRN_EMBEDDER") or "fastembed"
     idx = index or _default_index()
     idx.parent.mkdir(parents=True, exist_ok=True)
     emb = get_embedder(embedder)
@@ -112,9 +114,9 @@ def recall(
     query: str = typer.Argument(..., help="What to search for."),
     index: Path = typer.Option(None, "--index", help="Index .duckdb path."),
     embedder: str = typer.Option(
-        "fastembed",
+        None,
         "--embedder",
-        help="'fastembed' (hybrid) or 'fake'; 'none' = BM25-only; 'ollama' (CAIRN_EMBED_MODEL/OLLAMA_HOST).",  # noqa: E501
+        help="'fastembed' (hybrid) or 'fake'; 'none' = BM25-only; 'ollama' (CAIRN_EMBED_MODEL/OLLAMA_HOST) (default: CAIRN_EMBEDDER setting or fastembed).",  # noqa: E501
     ),
     k: int = typer.Option(10, "--k", help="Number of results."),
     rerank: bool | None = typer.Option(
@@ -129,6 +131,7 @@ def recall(
     `superseded_by`/`valid_until` in note frontmatter). Reranked by default
     (`CAIRN_RERANK=0` to disable).
     """
+    embedder = embedder or cairn_env().get("CAIRN_EMBEDDER") or "fastembed"
     idx = index or _default_index()
     if not idx.exists():
         typer.echo(f"no index at {idx} — run `cairn reindex <vault>` first")
@@ -311,10 +314,15 @@ def install(
     from cairn.hosts.entry import mcp_entry
     from cairn.hosts.writers import write_host
 
-    v = str((vault or (Path.home() / "agentcairn")).expanduser().resolve())
-    idx = str(
-        (index or (Path.home() / ".cache" / "agentcairn" / "index.duckdb")).expanduser().resolve()
+    # Defaults consult the env/file layer so a configured CAIRN_VAULT/CAIRN_INDEX
+    # is what gets wired into the host (flags still win).
+    settings = cairn_env()
+    default_vault = Path(settings.get("CAIRN_VAULT") or (Path.home() / "agentcairn"))
+    default_index = Path(
+        settings.get("CAIRN_INDEX") or (Path.home() / ".cache" / "agentcairn" / "index.duckdb")
     )
+    v = str((vault or default_vault).expanduser().resolve())
+    idx = str((index or default_index).expanduser().resolve())
     entry = mcp_entry(v, idx)
     ids = ", ".join(h.id for h in HOSTS)
 
@@ -374,13 +382,28 @@ def config(
             "# Uncomment a line to set it. Docs: https://github.com/ccf/agentcairn",
             "",
         ]
+
+        def _bare(default: str) -> bool:
+            """TOML booleans/numbers must be emitted unquoted to stay valid."""
+            if default in ("true", "false"):
+                return True
+            try:
+                float(default)
+                return True
+            except ValueError:
+                return False
+
         for k in KNOBS:
             lines.append(f"# {k.description}")
-            lines.append(f'# {k.key} = "{k.default}"')
+            if _bare(k.default):
+                lines.append(f"# {k.key} = {k.default}")
+            else:
+                lines.append(f'# {k.key} = "{k.default}"')
             lines.append("")
         path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch(mode=0o600)  # create 0600 BEFORE content lands (key may live here)
         path.write_text("\n".join(lines), encoding="utf-8")
-        path.chmod(0o600)  # the API key may live here
+        path.chmod(0o600)  # belt-and-braces: touch mode is umask-subject
         import cairn.config as _cfg
 
         _cfg._reset()
@@ -397,7 +420,7 @@ def config(
         else:
             value, source = k.default, "default"
         if k.secret and value:
-            value = f"{value[:7]}…{value[-4:]}" if len(value) > 11 else "…set…"
+            value = f"{value[:7]}…{value[-4:]}" if len(value) > 20 else "…set…"
         typer.echo(f"  {k.key:18} = {value:42} [{source}]")
 
 
@@ -425,8 +448,9 @@ def serve(
 def _warn_if_llm_tier_unavailable(rep) -> None:
     """CAIRN_JUDGE=anthropic but the run didn't use the LLM tier — say so once."""
     if cairn_env().get("CAIRN_JUDGE") == "anthropic" and rep.judge_tier != "llm":
+        # Source-agnostic wording: the setting may come from env OR config file.
         typer.echo(
-            "  note: CAIRN_JUDGE=anthropic but LLM tier unavailable (missing key?) "
+            "  note: judge=anthropic configured but LLM tier unavailable (missing key?) "
             f"— used {rep.judge_tier}"
         )
 
@@ -443,9 +467,10 @@ def sweep(
         None, "--index", help="Index .duckdb path (default ~/.cache/agentcairn/index.duckdb)."
     ),
     embedder: str = typer.Option(
-        "fastembed",
+        None,
         "--embedder",
-        help="'fastembed' or 'fake'; 'ollama' (CAIRN_EMBED_MODEL/OLLAMA_HOST).",
+        help="'fastembed' or 'fake'; 'ollama' (CAIRN_EMBED_MODEL/OLLAMA_HOST) "
+        "(default: CAIRN_EMBEDDER setting or fastembed).",
     ),
     ledger: Path = typer.Option(
         None,
@@ -454,6 +479,7 @@ def sweep(
     ),
 ) -> None:
     """Batch-ingest transcripts into the vault, then reindex (cron maintenance)."""
+    embedder = embedder or cairn_env().get("CAIRN_EMBEDDER") or "fastembed"
     vault_key = hashlib.sha256(str(vault.resolve()).encode()).hexdigest()[:16]
     if ledger is not None:
         led_path = ledger
@@ -540,10 +566,14 @@ def ingest(
         False, "--dry-run", help="Report without writing (LLM judge is skipped on dry runs)."
     ),
     embedder: str = typer.Option(
-        "fastembed", "--embedder", help="Embedder for the durability judge (mirrors sweep)."
+        None,
+        "--embedder",
+        help="Embedder for the durability judge (mirrors sweep) "
+        "(default: CAIRN_EMBEDDER setting or fastembed).",
     ),
 ) -> None:
     """Ingest Claude Code transcripts into non-lossy derived memory notes."""
+    embedder = embedder or cairn_env().get("CAIRN_EMBEDDER") or "fastembed"
     # Keep ledger OUTSIDE the vault (dedup.py docstring + spec). Namespace
     # by vault path so different vaults use separate ledgers.
     vault_key = hashlib.sha256(str(vault.resolve()).encode()).hexdigest()[:16]

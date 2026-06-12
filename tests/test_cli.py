@@ -198,6 +198,57 @@ def test_sweep_command(tmp_path):
     assert "reindex" in result.output.lower() or "indexed" in result.output.lower()
 
 
+def test_sweep_embedder_from_config_file(tmp_path, monkeypatch):
+    """embedder = "fake" in the config file drives sweep with NO --embedder flag
+    (the CLI default must honor the file/env layer, not hardcode fastembed)."""
+    import cairn.config as cfg
+
+    conf = tmp_path / "config.toml"
+    conf.write_text('embedder = "fake"\n')
+    monkeypatch.setenv("CAIRN_CONFIG", str(conf))
+    monkeypatch.delenv("CAIRN_EMBEDDER", raising=False)
+    cfg._reset()
+    projects = tmp_path / "projects"
+    cwd = "/Users/x/proj"
+    _seed_transcript(
+        projects,
+        cwd,
+        "sess-cfg",
+        [("user", "We decided to always escape the ATTACH path before interpolating it.")],
+    )
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    idx = tmp_path / "i.duckdb"
+    result = runner.invoke(
+        app,
+        [
+            "sweep",
+            "--vault",
+            str(vault),
+            "--transcripts-dir",
+            str(projects),
+            "--project",
+            cwd,
+            "--index",
+            str(idx),
+            "--ledger",
+            str(tmp_path / "led.sha256"),
+        ],
+        env={"CAIRN_JUDGE": "none"},  # hermetic: don't load the fastembed judge
+    )
+    cfg._reset()
+    assert result.exit_code == 0, result.output
+    assert idx.exists()  # index built with the fake embedder (no model download)
+    import duckdb
+
+    from cairn.index import get_meta
+
+    con = duckdb.connect(str(idx))
+    assert con.execute("SELECT count(*) FROM notes").fetchone()[0] >= 1
+    assert get_meta(con, "embedding_model").startswith("fake")  # file layer won, not fastembed
+    con.close()
+
+
 def test_sweep_closes_index_when_reconcile_fails(tmp_path, monkeypatch):
     # If reconcile raises, the writable index connection must still be closed
     # (try/finally) — not leaked.
@@ -592,6 +643,32 @@ def test_install_unknown_host_errors(tmp_path, monkeypatch):
     assert "unknown host" in r.output.lower()
 
 
+def test_install_defaults_honor_config_file(tmp_path, monkeypatch):
+    """Without --vault/--index, install resolves CAIRN_VAULT/CAIRN_INDEX from
+    the env/file layer instead of hardcoding ~/agentcairn."""
+    import json as _j
+
+    import cairn.config as cfg
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / ".cursor").mkdir()
+    vault_dir = tmp_path / "myvault"
+    idx = tmp_path / "ix" / "index.duckdb"
+    conf = tmp_path / "config.toml"
+    conf.write_text(f'vault = "{vault_dir}"\nindex = "{idx}"\n')
+    monkeypatch.setenv("CAIRN_CONFIG", str(conf))
+    monkeypatch.delenv("CAIRN_VAULT", raising=False)
+    monkeypatch.delenv("CAIRN_INDEX", raising=False)
+    cfg._reset()
+    r = runner.invoke(app, ["install", "cursor"])
+    cfg._reset()
+    assert r.exit_code == 0, r.output
+    data = _j.loads((tmp_path / ".cursor" / "mcp.json").read_text())
+    env = data["mcpServers"]["agentcairn"]["env"]
+    assert env["CAIRN_VAULT"] == str(vault_dir.resolve())
+    assert env["CAIRN_INDEX"] == str(idx.resolve())
+
+
 def test_install_all_with_none_detected_reports_and_exits_0(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))  # empty HOME → no host dirs present
     r = runner.invoke(app, ["install", "--all"])
@@ -767,7 +844,7 @@ def test_ingest_notes_when_anthropic_tier_unavailable(tmp_path, monkeypatch):
         env={"CAIRN_JUDGE": "anthropic"},  # no key -> tier degrades
     )
     assert r.exit_code == 0, r.output
-    assert "CAIRN_JUDGE=anthropic but LLM tier unavailable" in r.output
+    assert "judge=anthropic configured but LLM tier unavailable" in r.output
 
 
 def test_ingest_reports_judge_tier(tmp_path):
@@ -902,11 +979,31 @@ def test_config_inspect_shows_sources(tmp_path, monkeypatch):
     cfg._reset()
     assert r.exit_code == 0, r.output
     out = r.output
-    assert "judge" in out and "anthropic" in out and "file" in out  # file-sourced
-    assert "embedder" in out and "fake" in out and "env" in out  # env-sourced
+    lines = out.splitlines()
+    judge_line = next(ln for ln in lines if ln.strip().startswith("judge "))
+    assert "anthropic" in judge_line and "[file]" in judge_line  # file-sourced
+    emb_line = next(ln for ln in lines if ln.strip().startswith("embedder "))
+    assert "fake" in emb_line and "[env]" in emb_line  # env-sourced
     assert "default" in out  # untouched knobs
     assert "sk-ant-test-abcdef12345678" not in out  # secret masked
-    assert "5678" in out  # ...but last4 shown
+    assert "5678" in out  # long secret (26 chars > 20): last4 shown
+
+
+def test_config_inspect_short_secret_fully_masked(tmp_path, monkeypatch):
+    """Secrets of <= 20 chars show '…set…' — prefix+last4 would leave too little."""
+    import cairn.config as cfg
+
+    conf = tmp_path / "config.toml"
+    conf.write_text('anthropic_api_key = "sk-ant-12345"\n')  # 12 chars
+    monkeypatch.setenv("CAIRN_CONFIG", str(conf))
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    cfg._reset()
+    r = runner.invoke(app, ["config"])
+    cfg._reset()
+    assert r.exit_code == 0, r.output
+    assert "sk-ant-12345" not in r.output
+    assert "…set…" in r.output
+    assert "2345" not in r.output  # no last4 leak for short secrets
 
 
 def test_config_init_scaffolds_template(tmp_path, monkeypatch):
@@ -923,6 +1020,10 @@ def test_config_init_scaffolds_template(tmp_path, monkeypatch):
     body = conf.read_text()
     assert '# judge = "embedding"' in body  # every knob present, commented out
     assert "# anthropic_api_key" in body
+    # non-string knobs emit valid (unquoted) TOML so uncommenting just works
+    assert "# rerank = true" in body and '# rerank = "true"' not in body
+    assert "# usage = 1" in body and '# usage = "1"' not in body
+    assert "# judge_timeout = 10" in body and '# judge_timeout = "10"' not in body
     # refuses overwrite
     r2 = runner.invoke(app, ["config", "--init"])
     assert r2.exit_code == 0

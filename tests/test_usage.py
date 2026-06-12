@@ -11,6 +11,34 @@ def test_estimate_tokens():
     assert usage.estimate_tokens("abcde") == 2  # ceil(5/4)
 
 
+def test_enabled_usage_false_in_config_file(tmp_path, monkeypatch):
+    """usage = false in the config file disables tracking (no env var needed)."""
+    import cairn.config as cfg
+
+    conf = tmp_path / "config.toml"
+    conf.write_text("usage = false\n")
+    monkeypatch.setenv("CAIRN_CONFIG", str(conf))
+    monkeypatch.delenv("CAIRN_USAGE", raising=False)
+    cfg._reset()
+    assert usage.enabled() is False
+    cfg._reset()
+
+
+def test_enabled_env_zero_still_false(monkeypatch):
+    monkeypatch.setenv("CAIRN_USAGE", "0")
+    assert usage.enabled() is False
+
+
+def test_enabled_default_true(monkeypatch):
+    monkeypatch.delenv("CAIRN_USAGE", raising=False)
+    assert usage.enabled() is True
+
+
+def test_enabled_junk_value_defaults_true(monkeypatch):
+    monkeypatch.setenv("CAIRN_USAGE", "maybe")
+    assert usage.enabled() is True
+
+
 def test_record_appends_row(tmp_path, monkeypatch):
     led = tmp_path / "usage.jsonl"
     monkeypatch.setenv("CAIRN_USAGE_PATH", str(led))
