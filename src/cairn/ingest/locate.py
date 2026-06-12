@@ -65,11 +65,29 @@ def _extract_text(content: object) -> str:
     return ""
 
 
+# Backstop for legacy transcripts (Claude Code <=2.1.150): injected slash-command
+# and tool rows carried NO structural flags (no isMeta/origin/toolUseResult), so
+# they are structurally identical to authored prose. Structure stays the primary
+# signal; this prefix list exists ONLY for rows with no markers at all, and lists
+# the harness's own injection tags — never user vocabulary.
+_LEGACY_TAG_PREFIXES = (
+    "<command-",  # <command-message/name/args>
+    "<local-command",  # -stdout / -stderr / -caveat
+    "<bash-stdout",
+    "<bash-stderr",
+    "<task-notification",
+    "<system-reminder",
+    "<user-prompt-submit-hook",
+)
+
+
 def classify_claude_code(obj: dict) -> EventKind:
     """Positive-identification, fail-closed classification of a raw Claude Code
     JSONL entry. A user turn is AUTHORED_USER only when it carries NONE of the
     harness's injection markers. Order matters: compact-summary first (it also
-    sets isVisibleInTranscriptOnly), then tool results, then meta/injected."""
+    sets isVisibleInTranscriptOnly), then tool results, then meta/injected.
+    A tag-prefix backstop covers legacy transcripts whose injected rows predate
+    the structural flags."""
     t = obj.get("type")
     if t == "user":
         if obj.get("isCompactSummary"):
@@ -77,6 +95,10 @@ def classify_claude_code(obj: dict) -> EventKind:
         if "toolUseResult" in obj:
             return EventKind.TOOL_RESULT
         if obj.get("isMeta") or obj.get("isVisibleInTranscriptOnly") or obj.get("origin"):
+            return EventKind.META_INJECTION
+        msg = obj.get("message")
+        content = msg.get("content") if isinstance(msg, dict) else None
+        if isinstance(content, str) and content.lstrip().startswith(_LEGACY_TAG_PREFIXES):
             return EventKind.META_INJECTION
         return EventKind.AUTHORED_USER
     if t == "assistant":

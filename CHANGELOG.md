@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-06-12
+
+### Fixed
+- **Legacy-transcript injection rows no longer ingest as memories.** Claude Code <=2.1.150 wrote slash-command markers (`<command-message>`), `/`-command output (`<local-command-stdout>`), and `<bash-stdout/stderr>` dumps as user rows with **no structural flags** (no `isMeta`/`origin`/`toolUseResult`), so the 0.7.0 structural classifier saw them as authored prose (19 such notes surfaced in the post-rebuild audit). A minimal tag-prefix backstop now classifies flag-less rows starting with a known harness tag as `meta_injection` — structure remains the primary signal; the backstop only fires when no markers exist at all.
+
 ## [0.7.1] - 2026-06-12
 
 ### Fixed
@@ -76,7 +81,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Out-of-band capture from coding-agent transcripts (redacted, non-lossy `remember`).
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
-[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.7.2...HEAD
+[0.7.2]: https://github.com/ccf/agentcairn/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/ccf/agentcairn/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/ccf/agentcairn/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/ccf/agentcairn/compare/v0.6.1...v0.6.2

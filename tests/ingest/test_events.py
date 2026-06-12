@@ -130,3 +130,37 @@ def test_unknown_entry_shape_fails_closed(tmp_path):
         + "\n"
     )
     assert select_candidates(parse_transcript(t)) == []
+
+
+def test_legacy_unflagged_tag_rows_are_not_authored():
+    """Claude Code <=2.1.150 injected slash-command/tool rows WITHOUT isMeta/
+    origin/toolUseResult — structurally identical to authored prose. The
+    tag-prefix backstop must catch them (found in the 2026-06-12 rebuild: 19
+    such notes leaked through the structural filter)."""
+    from cairn.ingest.events import EventKind
+    from cairn.ingest.locate import classify_claude_code
+
+    legacy = [
+        "<command-message>loop</command-message><command-args>watch the PR</command-args>",
+        "<local-command-stdout>Context Usage ...</local-command-stdout>",
+        "<bash-stdout></bash-stdout><bash-stderr>var.signoz_otlp_endpoint</bash-stderr>",
+        "<task-notification>\n<task-id>x</task-id>",
+        "<system-reminder>note</system-reminder>",
+    ]
+    for content in legacy:
+        obj = {"type": "user", "message": {"role": "user", "content": content}}  # NO flags
+        kind = classify_claude_code(obj)
+        assert kind != EventKind.AUTHORED_USER, f"legacy row leaked as authored: {content[:40]}"
+
+
+def test_authored_prose_starting_with_angle_bracket_survives():
+    """A real user message that merely STARTS with '<' must stay authored —
+    the backstop matches known harness tags only, not any '<'."""
+    from cairn.ingest.events import EventKind
+    from cairn.ingest.locate import classify_claude_code
+
+    obj = {
+        "type": "user",
+        "message": {"role": "user", "content": "<div> renders before <span>, why?"},
+    }
+    assert classify_claude_code(obj) == EventKind.AUTHORED_USER
