@@ -262,3 +262,28 @@ def test_existing_aws_secret_still_redacted_after_i1():
     result = redact(text)
     assert result.count >= 1
     assert "wJalrXUtnFEMI" not in result.text
+
+
+# ---------------------------------------------------------------------------
+# Over-firing fix — structured identifiers must SURVIVE the entropy net
+# (real damage observed in the 2026-06-11 vault audit)
+# ---------------------------------------------------------------------------
+
+OVERFIRE_SURVIVORS = [
+    (
+        "plugin_cache_path",
+        "/Users/ccf/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/skills/brainstorming",
+    ),
+    ("github_url", "https://github.com/ccf/agentcairn/blob/main/CHANGELOG.md"),
+    ("git_branch", "the branch feat/v1.1-bitemporal-validity-and-recall has the fix"),
+    ("skill_slug", "use superpowers:subagent-driven-development for this"),
+    ("plan_filename", "see docs/plans/2026-06-10-agentcairn-claude-code-plugin.md for details"),
+    ("permalink_slug", "permalink: all-of-the-above-angles-are-31b5c3dc"),
+]
+
+
+@pytest.mark.parametrize("name,text", OVERFIRE_SURVIVORS, ids=[s[0] for s in OVERFIRE_SURVIVORS])
+def test_structured_identifiers_survive_unredacted(name, text):
+    result = redact(text)
+    assert result.text == text, f"{name} was wrongly redacted: {result.text!r}"
+    assert result.count == 0
