@@ -64,7 +64,7 @@ Title = LLM's descriptive title. Other tiers keep today's single verbatim `[cont
 1. Hand-label the real corpus: the 69 current survivors + a ~100-sample of gated-out authored turns, as durable/ephemeral.
 2. Score the labeled set with the embedding judge; report AUC and precision/recall at the operating threshold, vs the heuristic alone.
 3. **Ship Tier 1 as default only if it beats the heuristic alone** on this corpus; otherwise it ships behind `CAIRN_JUDGE=embedding` (off by default) and the prototypes get revisited.
-4. The labeling file and eval script are committed (offline, no keys) so the gate is re-runnable when prototypes or embedders change.
+4. The eval script and a **synthetic** fixture are committed (offline, no keys); the **real labeled corpus is NOT committed** — the repo is public and the labels are the user's actual memory texts. It lives at `~/.cache/agentcairn/judge_labels.jsonl`; results are quoted in the PR.
 
 ## Operational fit
 
