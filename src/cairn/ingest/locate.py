@@ -98,7 +98,11 @@ def classify_claude_code(obj: dict) -> EventKind:
             return EventKind.META_INJECTION
         msg = obj.get("message")
         content = msg.get("content") if isinstance(msg, dict) else None
-        if isinstance(content, str) and content.lstrip().startswith(_LEGACY_TAG_PREFIXES):
+        # Sanitize before the prefix check: legacy /context dumps start with ANSI
+        # escapes BEFORE the tag, and the ingested text is sanitized anyway.
+        if isinstance(content, str) and sanitize_text(content).lstrip().startswith(
+            _LEGACY_TAG_PREFIXES
+        ):
             return EventKind.META_INJECTION
         return EventKind.AUTHORED_USER
     if t == "assistant":
