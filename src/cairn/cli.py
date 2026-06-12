@@ -17,7 +17,7 @@ from cairn.embed import get_embedder
 from cairn.index import get_meta, open_index, reconcile
 from cairn.ingest import find_transcripts, parse_transcript
 from cairn.ingest.dedup import DedupLedger
-from cairn.ingest.judge import resolve_judge
+from cairn.ingest.judge import JudgedCache, resolve_judge
 from cairn.ingest.pipeline import ingest_transcripts
 from cairn.search import open_search, search
 from cairn.vault import parse_note
@@ -377,6 +377,15 @@ def serve(
     ).run()
 
 
+def _warn_if_llm_tier_unavailable(rep) -> None:
+    """CAIRN_JUDGE=anthropic but the run didn't use the LLM tier — say so once."""
+    if os.environ.get("CAIRN_JUDGE") == "anthropic" and rep.judge_tier != "llm":
+        typer.echo(
+            "  note: CAIRN_JUDGE=anthropic but LLM tier unavailable (missing key?) "
+            f"— used {rep.judge_tier}"
+        )
+
+
 @app.command()
 def sweep(
     vault: Path = typer.Option(..., "--vault", help="Vault root."),
@@ -400,24 +409,26 @@ def sweep(
     ),
 ) -> None:
     """Batch-ingest transcripts into the vault, then reindex (cron maintenance)."""
+    vault_key = hashlib.sha256(str(vault.resolve()).encode()).hexdigest()[:16]
     if ledger is not None:
         led_path = ledger
     else:
-        vault_key = hashlib.sha256(str(vault.resolve()).encode()).hexdigest()[:16]
         led_path = Path.home() / ".cache" / "agentcairn" / "ledgers" / f"{vault_key}.sha256"
     led = DedupLedger(led_path)
     paths = find_transcripts(root=transcripts_dir, project=project)
     transcripts = [parse_transcript(tp) for tp in paths]
+    # One embedder serves both the judge and the reindex (avoid a double model load).
+    emb = get_embedder(embedder)
     rep = ingest_transcripts(
         transcripts,
         vault_root=vault,
         ledger=led,
         threshold=threshold,
-        judge=resolve_judge(),
+        judge=resolve_judge(embedder=emb),
+        judged_cache=JudgedCache(led_path.parent / f"{vault_key}.judged.jsonl"),
     )
     idx = index or _default_index()
     idx.parent.mkdir(parents=True, exist_ok=True)
-    emb = get_embedder(embedder)
     con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
     try:
         stats = reconcile(con, str(vault), emb)
@@ -427,6 +438,7 @@ def sweep(
         f"swept: {len(rep.written)} memory note(s) written; reindexed "
         f"{stats.added} added, {stats.updated} updated, {stats.deleted} removed"
     )
+    _warn_if_llm_tier_unavailable(rep)
 
 
 @app.command()
@@ -479,15 +491,17 @@ def ingest(
     ledger: Path = typer.Option(
         None, "--ledger", help="Dedup ledger path (default: <vault>/.cairn/ingested.sha256)."
     ),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Report without writing."),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Report without writing (LLM judge is skipped on dry runs)."
+    ),
 ) -> None:
     """Ingest Claude Code transcripts into non-lossy derived memory notes."""
+    # Keep ledger OUTSIDE the vault (dedup.py docstring + spec). Namespace
+    # by vault path so different vaults use separate ledgers.
+    vault_key = hashlib.sha256(str(vault.resolve()).encode()).hexdigest()[:16]
     if ledger is not None:
         led_path = ledger
     else:
-        # Keep ledger OUTSIDE the vault (dedup.py docstring + spec). Namespace
-        # by vault path so different vaults use separate ledgers.
-        vault_key = hashlib.sha256(str(vault.resolve()).encode()).hexdigest()[:16]
         led_path = Path.home() / ".cache" / "agentcairn" / "ledgers" / f"{vault_key}.sha256"
     led = DedupLedger(led_path)
     paths = find_transcripts(root=transcripts_dir, project=project)
@@ -495,13 +509,22 @@ def ingest(
         typer.echo("No transcripts found.")
         return
     transcripts = [parse_transcript(tp) for tp in paths]
-    judge = resolve_judge()
+    if dry_run:
+        # A preview must not spend LLM tokens: force the judge tier below anthropic
+        # (embedding unless explicitly disabled).
+        env = dict(os.environ)
+        if env.get("CAIRN_JUDGE", "embedding") != "none":
+            env["CAIRN_JUDGE"] = "embedding"
+        judge = resolve_judge(env=env)
+    else:
+        judge = resolve_judge()
     rep = ingest_transcripts(
         transcripts,
         vault_root=vault,
         ledger=led,
         threshold=threshold,
         judge=judge,
+        judged_cache=JudgedCache(led_path.parent / f"{vault_key}.judged.jsonl"),
         dry_run=dry_run,
     )
     prefix = "[dry-run] " if dry_run else ""
@@ -515,3 +538,5 @@ def ingest(
     if skipped:
         breakdown = ", ".join(f"{v} {k}" for k, v in sorted(skipped.items(), key=lambda kv: -kv[1]))
         typer.echo(f"  skipped (non-authored): {breakdown}")
+    if not dry_run:  # dry runs force the tier down on purpose — no warning
+        _warn_if_llm_tier_unavailable(rep)

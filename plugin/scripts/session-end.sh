@@ -11,6 +11,8 @@ CWD=$(printf '%s' "$INPUT" | sed -n 's/.*"cwd"[[:space:]]*:[[:space:]]*"\([^"]*\
 
 [ -d "$VAULT" ] || $CAIRN init "$VAULT" >/dev/null 2>&1 || true
 # Detach: the sweep (and any LLM judge call inside it) must never block session
-# teardown. nohup + & + disown-equivalent; logs discarded by design.
-nohup sh -c "$CAIRN sweep --vault \"$VAULT\" --index \"$INDEX\" ${CWD:+--project \"$CWD\"}" >/dev/null 2>&1 &
+# teardown. nohup + & detaches fine without an inner `sh -c` — which would
+# re-parse the `>=0.2` pin as a redirection and make $CWD/$VAULT an injection
+# surface. $CAIRN stays unquoted on purpose (word-splits into argv, no re-parse).
+nohup $CAIRN sweep --vault "$VAULT" --index "$INDEX" ${CWD:+--project "$CWD"} >/dev/null 2>&1 &
 exit 0

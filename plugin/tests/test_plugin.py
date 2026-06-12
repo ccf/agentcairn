@@ -4,6 +4,7 @@
 import json
 import os
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -57,7 +58,7 @@ def test_mcp_config_wires_uvx_agentcairn():
     assert srv["env"]["CAIRN_VAULT"] == "${user_config.vault_path}"
 
 
-def _run_hook(script, stdin_obj, env_extra):
+def _run_hook(script, stdin_obj, env_extra, cwd=None):
     env = {**os.environ, **env_extra}
     return subprocess.run(
         ["sh", str(PLUGIN / "scripts" / script), env["VAULT_ARG"], env["INDEX_ARG"]],
@@ -65,6 +66,7 @@ def _run_hook(script, stdin_obj, env_extra):
         capture_output=True,
         text=True,
         env=env,
+        cwd=cwd,
     )
 
 
@@ -160,6 +162,8 @@ def test_session_end_runs_and_exits_zero(tmp_path):
     stub.chmod(0o755)
     vault = tmp_path / "agentcairn"
     vault.mkdir()
+    workdir = tmp_path / "work"  # isolated cwd: detect stray redirection files
+    workdir.mkdir()
     r = _run_hook(
         "session-end.sh",
         {"hook_event_name": "SessionEnd", "cwd": "/Users/x/proj"},
@@ -168,8 +172,15 @@ def test_session_end_runs_and_exits_zero(tmp_path):
             "VAULT_ARG": str(vault),
             "INDEX_ARG": str(tmp_path / "i.duckdb"),
         },
+        cwd=workdir,
     )
     assert r.returncode == 0
+    # The detached sweep must NOT re-parse the `agentcairn>=0.2` pin through an
+    # inner shell: that turns `>=0.2` into a redirection, dropping the version
+    # pin and creating a junk file named `=0.2` in the cwd.
+    time.sleep(0.5)  # give the detached child time to (mis)behave
+    assert not (workdir / "=0.2").exists(), "version pin re-parsed as a shell redirection"
+    assert list(workdir.iterdir()) == [], "session-end.sh littered files into the cwd"
 
 
 def test_skill_has_valid_frontmatter():

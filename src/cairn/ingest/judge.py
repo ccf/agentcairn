@@ -15,6 +15,7 @@ import json
 import math
 import urllib.request
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 
 
@@ -91,6 +92,7 @@ class EmbeddingJudge:
 
 _ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 _MAX_DISTILL_RATIO = 4  # distilled longer than 4x verbatim -> discarded
+_BATCH_SIZE = 40  # texts per Messages call: large batches risk output truncation
 
 _PROMPT = """You judge whether each numbered message from a developer's coding-agent \
 session is a DURABLE memory (decision, preference, lesson, durable fact, strategic \
@@ -122,8 +124,9 @@ def _anthropic_request(payload: dict, api_key: str, timeout: float) -> dict:
 
 
 class LLMJudge:
-    """One batched Messages call judging all candidates; any failure degrades to
-    the fallback judge (or neutral 0.5 judgments if none) and counts in .degraded."""
+    """Batched Messages calls (chunks of _BATCH_SIZE) judging all candidates; a
+    chunk failure degrades ONLY that chunk to the fallback judge (or neutral 0.5
+    judgments if none) and counts in .degraded."""
 
     def __init__(
         self,
@@ -142,13 +145,18 @@ class LLMJudge:
     def judge(self, texts: list[str]) -> list[Judgment]:
         if not texts:
             return []
-        try:
-            return self._judge_llm(texts)
-        except Exception:
-            self.degraded += len(texts)
-            if self._fallback is not None:
-                return self._fallback.judge(texts)
-            return [Judgment(durability=0.5) for _ in texts]
+        out: list[Judgment] = []
+        for start in range(0, len(texts), _BATCH_SIZE):
+            chunk = texts[start : start + _BATCH_SIZE]
+            try:
+                out.extend(self._judge_llm(chunk))
+            except Exception:
+                self.degraded += len(chunk)
+                if self._fallback is not None:
+                    out.extend(self._fallback.judge(chunk))
+                else:
+                    out.extend(Judgment(durability=0.5) for _ in chunk)
+        return out
 
     def _judge_llm(self, texts: list[str]) -> list[Judgment]:
         numbered = "\n".join(f"[{i}] {t}" for i, t in enumerate(texts))
@@ -161,7 +169,7 @@ class LLMJudge:
         raw = "".join(b.get("text", "") for b in resp.get("content", []) if b.get("type") == "text")
         raw = raw.strip()
         if raw.startswith("```"):
-            raw = raw.strip("`").lstrip("json").strip()
+            raw = raw.strip("`").removeprefix("json").strip()
         items = json.loads(raw)
         by_i = {int(it["i"]): it for it in items}
         out: list[Judgment] = []
@@ -180,6 +188,38 @@ class LLMJudge:
         return out
 
 
+class JudgedCache:
+    """hash -> durability for already-judged-but-not-written candidates, so the
+    LLM never re-judges the same text across runs. JSONL beside the dedup ledger.
+    (Written candidates are dedup-ledgered and never reconsidered; this cache
+    covers the gated-out ones, which stay pending forever.)"""
+
+    def __init__(self, path: Path) -> None:
+        self.path = Path(path)
+        self._mem: dict[str, float] = {}
+        if self.path.exists():
+            for ln in self.path.read_text(encoding="utf-8").splitlines():
+                ln = ln.strip()
+                if not ln:
+                    continue
+                try:
+                    obj = json.loads(ln)
+                    self._mem[str(obj["h"])] = float(obj["d"])
+                except Exception:
+                    continue  # tolerate torn/corrupt lines — it's a rebuildable cache
+
+    def get(self, h: str) -> float | None:
+        return self._mem.get(h)
+
+    def put(self, h: str, durability: float) -> None:
+        if self._mem.get(h) == durability:
+            return  # idempotent: no duplicate appends across runs
+        self._mem[h] = durability
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self.path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps({"h": h, "d": durability}) + "\n")
+
+
 def resolve_judge(
     *,
     env: dict | None = None,
@@ -194,7 +234,7 @@ def resolve_judge(
 
     e = env if env is not None else dict(_os.environ)
     mode, model, timeout = judge_config(e)
-    if mode in ("none", "off", "0", "false"):
+    if mode in ("none", "off", "0", "false", "no"):
         return None
 
     def _load_embedding_judge() -> EmbeddingJudge | None:
