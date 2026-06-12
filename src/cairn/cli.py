@@ -17,7 +17,8 @@ from cairn.embed import get_embedder
 from cairn.index import get_meta, open_index, reconcile
 from cairn.ingest import find_transcripts, parse_transcript
 from cairn.ingest.dedup import DedupLedger
-from cairn.ingest.pipeline import ingest_transcript
+from cairn.ingest.judge import resolve_judge
+from cairn.ingest.pipeline import ingest_transcripts
 from cairn.search import open_search, search
 from cairn.vault import parse_note
 
@@ -406,15 +407,14 @@ def sweep(
         led_path = Path.home() / ".cache" / "agentcairn" / "ledgers" / f"{vault_key}.sha256"
     led = DedupLedger(led_path)
     paths = find_transcripts(root=transcripts_dir, project=project)
-    written = 0
-    for tp in paths:
-        rep = ingest_transcript(
-            parse_transcript(tp),
-            vault_root=vault,
-            ledger=led,
-            threshold=threshold,
-        )
-        written += len(rep.written)
+    transcripts = [parse_transcript(tp) for tp in paths]
+    rep = ingest_transcripts(
+        transcripts,
+        vault_root=vault,
+        ledger=led,
+        threshold=threshold,
+        judge=resolve_judge(),
+    )
     idx = index or _default_index()
     idx.parent.mkdir(parents=True, exist_ok=True)
     emb = get_embedder(embedder)
@@ -424,7 +424,7 @@ def sweep(
     finally:
         con.close()  # release the write lock even if reconcile fails
     typer.echo(
-        f"swept: {written} memory note(s) written; reindexed "
+        f"swept: {len(rep.written)} memory note(s) written; reindexed "
         f"{stats.added} added, {stats.updated} updated, {stats.deleted} removed"
     )
 
@@ -494,39 +494,24 @@ def ingest(
     if not paths:
         typer.echo("No transcripts found.")
         return
-    from collections import Counter
-
-    totals = {
-        "authored": 0,
-        "candidates": 0,
-        "redactions": 0,
-        "deduped": 0,
-        "gated_out": 0,
-        "written": 0,
-    }
-    kinds: Counter = Counter()
-    for tp in paths:
-        rep = ingest_transcript(
-            parse_transcript(tp),
-            vault_root=vault,
-            ledger=led,
-            threshold=threshold,
-            dry_run=dry_run,
-        )
-        totals["authored"] += rep.authored
-        totals["candidates"] += rep.candidates
-        totals["redactions"] += rep.redactions
-        totals["deduped"] += rep.deduped
-        totals["gated_out"] += rep.gated_out
-        totals["written"] += len(rep.written)
-        kinds.update(rep.event_kinds)
+    transcripts = [parse_transcript(tp) for tp in paths]
+    judge = resolve_judge()
+    rep = ingest_transcripts(
+        transcripts,
+        vault_root=vault,
+        ledger=led,
+        threshold=threshold,
+        judge=judge,
+        dry_run=dry_run,
+    )
     prefix = "[dry-run] " if dry_run else ""
     typer.echo(
-        f"{prefix}{totals['authored']} authored · {totals['candidates']} candidates · "
-        f"{totals['redactions']} redactions · {totals['deduped']} deduped · "
-        f"{totals['gated_out']} gated · {totals['written']} written"
+        f"{prefix}{rep.authored} authored · {rep.candidates} candidates · "
+        f"{rep.redactions} redactions · {rep.deduped} deduped · "
+        f"{rep.gated_out} gated · {len(rep.written)} written · judge: {rep.judge_tier}"
+        + (f" ({rep.judge_degraded} degraded)" if rep.judge_degraded else "")
     )
-    skipped = {k: v for k, v in kinds.items() if k != "authored_user"}
+    skipped = {k: v for k, v in rep.event_kinds.items() if k != "authored_user"}
     if skipped:
         breakdown = ", ".join(f"{v} {k}" for k, v in sorted(skipped.items(), key=lambda kv: -kv[1]))
         typer.echo(f"  skipped (non-authored): {breakdown}")
