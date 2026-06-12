@@ -119,19 +119,23 @@ def ingest_transcripts(
         heuristic = score(cand.text)
         j = judged.get(idx)
         if j is not None and report.judge_tier == "llm":
-            # The LLM judge is the authority: its durability alone gates the keep,
-            # so an LLM-rated-ephemeral turn is dropped even when lexically long.
-            # (The 50/50 blend was diluting the paid verdict — dogfood finding.)
-            combined = j.durability
+            # The LLM's decision to DISTILL is the keep signal. Its durability float
+            # is noisy (clusters 0.3-0.5), but distilled-vs-null is a clean
+            # durable/ephemeral call: keep iff the LLM distilled it. (A durability
+            # threshold swept in hundreds of short junk turns rated ~0.5 — dogfood.)
+            keep = j.distilled is not None
+            combined = j.durability  # frontmatter importance only
             cand = replace(cand, judgment=j, importance=combined)
         elif j is not None:
             # Weaker (embedding) judge: blend its durability with the heuristic.
             combined = max(0.0, min(1.0, 0.5 * heuristic + 0.5 * j.durability))
+            keep = combined >= threshold
             cand = replace(cand, judgment=j, importance=combined)
         else:
             combined = heuristic
+            keep = combined >= threshold
             cand = replace(cand, importance=combined)
-        if combined < threshold:
+        if not keep:
             report.gated_out += 1
             # Cache the gated verdict so the LLM never re-judges it — but NOT on
             # dry runs: they deliberately downgrade the tier, and persisting that

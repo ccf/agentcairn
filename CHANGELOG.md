@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-06-12
+
+### Changed
+- **On the LLM-judge tier, the LLM's decision to *distill* a turn is now the keep signal** (supersedes 0.9.2's durability threshold). Dogfooding showed the LLM's durability floats cluster around 0.3-0.5 and don't cleanly separate memories from chatter — a 0.5 threshold swept in hundreds of short junk turns ("1", "proceed", "take a look") the LLM rated ~0.5 but declined to distill. The distill-vs-null decision is the clean bimodal signal, so an LLM-tier note is kept iff the LLM produced a distillation. Result: the vault holds only crisp, distilled memories. (Embedding tier still blends durability with the heuristic.)
+
 ## [0.9.2] - 2026-06-12
 
 ### Changed
@@ -105,7 +110,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Out-of-band capture from coding-agent transcripts (redacted, non-lossy `remember`).
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
-[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.9.2...HEAD
+[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.9.3...HEAD
+[0.9.3]: https://github.com/ccf/agentcairn/compare/v0.9.2...v0.9.3
 [0.9.2]: https://github.com/ccf/agentcairn/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/ccf/agentcairn/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/ccf/agentcairn/compare/v0.8.0...v0.9.0

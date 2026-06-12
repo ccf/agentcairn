@@ -581,3 +581,69 @@ def test_llm_tier_gates_on_durability_not_heuristic_blend(tmp_path, monkeypatch)
     assert rep.judge_tier == "llm"
     assert rep.written == []  # dropped: durability 0.05 < 0.5 (NOT 0.5*high_heuristic+0.5*0.05)
     assert rep.gated_out == 1
+
+
+def test_llm_tier_keeps_iff_distilled(tmp_path, monkeypatch):
+    """LLM tier: the LLM's DISTILL decision is the keep signal, not the durability
+    float (which clusters 0.3-0.5). A distilled turn is kept even at low durability;
+    a null-distilled turn is dropped even at HIGH durability. Dogfood: a durability
+    threshold swept in 277 short junk turns the LLM rated ~0.5 but didn't distill."""
+    import json as _json
+
+    import cairn.ingest.judge as jmod
+    from cairn.ingest.judge import LLMJudge
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    monkeypatch.setattr(
+        jmod,
+        "_anthropic_request",
+        lambda payload, api_key, timeout: {
+            "content": [
+                {
+                    "type": "text",
+                    "text": _json.dumps(
+                        [
+                            {
+                                "i": 0,
+                                "durability": 0.4,
+                                "title": "Real decision",
+                                "distilled": "We always rebase.",
+                            },
+                            {"i": 1, "durability": 0.95, "title": None, "distilled": None},
+                        ]
+                    ),
+                }
+            ]
+        },
+    )
+    vault = tmp_path / "v"
+    vault.mkdir()
+    tr = Transcript(
+        session_id="s",
+        cwd="/Users/x/p",
+        git_branch="main",
+        path=tmp_path / "s.jsonl",
+        events=[
+            _ev(
+                EventKind.AUTHORED_USER, "we should always rebase-merge our approved pull requests"
+            ),
+            _ev(
+                EventKind.AUTHORED_USER,
+                "ok lets proceed with checking the status of the deploy now",
+            ),
+        ],
+    )
+    rep = ingest_transcripts(
+        [tr],
+        vault_root=vault,
+        ledger=DedupLedger(tmp_path / "l.sha256"),
+        judge=LLMJudge(api_key="k", model="m", timeout=5.0),
+        judged_cache=None,
+    )
+    assert rep.judge_tier == "llm"
+    assert (
+        len(rep.written) == 1
+    )  # only the distilled one (durability 0.4), NOT the null-distilled 0.95
+    blob = "\n".join(p.read_text() for p in vault.rglob("*.md"))
+    assert "We always rebase." in blob
+    assert "proceed with checking" not in blob
