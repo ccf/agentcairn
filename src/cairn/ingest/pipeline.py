@@ -118,7 +118,10 @@ def ingest_transcripts(
     for idx, (cand, h) in enumerate(pending):
         heuristic = score(cand.text)
         j = judged.get(idx)
-        if j is not None and report.judge_tier == "llm":
+        # A degraded judgment is a fallback verdict wearing the LLM run's tier — it
+        # must gate by the fallback (blend) rule, not the LLM keep rule.
+        llm_verdict = j is not None and report.judge_tier == "llm" and not j.degraded
+        if llm_verdict:
             # The LLM's decision to DISTILL is the keep signal. Its durability float
             # is noisy (clusters 0.3-0.5), but distilled-vs-null is a clean
             # durable/ephemeral call: keep iff the LLM distilled it. (A durability
@@ -127,7 +130,8 @@ def ingest_transcripts(
             combined = j.durability  # frontmatter importance only
             cand = replace(cand, judgment=j, importance=combined)
         elif j is not None:
-            # Weaker (embedding) judge: blend its durability with the heuristic.
+            # Weaker (embedding) judge OR a degraded LLM chunk: blend durability
+            # with the heuristic, exactly as the embedding tier would.
             combined = max(0.0, min(1.0, 0.5 * heuristic + 0.5 * j.durability))
             keep = combined >= threshold
             cand = replace(cand, judgment=j, importance=combined)
@@ -137,10 +141,18 @@ def ingest_transcripts(
             cand = replace(cand, importance=combined)
         if not keep:
             report.gated_out += 1
-            # Cache the gated verdict so the LLM never re-judges it — but NOT on
-            # dry runs: they deliberately downgrade the tier, and persisting that
-            # verdict would make later real runs cache-hit and skip the LLM.
-            if judge is not None and judged_cache is not None and j is not None and not dry_run:
+            # Cache the gated verdict so the LLM never re-judges it — but NEVER a
+            # degraded verdict (a transient chunk failure fell back a tier; a real
+            # LLM verdict must replace it next run, else one API blip drops the turn
+            # forever), and NOT on dry runs (tier deliberately downgraded — caching
+            # would make later real runs cache-hit and skip the LLM).
+            if (
+                judge is not None
+                and judged_cache is not None
+                and j is not None
+                and not j.degraded
+                and not dry_run
+            ):
                 judged_cache.put(h, j, report.judge_tier)
             continue
         report.candidates += 1

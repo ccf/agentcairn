@@ -647,3 +647,87 @@ def test_llm_tier_keeps_iff_distilled(tmp_path, monkeypatch):
     blob = "\n".join(p.read_text() for p in vault.rglob("*.md"))
     assert "We always rebase." in blob
     assert "proceed with checking" not in blob
+
+
+def test_degraded_llm_chunk_does_not_poison_cache(tmp_path, monkeypatch):
+    """Bugbot #61: when an LLM chunk degrades (API failure -> embedding/neutral
+    fallback) the verdict has distilled=None but is NOT a real LLM verdict. It
+    must not be cached at tier "llm", or a later SUCCESSFUL run would reuse the
+    degraded verdict and permanently drop a durable turn after one transient blip.
+    A degraded chunk also gates via the embedding blend, not the LLM keep rule."""
+    import json as _json
+
+    import cairn.ingest.judge as jmod
+    from cairn.ingest.dedup import content_hash
+    from cairn.ingest.judge import JudgedCache, Judgment, LLMJudge
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    text = "we should always rebase-merge our approved pull requests"
+
+    # Run 1: the API call fails -> the chunk degrades to the fallback, which rates
+    # this turn ephemeral (durability 0.0, no distillation). It gates out.
+    monkeypatch.setattr(
+        jmod,
+        "_anthropic_request",
+        lambda payload, api_key, timeout: (_ for _ in ()).throw(RuntimeError("transient")),
+    )
+
+    class LowFallback:
+        def judge(self, texts):
+            return [Judgment(durability=0.0) for _ in texts]
+
+    cache_path = tmp_path / "j.jsonl"
+    vault = tmp_path / "v"
+    vault.mkdir()
+    ledger = DedupLedger(tmp_path / "l.sha256")
+    tr = Transcript(
+        session_id="s",
+        cwd="/Users/x/p",
+        git_branch="main",
+        path=tmp_path / "s.jsonl",
+        events=[_ev(EventKind.AUTHORED_USER, text)],
+    )
+    rep1 = ingest_transcripts(
+        [tr],
+        vault_root=vault,
+        ledger=ledger,
+        judge=LLMJudge(api_key="k", model="m", timeout=5.0, fallback=LowFallback()),
+        judged_cache=JudgedCache(cache_path),
+    )
+    assert rep1.judge_degraded == 1 and rep1.written == [] and rep1.gated_out == 1
+    # The degraded verdict must NOT sit in the cache at tier "llm".
+    entry = JudgedCache(cache_path).get(content_hash(text))
+    assert entry is None or entry[1] != "llm"
+
+    # Run 2: the API works and distills. The candidate (never ledgered in run 1)
+    # must be RE-JUDGED — not blocked by the degraded cache entry — and written.
+    monkeypatch.setattr(
+        jmod,
+        "_anthropic_request",
+        lambda payload, api_key, timeout: {
+            "content": [
+                {
+                    "type": "text",
+                    "text": _json.dumps(
+                        [
+                            {
+                                "i": 0,
+                                "durability": 0.4,
+                                "title": "Rebase policy",
+                                "distilled": "Always rebase-merge.",
+                            }
+                        ]
+                    ),
+                }
+            ]
+        },
+    )
+    ingest_transcripts(
+        [tr],
+        vault_root=vault,
+        ledger=ledger,
+        judge=LLMJudge(api_key="k", model="m", timeout=5.0),
+        judged_cache=JudgedCache(cache_path),
+    )
+    blob = "\n".join(p.read_text() for p in vault.rglob("*.md"))
+    assert "Always rebase-merge." in blob  # re-judged after the transient failure

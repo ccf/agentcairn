@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import math
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Protocol
 
@@ -24,6 +24,9 @@ class Judgment:
     durability: float  # 0..1 (semantic memory-worthiness)
     title: str | None = None  # LLM tier only
     distilled: str | None = None  # LLM tier only
+    degraded: bool = False  # True if produced by an LLM-chunk fallback, not a real
+    # LLM verdict — such a judgment must NOT gate by the LLM keep rule nor be cached
+    # at the LLM tier (a transient failure would otherwise drop a turn forever).
 
 
 class Judge(Protocol):
@@ -176,7 +179,10 @@ class LLMJudge:
                         fell_back = None
                 if fell_back is None:
                     fell_back = [Judgment(durability=0.5) for _ in chunk]
-                out.extend(fell_back)
+                # Mark every fallback verdict degraded so the pipeline gates it by
+                # the fallback's rule (not the LLM keep rule) and never caches it
+                # at the LLM tier — a real LLM verdict must replace it next run.
+                out.extend(replace(j, degraded=True) for j in fell_back)
         return out
 
     def _judge_llm(self, texts: list[str]) -> list[Judgment]:

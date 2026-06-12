@@ -10,6 +10,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 ### Changed
 - **On the LLM-judge tier, the LLM's decision to *distill* a turn is now the keep signal** (supersedes 0.9.2's durability threshold). Dogfooding showed the LLM's durability floats cluster around 0.3-0.5 and don't cleanly separate memories from chatter — a 0.5 threshold swept in hundreds of short junk turns ("1", "proceed", "take a look") the LLM rated ~0.5 but declined to distill. The distill-vs-null decision is the clean bimodal signal, so an LLM-tier note is kept iff the LLM produced a distillation. Result: the vault holds only crisp, distilled memories. (Embedding tier still blends durability with the heuristic.)
 
+### Fixed
+- **A degraded LLM chunk no longer poisons the judge cache.** When an LLM batch fails and falls back to the embedding/neutral judge, that verdict has no distillation but is *not* a real LLM verdict. It is now marked degraded: it gates by the embedding blend rule (not the distill-keep rule) and is never cached at the LLM tier, so a single transient API failure can no longer permanently drop a durable turn that a later successful run would have distilled. (Caught by Cursor Bugbot on #61.)
+
 ## [0.9.2] - 2026-06-12
 
 ### Changed
