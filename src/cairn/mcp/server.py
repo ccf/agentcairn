@@ -10,7 +10,7 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-from cairn.config import resolve_rerank
+from cairn.config import cairn_env, resolve_rerank
 from cairn.mcp import tools
 
 _DEFAULT_INDEX = str(Path.home() / ".cache" / "agentcairn" / "index.duckdb")
@@ -32,9 +32,10 @@ def resolve_config(
                  valid values: "fastembed", "fake", "ollama"
                  (ollama: model via CAIRN_EMBED_MODEL, host via OLLAMA_HOST)
     """
-    resolved_vault = vault or os.environ.get("CAIRN_VAULT")
-    resolved_index = index or os.environ.get("CAIRN_INDEX") or _DEFAULT_INDEX
-    resolved_embedder = embedder or os.environ.get("CAIRN_EMBEDDER") or _DEFAULT_EMBEDDER
+    settings = cairn_env()
+    resolved_vault = vault or settings.get("CAIRN_VAULT")
+    resolved_index = index or settings.get("CAIRN_INDEX") or _DEFAULT_INDEX
+    resolved_embedder = embedder or settings.get("CAIRN_EMBEDDER") or _DEFAULT_EMBEDDER
     # Expand a leading "~": plugin user_config defaults like "~/agentcairn" may
     # reach us unnormalized, and DuckDB/open() treat a literal "~" as a relative
     # dir — so recall would miss the index and remember would write outside the vault.
@@ -51,7 +52,7 @@ def build_server(
     embedder: str | None = None,
 ) -> FastMCP:
     vault, index, embedder = resolve_config(vault=vault, index=index, embedder=embedder)
-    rerank_default = resolve_rerank(None, os.environ)
+    rerank_default = resolve_rerank(None)
     mcp = FastMCP("agentcairn")
 
     @mcp.tool()

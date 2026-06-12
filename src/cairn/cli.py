@@ -6,13 +6,12 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import json
-import os
 from pathlib import Path
 
 import typer
 
 from cairn import __version__
-from cairn.config import resolve_rerank
+from cairn.config import cairn_env, resolve_rerank
 from cairn.embed import get_embedder
 from cairn.index import get_meta, open_index, reconcile
 from cairn.ingest import find_transcripts, parse_transcript
@@ -45,7 +44,7 @@ def main(
 def _default_index() -> Path:
     # Honor CAIRN_INDEX (expanding a leading "~") so the CLI, hooks, and MCP
     # server all target the same index when it's customized via env/user_config.
-    env = os.environ.get("CAIRN_INDEX")
+    env = cairn_env().get("CAIRN_INDEX")
     if env:
         return Path(env).expanduser()
     return Path.home() / ".cache" / "agentcairn" / "index.duckdb"
@@ -206,7 +205,7 @@ def init(
     path: Path = typer.Argument(None, help="Vault path (default: $CAIRN_VAULT or ~/agentcairn)."),
 ) -> None:
     """Scaffold an Obsidian-ready agentcairn vault. Idempotent and non-destructive."""
-    target = path or Path(os.environ.get("CAIRN_VAULT") or (Path.home() / "agentcairn"))
+    target = path or Path(cairn_env().get("CAIRN_VAULT") or (Path.home() / "agentcairn"))
     target = target.expanduser()
     target.mkdir(parents=True, exist_ok=True)
     obs = target / ".obsidian"
@@ -269,7 +268,7 @@ def warm() -> None:
     calls this so the first real sweep/recall isn't slow; also handy before
     first CLI use.
     """
-    embedder = os.environ.get("CAIRN_EMBEDDER") or "fastembed"
+    embedder = cairn_env().get("CAIRN_EMBEDDER") or "fastembed"
     if embedder in ("fastembed", "ollama"):
         try:
             # Touch `.dim` to force the actual load: fastembed downloads in its
@@ -379,7 +378,7 @@ def serve(
 
 def _warn_if_llm_tier_unavailable(rep) -> None:
     """CAIRN_JUDGE=anthropic but the run didn't use the LLM tier — say so once."""
-    if os.environ.get("CAIRN_JUDGE") == "anthropic" and rep.judge_tier != "llm":
+    if cairn_env().get("CAIRN_JUDGE") == "anthropic" and rep.judge_tier != "llm":
         typer.echo(
             "  note: CAIRN_JUDGE=anthropic but LLM tier unavailable (missing key?) "
             f"— used {rep.judge_tier}"
@@ -518,7 +517,7 @@ def ingest(
     if dry_run:
         # A preview must not spend LLM tokens: force the judge tier below anthropic
         # (embedding unless explicitly disabled).
-        env = dict(os.environ)
+        env = dict(cairn_env())
         if env.get("CAIRN_JUDGE", "embedding") != "none":
             env["CAIRN_JUDGE"] = "embedding"
         judge = resolve_judge(env=env, embedder_loader=loader)

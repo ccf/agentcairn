@@ -845,3 +845,45 @@ def test_ingest_embedder_flag_drives_judge(tmp_path):
     )
     assert r.exit_code == 0, r.output
     assert "judge: embedding" in r.output  # judge ran on the fake embedder (no model download)
+
+
+def test_config_file_drives_judge_tier(tmp_path, monkeypatch):
+    """End-to-end: judge = "none" in the config file changes the ingest tier
+    with NO env var set (the whole point of the file)."""
+    import json as _j
+
+    import cairn.config as cfg
+
+    conf = tmp_path / "config.toml"
+    conf.write_text('judge = "none"\n')
+    monkeypatch.setenv("CAIRN_CONFIG", str(conf))
+    monkeypatch.delenv("CAIRN_JUDGE", raising=False)
+    cfg._reset()
+    proj = tmp_path / "projects" / "-Users-x-proj"
+    proj.mkdir(parents=True)
+    (proj / "t.jsonl").write_text(
+        _j.dumps(
+            {
+                "type": "user",
+                "sessionId": "s",
+                "cwd": "/Users/x/proj",
+                "message": {"role": "user", "content": "we decided to always rebase-merge"},
+            }
+        )
+        + "\n"
+    )
+    r = runner.invoke(
+        app,
+        [
+            "ingest",
+            "--vault",
+            str(tmp_path / "vault"),
+            "--transcripts-dir",
+            str(tmp_path / "projects"),
+            "--ledger",
+            str(tmp_path / "led.sha256"),
+        ],
+    )
+    cfg._reset()
+    assert r.exit_code == 0, r.output
+    assert "judge: none" in r.output

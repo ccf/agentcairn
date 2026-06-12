@@ -11,10 +11,11 @@ number use the identical model. A model of context size, not a measured cost.
 from __future__ import annotations
 
 import json
-import os
 import statistics
 from datetime import UTC, datetime
 from pathlib import Path
+
+from cairn.config import cairn_env
 
 _CHARS_PER_TOKEN = 4
 _SCHEMA = 1
@@ -33,12 +34,12 @@ def estimate_tokens(text: str | None) -> int:
 
 def enabled() -> bool:
     """Usage tracking is on unless CAIRN_USAGE=0."""
-    return os.environ.get("CAIRN_USAGE", "1") != "0"
+    return cairn_env().get("CAIRN_USAGE", "1") != "0"
 
 
 def ledger_path() -> Path:
-    """$CAIRN_USAGE_PATH if set, else ~/.cache/agentcairn/usage.jsonl."""
-    env = os.environ.get("CAIRN_USAGE_PATH")
+    """$CAIRN_USAGE_PATH (env or config file) else ~/.cache/agentcairn/usage.jsonl."""
+    env = cairn_env().get("CAIRN_USAGE_PATH")
     if env:
         return Path(env).expanduser()
     return Path.home() / ".cache" / "agentcairn" / "usage.jsonl"

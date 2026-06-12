@@ -260,11 +260,9 @@ def resolve_judge(
 ) -> Judge | None:
     """Resolve the judge tier from env (spec: anthropic -> embedding -> none).
     `embedder`/`embedder_loader` are injection seams; default loads FastEmbed."""
-    import os as _os
+    from cairn.config import cairn_env, judge_config
 
-    from cairn.config import judge_config
-
-    e = env if env is not None else dict(_os.environ)
+    e = env if env is not None else dict(cairn_env())
     mode, model, timeout = judge_config(e)
     if mode in ("none", "off", "0", "false", "no"):
         return None
