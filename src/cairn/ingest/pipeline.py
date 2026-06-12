@@ -124,7 +124,10 @@ def ingest_transcripts(
             cand = replace(cand, importance=combined)
         if combined < threshold:
             report.gated_out += 1
-            if judge is not None and judged_cache is not None and j is not None:
+            # Cache the gated verdict so the LLM never re-judges it — but NOT on
+            # dry runs: they deliberately downgrade the tier, and persisting that
+            # verdict would make later real runs cache-hit and skip the LLM.
+            if judge is not None and judged_cache is not None and j is not None and not dry_run:
                 judged_cache.put(h, j.durability)
             continue
         report.candidates += 1

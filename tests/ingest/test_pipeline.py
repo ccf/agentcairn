@@ -384,3 +384,33 @@ def test_report_judge_tier_recorded(tmp_path):
         judge=EmbeddingJudge(StubEmbedder()),
     )
     assert report.judge_tier == "embedding"
+
+
+def test_dry_run_does_not_write_judged_cache(tmp_path):
+    """Bugbot (PR #57): a dry run deliberately downgrades the judge tier, so
+    persisting its durabilities would make later REAL runs cache-hit and skip
+    the LLM. Dry runs must leave the judged cache untouched (like the ledger)."""
+    from cairn.ingest.judge import JudgedCache, Judgment
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    class LowJudge:
+        def judge(self, texts):
+            return [Judgment(durability=0.0) for _ in texts]  # everything gates out
+
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    cache_path = tmp_path / "judged.jsonl"
+    cache = JudgedCache(cache_path)
+    ledger = DedupLedger(tmp_path / "led.sha256")
+    report = ingest_transcripts(
+        [_transcript(tmp_path)],
+        vault_root=vault,
+        ledger=ledger,
+        judge=LowJudge(),
+        judged_cache=cache,
+        dry_run=True,
+    )
+    assert report.gated_out >= 1  # the judge did gate candidates out
+    assert not cache_path.exists()  # but NOTHING was persisted
+    # and a fresh cache instance sees no entries
+    assert JudgedCache(cache_path).get("anything") is None
