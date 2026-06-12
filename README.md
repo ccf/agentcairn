@@ -72,6 +72,22 @@ cairn reindex ~/vault                                # rebuild the index from Ma
 cairn doctor                                         # health-check the index
 ```
 
+### Configuration
+
+All settings live in one file — `~/.agentcairn/config.toml` — with env vars as overrides (precedence: CLI flag > env var > config file > default):
+
+```bash
+cairn config --init   # scaffold a fully-commented template (chmod 600)
+cairn config          # show every setting's effective value and where it came from
+```
+
+For example, enabling the LLM memory judge is two uncommented lines — no shell exports needed (the plugin's background sweep reads the file directly):
+
+```toml
+judge = "anthropic"
+anthropic_api_key = "sk-ant-..."
+```
+
 ## Agents supported
 
 agentcairn works at two levels. **Claude Code** gets a first-class plugin — the full ambient loop (recall at session start, capture at session end), a memory skill, and slash commands. **Every other MCP host** gets the same recall/search/`remember` tools via the portable MCP server; `cairn install` wires it in non-destructively (your other servers are preserved, the original is backed up to `<config>.bak`). The vault stays a single global `~/agentcairn`, so memory is shared across every host.

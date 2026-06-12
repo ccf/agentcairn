@@ -19,3 +19,18 @@ On install you'll be asked for a **vault path** (default `~/agentcairn`). The va
 
 The plugin runs the published `agentcairn` PyPI package via `uvx` — nothing to pip-install.
 You can also scaffold a vault yourself: `uvx --from agentcairn cairn init ~/agentcairn`.
+
+## Enabling the LLM judge
+
+The plugin's background SessionEnd sweep reads `~/.agentcairn/config.toml` directly — no shell-profile exports needed. To upgrade from the default embedding judge to the Anthropic LLM judge:
+
+```bash
+cairn config --init   # scaffold a fully-commented template (chmod 600)
+```
+
+Then uncomment two lines in `~/.agentcairn/config.toml`:
+
+```toml
+judge = "anthropic"
+anthropic_api_key = "sk-ant-..."
+```

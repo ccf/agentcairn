@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-06-12
+
+### Added
+- **User config file: `~/.agentcairn/config.toml`.** Every setting can now live in one TOML file instead of shell exports; env vars override file values (precedence: CLI flag > env > file > default). Keys map mechanically to env names (`judge_model` → `CAIRN_JUDGE_MODEL`; `anthropic_api_key` and `ollama_host` pass through), so the file schema can never drift from the env surface. New `cairn config` shows every setting's effective value and source (secrets masked); `cairn config --init` scaffolds a fully-commented template (mode 0600). The plugin's detached SessionEnd sweep reads the file directly — enabling the LLM judge no longer requires any shell-profile exports.
+
 ## [0.8.0] - 2026-06-12
 
 ### Added
@@ -89,7 +94,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Out-of-band capture from coding-agent transcripts (redacted, non-lossy `remember`).
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
-[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/ccf/agentcairn/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/ccf/agentcairn/compare/v0.7.2...v0.8.0
 [0.7.2]: https://github.com/ccf/agentcairn/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/ccf/agentcairn/compare/v0.7.0...v0.7.1
