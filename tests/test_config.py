@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import pytest
 
+import cairn.config as cfg
 from cairn.config import ollama_config, parse_bool, resolve_rerank
 
 
@@ -57,3 +58,80 @@ def test_fastembed_model_default_and_override():
         fastembed_model(env={"CAIRN_EMBED_MODEL": "BAAI/bge-small-en-v1.5"})
         == "BAAI/bge-small-en-v1.5"
     )
+
+
+@pytest.fixture(autouse=True)
+def _isolated_config(tmp_path, monkeypatch):
+    """Never read the developer's real ~/.agentcairn; reset the cache around each test."""
+    monkeypatch.setenv("CAIRN_CONFIG", str(tmp_path / "config.toml"))
+    cfg._reset()
+    yield
+    cfg._reset()
+
+
+def _write(tmp_path, body: str):
+    p = tmp_path / "config.toml"
+    p.write_text(body)
+    cfg._reset()
+    return p
+
+
+def test_cairn_env_missing_file_is_env_only(monkeypatch):
+    monkeypatch.setenv("CAIRN_JUDGE", "none")
+    e = cfg.cairn_env()
+    assert e["CAIRN_JUDGE"] == "none"
+    assert "CAIRN_EMBED_MODEL" not in e
+
+
+def test_cairn_env_file_layer_and_env_wins(tmp_path, monkeypatch):
+    _write(tmp_path, 'judge = "anthropic"\nembed_model = "BAAI/bge-small-en-v1.5"\n')
+    e = cfg.cairn_env()
+    assert e["CAIRN_JUDGE"] == "anthropic"  # from file
+    assert e["CAIRN_EMBED_MODEL"] == "BAAI/bge-small-en-v1.5"
+    monkeypatch.setenv("CAIRN_JUDGE", "none")
+    cfg._reset()
+    assert cfg.cairn_env()["CAIRN_JUDGE"] == "none"  # env wins over file
+
+
+def test_cairn_env_passthrough_keys(tmp_path):
+    _write(tmp_path, 'anthropic_api_key = "sk-ant-test-12345678"\nollama_host = "http://x:1"\n')
+    e = cfg.cairn_env()
+    assert e["ANTHROPIC_API_KEY"] == "sk-ant-test-12345678"
+    assert e["OLLAMA_HOST"] == "http://x:1"
+
+
+def test_cairn_env_type_coercion(tmp_path):
+    _write(tmp_path, "rerank = false\njudge_timeout = 10\nusage = true\n")
+    e = cfg.cairn_env()
+    assert e["CAIRN_RERANK"] == "false"  # bool -> lowercase string
+    assert e["CAIRN_JUDGE_TIMEOUT"] == "10"  # int -> string
+    assert e["CAIRN_USAGE"] == "true"
+
+
+def test_cairn_env_unknown_key_warns_once(tmp_path, capsys):
+    _write(tmp_path, 'judg_model = "typo"\n')
+    cfg.cairn_env()
+    cfg.cairn_env()  # second call: no second warning
+    err = capsys.readouterr().err
+    assert err.count("judg_model") == 1
+    assert "unknown" in err.lower()
+
+
+def test_cairn_env_malformed_file_degrades(tmp_path, capsys):
+    _write(tmp_path, "this is = = not toml")
+    e = cfg.cairn_env()
+    assert "CAIRN_JUDGE" not in e  # treated as empty
+    assert "config" in capsys.readouterr().err.lower()
+
+
+def test_resolvers_pick_up_file(tmp_path):
+    _write(tmp_path, 'judge = "none"\nrerank = false\nembed_model = "m-x"\n')
+    mode, _, _ = cfg.judge_config()
+    assert mode == "none"
+    assert cfg.resolve_rerank(None) is False
+    assert cfg.fastembed_model() == "m-x"
+
+
+def test_config_file_values_exposes_file_layer(tmp_path):
+    _write(tmp_path, 'judge = "anthropic"\n')
+    assert cfg.config_file_values()["CAIRN_JUDGE"] == "anthropic"
