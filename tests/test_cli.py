@@ -887,3 +887,43 @@ def test_config_file_drives_judge_tier(tmp_path, monkeypatch):
     cfg._reset()
     assert r.exit_code == 0, r.output
     assert "judge: none" in r.output
+
+
+def test_config_inspect_shows_sources(tmp_path, monkeypatch):
+    import cairn.config as cfg
+
+    conf = tmp_path / "config.toml"
+    conf.write_text('judge = "anthropic"\nanthropic_api_key = "sk-ant-test-abcdef12345678"\n')
+    monkeypatch.setenv("CAIRN_CONFIG", str(conf))
+    monkeypatch.setenv("CAIRN_EMBEDDER", "fake")
+    monkeypatch.delenv("CAIRN_JUDGE", raising=False)
+    cfg._reset()
+    r = runner.invoke(app, ["config"])
+    cfg._reset()
+    assert r.exit_code == 0, r.output
+    out = r.output
+    assert "judge" in out and "anthropic" in out and "file" in out  # file-sourced
+    assert "embedder" in out and "fake" in out and "env" in out  # env-sourced
+    assert "default" in out  # untouched knobs
+    assert "sk-ant-test-abcdef12345678" not in out  # secret masked
+    assert "5678" in out  # ...but last4 shown
+
+
+def test_config_init_scaffolds_template(tmp_path, monkeypatch):
+    import cairn.config as cfg
+
+    conf = tmp_path / "sub" / "config.toml"  # parent must be created
+    monkeypatch.setenv("CAIRN_CONFIG", str(conf))
+    cfg._reset()
+    r = runner.invoke(app, ["config", "--init"])
+    cfg._reset()
+    assert r.exit_code == 0, r.output
+    assert conf.exists()
+    assert (conf.stat().st_mode & 0o777) == 0o600  # key may live here
+    body = conf.read_text()
+    assert '# judge = "embedding"' in body  # every knob present, commented out
+    assert "# anthropic_api_key" in body
+    # refuses overwrite
+    r2 = runner.invoke(app, ["config", "--init"])
+    assert r2.exit_code == 0
+    assert "exists" in r2.output.lower()
