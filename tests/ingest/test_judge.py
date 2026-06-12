@@ -240,3 +240,60 @@ def test_resolve_judge_no_embedder_is_none():
         raise RuntimeError("no model")
 
     assert resolve_judge(env={}, embedder_loader=broken_loader) is None
+
+
+def test_embedding_judge_chunks_large_batches():
+    """A first-run/rebuild can pend ~1000 candidates; embeds must be chunked
+    (one giant embed() batch OOM-killed the process on real data)."""
+    sizes = []
+
+    class CountingEmbedder(StubEmbedder):
+        def embed(self, texts):
+            sizes.append(len(texts))
+            return super().embed(texts)
+
+    judge = EmbeddingJudge(CountingEmbedder())
+    out = judge.judge([f"text number {i}" for i in range(150)])
+    assert len(out) == 150
+    # 2 prototype batches at init + chunked candidate batches of <=64
+    assert all(s <= 64 for s in sizes)
+    assert sizes[2:] == [64, 64, 22]
+
+
+def test_judge_input_clipped_for_huge_texts():
+    """A ~300KB pasted blob OOM-killed the embedder on real data; both judge tiers
+    must clip their INPUT (the stored note keeps the full text)."""
+    received = []
+
+    class SpyEmbedder(StubEmbedder):
+        def embed(self, texts):
+            received.extend(texts)
+            return super().embed(texts)
+
+    judge = EmbeddingJudge(SpyEmbedder())
+    received.clear()  # drop prototype batches
+    out = judge.judge(["x" * 300_000])
+    assert len(out) == 1
+    assert max(len(t) for t in received) <= 2000
+
+
+def test_llm_prompt_clips_huge_texts(monkeypatch):
+    import cairn.ingest.judge as jmod
+
+    seen = {}
+
+    def fake_request(payload, api_key, timeout):
+        seen["len"] = len(payload["messages"][0]["content"])
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": '[{"i": 0, "durability": 0.5, "title": null, "distilled": null}]',
+                }
+            ]
+        }
+
+    monkeypatch.setattr(jmod, "_anthropic_request", fake_request)
+    judge = jmod.LLMJudge(api_key="k", model="m", timeout=5.0)
+    judge.judge(["y" * 300_000])
+    assert seen["len"] < 5000  # prompt + clipped text, not 300KB

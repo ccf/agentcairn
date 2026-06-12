@@ -178,3 +178,16 @@ def test_legacy_tag_behind_ansi_escapes_is_caught(tmp_path):
     )
     obj = {"type": "user", "message": {"role": "user", "content": content}}  # NO flags
     assert classify_claude_code(obj) == EventKind.META_INJECTION
+
+
+def test_legacy_bash_input_is_not_authored():
+    """<bash-input> (user shell passthrough echoed as a user row, no flags in
+    legacy transcripts) is framing, not prose — found in the Layer-B labeling pool."""
+    from cairn.ingest.events import EventKind
+    from cairn.ingest.locate import classify_claude_code
+
+    obj = {
+        "type": "user",
+        "message": {"role": "user", "content": "<bash-input> terraform apply -auto-approve"},
+    }
+    assert classify_claude_code(obj) == EventKind.META_INJECTION

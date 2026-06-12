@@ -70,6 +70,17 @@ def _cos(a: list[float], b: list[float]) -> float:
     return dot / (na * nb)
 
 
+_EMBED_BATCH = 64  # texts per embed() call — a first-run/rebuild can have ~1000
+# pending candidates, and embedding them in one giant batch can OOM-kill the process.
+_JUDGE_INPUT_CHARS = 2000  # judge the HEAD of each message: durability is evident
+# early, and real corpora contain pasted blobs up to ~300KB that OOM the embedder
+# (transformer memory scales with sequence length) and would explode LLM token cost.
+
+
+def _judge_input(text: str) -> str:
+    return text if len(text) <= _JUDGE_INPUT_CHARS else text[:_JUDGE_INPUT_CHARS]
+
+
 class EmbeddingJudge:
     """Durability = clamp01(0.5 + gain * (mean_cos(durable) - mean_cos(ephemeral)))."""
 
@@ -82,11 +93,13 @@ class EmbeddingJudge:
         if not texts:
             return []
         out: list[Judgment] = []
-        for vec in self._embedder.embed(texts):
-            d = sum(_cos(vec, p) for p in self._durable_vecs) / len(self._durable_vecs)
-            e = sum(_cos(vec, p) for p in self._ephemeral_vecs) / len(self._ephemeral_vecs)
-            durability = max(0.0, min(1.0, 0.5 + _MARGIN_GAIN * (d - e)))
-            out.append(Judgment(durability=durability))
+        clipped = [_judge_input(t) for t in texts]
+        for start in range(0, len(clipped), _EMBED_BATCH):
+            for vec in self._embedder.embed(clipped[start : start + _EMBED_BATCH]):
+                d = sum(_cos(vec, p) for p in self._durable_vecs) / len(self._durable_vecs)
+                e = sum(_cos(vec, p) for p in self._ephemeral_vecs) / len(self._ephemeral_vecs)
+                durability = max(0.0, min(1.0, 0.5 + _MARGIN_GAIN * (d - e)))
+                out.append(Judgment(durability=durability))
         return out
 
 
@@ -159,7 +172,7 @@ class LLMJudge:
         return out
 
     def _judge_llm(self, texts: list[str]) -> list[Judgment]:
-        numbered = "\n".join(f"[{i}] {t}" for i, t in enumerate(texts))
+        numbered = "\n".join(f"[{i}] {_judge_input(t)}" for i, t in enumerate(texts))
         payload = {
             "model": self._model,
             "max_tokens": 8192,

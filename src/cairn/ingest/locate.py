@@ -73,6 +73,7 @@ def _extract_text(content: object) -> str:
 _LEGACY_TAG_PREFIXES = (
     "<command-",  # <command-message/name/args>
     "<local-command",  # -stdout / -stderr / -caveat
+    "<bash-input",
     "<bash-stdout",
     "<bash-stderr",
     "<task-notification",
