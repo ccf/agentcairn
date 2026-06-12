@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-06-12
+
+### Changed
+- **On the LLM-judge tier, the judge's durability now gates the keep directly** (instead of a 50/50 blend with the lexical heuristic). A turn the LLM rates ephemeral is dropped even when it's long and marker-heavy, so the paid LLM verdict is no longer diluted by the keyword heuristic — surviving memories are the ones the LLM judged durable (and distilled). The embedding tier keeps the heuristic blend (there the heuristic is the stronger signal). Found dogfooding 0.9.1: a clean LLM-judged rebuild kept ~85% of notes undistilled because high-heuristic process chatter slipped through the blend.
+
 ## [0.9.1] - 2026-06-12
 
 ### Fixed
@@ -100,7 +105,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Out-of-band capture from coding-agent transcripts (redacted, non-lossy `remember`).
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
-[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.9.2...HEAD
+[0.9.2]: https://github.com/ccf/agentcairn/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/ccf/agentcairn/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/ccf/agentcairn/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/ccf/agentcairn/compare/v0.7.2...v0.8.0
