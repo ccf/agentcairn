@@ -1,5 +1,7 @@
 # tests/ingest/test_redact.py
 # SPDX-License-Identifier: Apache-2.0
+import re
+
 import pytest
 
 from cairn.ingest.redact import redact
@@ -58,8 +60,10 @@ def test_multiple_secrets_counted():
 
 
 def test_high_entropy_token_redacted():
-    # a long random-looking token not matching any named pattern
-    text = "token: Zk9Q2mVx7Lp4Rt6Yw1Nf3Hd8Bc5Jg0Ks2Pv4Ua7Wb9Xe1Tc3"
+    # a bare long random-looking token in prose, matching NO named pattern and NO
+    # secret-keyword assignment — the entropy heuristic is the only thing that can
+    # catch it. (Avoid a "token:" prefix, which is a secret_assignment match.)
+    text = "the value Zk9Q2mVx7Lp4Rt6Yw1Nf3Hd8Bc5Jg0Ks2Pv4Ua7Wb9Xe1Tc3 appears inline"
     result = redact(text)
     assert result.count >= 1
     assert "high_entropy" in result.kinds
@@ -333,3 +337,21 @@ def test_aws_guard_rejects_40char_hex_sha():
     result = redact(f"commit {sha} on main")
     assert sha in result.text
     assert result.count == 0
+
+
+def test_hyphenated_vendor_key_not_fragmented():
+    """A hyphenated sk-ant key must be redacted WHOLE by the named pattern, not
+    sliced by the entropy pass (which leaks the hyphen-delimited ends). Found
+    dogfooding 0.9.0 — the golden test only checks the full contiguous string."""
+    key = "sk-ant-api03-aBcd1234EfGh5678IjKl90MnOpQrStUvWxYz-aB12cd34Ef56_gh78iJkLmN"
+    r = redact(f"here's the key: {key} thanks")
+    assert "anthropic_key" in r.kinds
+    assert not re.search(r"sk-ant-[A-Za-z0-9_]{2,}", r.text), f"key fragment leaked: {r.text!r}"
+    for frag in ("api03", "iJkLmN", "aB12cd34"):
+        assert frag not in r.text, f"key fragment {frag!r} leaked: {r.text!r}"
+
+
+def test_named_pattern_wins_over_entropy_kind():
+    r = redact("token ghp_16C7e42F292c6912E7710c838347Ae178B4a end")
+    assert "github_token" in r.kinds
+    assert "high_entropy" not in r.kinds
