@@ -94,7 +94,7 @@ def ingest_transcripts(
             if judge is not None and judged_cache is not None:
                 cached = judged_cache.get(h)
                 if cached is not None:
-                    judged[len(pending)] = Judgment(durability=cached)
+                    judged[len(pending)] = cached  # full Judgment, distillation included
             pending.append((cand, h))
     report.event_kinds = dict(kind_totals)
 
@@ -128,7 +128,7 @@ def ingest_transcripts(
             # dry runs: they deliberately downgrade the tier, and persisting that
             # verdict would make later real runs cache-hit and skip the LLM.
             if judge is not None and judged_cache is not None and j is not None and not dry_run:
-                judged_cache.put(h, j.durability)
+                judged_cache.put(h, j)
             continue
         report.candidates += 1
         note = distiller.distill(cand)

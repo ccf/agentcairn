@@ -205,12 +205,13 @@ def test_judged_cache_roundtrip(tmp_path):
     p = tmp_path / "judged.jsonl"
     c = JudgedCache(p)  # missing file -> empty
     assert c.get("abc") is None
-    c.put("abc", 0.25)
-    assert c.get("abc") == 0.25
-    c.put("abc", 0.25)  # idempotent: no duplicate line
+    j = Judgment(durability=0.25, title="T", distilled="The fact.")
+    c.put("abc", j)
+    assert c.get("abc") == j
+    c.put("abc", j)  # idempotent: no duplicate line
     assert len([ln for ln in p.read_text().splitlines() if ln.strip()]) == 1
     c2 = JudgedCache(p)  # reload from disk
-    assert c2.get("abc") == 0.25
+    assert c2.get("abc") == j  # full judgment survives disk roundtrip
     assert c2.get("missing") is None
 
 

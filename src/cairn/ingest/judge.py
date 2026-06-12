@@ -202,14 +202,16 @@ class LLMJudge:
 
 
 class JudgedCache:
-    """hash -> durability for already-judged-but-not-written candidates, so the
+    """hash -> Judgment for already-judged-but-not-written candidates, so the
     LLM never re-judges the same text across runs. JSONL beside the dedup ledger.
     (Written candidates are dedup-ledgered and never reconsidered; this cache
-    covers the gated-out ones, which stay pending forever.)"""
+    covers the gated-out ones, which stay pending forever.) The FULL judgment is
+    cached — title/distilled included — so a candidate that later passes the gate
+    (e.g. a lower threshold) still gets the LLM distillation format."""
 
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
-        self._mem: dict[str, float] = {}
+        self._mem: dict[str, Judgment] = {}
         if self.path.exists():
             for ln in self.path.read_text(encoding="utf-8").splitlines():
                 ln = ln.strip()
@@ -217,20 +219,29 @@ class JudgedCache:
                     continue
                 try:
                     obj = json.loads(ln)
-                    self._mem[str(obj["h"])] = float(obj["d"])
+                    self._mem[str(obj["h"])] = Judgment(
+                        durability=float(obj["d"]),
+                        title=obj.get("t") or None,
+                        distilled=obj.get("s") or None,
+                    )
                 except Exception:
                     continue  # tolerate torn/corrupt lines — it's a rebuildable cache
 
-    def get(self, h: str) -> float | None:
+    def get(self, h: str) -> Judgment | None:
         return self._mem.get(h)
 
-    def put(self, h: str, durability: float) -> None:
-        if self._mem.get(h) == durability:
+    def put(self, h: str, judgment: Judgment) -> None:
+        if self._mem.get(h) == judgment:
             return  # idempotent: no duplicate appends across runs
-        self._mem[h] = durability
+        self._mem[h] = judgment
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        row = {"h": h, "d": judgment.durability}
+        if judgment.title:
+            row["t"] = judgment.title
+        if judgment.distilled:
+            row["s"] = judgment.distilled
         with self.path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps({"h": h, "d": durability}) + "\n")
+            f.write(json.dumps(row) + "\n")
 
 
 def resolve_judge(

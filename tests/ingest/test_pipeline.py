@@ -352,7 +352,9 @@ def test_judged_cache_hit_still_flows_through_phase_c(tmp_path):
 
     text = "We decided to always rebase-merge approved PRs because it is important."
     cache = JudgedCache(tmp_path / "judged.jsonl")
-    cache.put(content_hash(text), 1.0)
+    from cairn.ingest.judge import Judgment
+
+    cache.put(content_hash(text), Judgment(durability=1.0))
     t = Transcript(
         session_id="s-dur",
         cwd="/Users/x/p",
@@ -414,3 +416,56 @@ def test_dry_run_does_not_write_judged_cache(tmp_path):
     assert not cache_path.exists()  # but NOTHING was persisted
     # and a fresh cache instance sees no entries
     assert JudgedCache(cache_path).get("anything") is None
+
+
+def test_judged_cache_preserves_llm_distillation(tmp_path):
+    """Bugbot (PR #57): a gated LLM judgment must cache title+distilled too —
+    if a later run passes the gate (lower threshold), the cache-hit note must
+    still get the distillation format, not a durability-only judgment."""
+    from cairn.ingest.judge import JudgedCache, Judgment
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    class LLMishJudge:
+        degraded = 0
+
+        def judge(self, texts):
+            return [
+                Judgment(durability=0.4, title="Rotation policy", distilled="Always rotate tokens.")
+                for _ in texts
+            ]
+
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    cache = JudgedCache(tmp_path / "judged.jsonl")
+    ledger = DedupLedger(tmp_path / "led.sha256")
+    # Run 1: threshold 0.9 gates everything out; full judgment cached.
+    r1 = ingest_transcripts(
+        [_transcript(tmp_path)],
+        vault_root=vault,
+        ledger=ledger,
+        judge=LLMishJudge(),
+        judged_cache=cache,
+        threshold=0.9,
+    )
+    assert r1.written == [] and r1.gated_out >= 1
+
+    class MustNotBeCalled:
+        degraded = 0
+
+        def judge(self, texts):
+            raise AssertionError(f"LLM re-judged cached texts: {texts}")
+
+    # Run 2: lower threshold; cache hits must pass the gate WITH distillation.
+    r2 = ingest_transcripts(
+        [_transcript(tmp_path)],
+        vault_root=vault,
+        ledger=DedupLedger(tmp_path / "led.sha256"),
+        judge=MustNotBeCalled(),
+        judged_cache=JudgedCache(tmp_path / "judged.jsonl"),
+        threshold=0.3,
+    )
+    assert len(r2.written) >= 1
+    blob = "\n".join(p.read_text() for p in vault.rglob("*.md"))
+    assert "- [context] Always rotate tokens. #ingested" in blob  # distilled survived the cache
+    assert "- [verbatim]" in blob
+    assert "Rotation policy" in blob  # title survived too
