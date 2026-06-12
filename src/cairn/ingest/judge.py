@@ -11,7 +11,9 @@ Every failure degrades one tier silently; ingestion never blocks on a model."""
 
 from __future__ import annotations
 
+import json
 import math
+import urllib.request
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -85,3 +87,134 @@ class EmbeddingJudge:
             durability = max(0.0, min(1.0, 0.5 + _MARGIN_GAIN * (d - e)))
             out.append(Judgment(durability=durability))
         return out
+
+
+_ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+_MAX_DISTILL_RATIO = 4  # distilled longer than 4x verbatim -> discarded
+
+_PROMPT = """You judge whether each numbered message from a developer's coding-agent \
+session is a DURABLE memory (decision, preference, lesson, durable fact, strategic \
+direction) or EPHEMERAL chatter (task coordination, status checks, one-off process \
+instructions). For each, return durability in [0,1] (1 = clearly durable), a short \
+descriptive title (<=70 chars), and a crisp 1-2 sentence distillation of the durable \
+fact. For ephemeral messages use null title/distilled.
+Return ONLY a JSON array: [{"i": <index>, "durability": <float>, "title": <str|null>, \
+"distilled": <str|null>}, ...] with one entry per input, in order.
+
+Messages:
+"""
+
+
+def _anthropic_request(payload: dict, api_key: str, timeout: float) -> dict:
+    """Single POST to the Anthropic Messages API (stdlib only; seam for tests)."""
+    req = urllib.request.Request(
+        _ANTHROPIC_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "content-type": "application/json",
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 (fixed https URL)
+        return json.loads(resp.read().decode("utf-8"))
+
+
+class LLMJudge:
+    """One batched Messages call judging all candidates; any failure degrades to
+    the fallback judge (or neutral 0.5 judgments if none) and counts in .degraded."""
+
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        model: str,
+        timeout: float,
+        fallback: Judge | None = None,
+    ) -> None:
+        self._api_key = api_key
+        self._model = model
+        self._timeout = timeout
+        self._fallback = fallback
+        self.degraded = 0  # candidates that fell back a tier
+
+    def judge(self, texts: list[str]) -> list[Judgment]:
+        if not texts:
+            return []
+        try:
+            return self._judge_llm(texts)
+        except Exception:
+            self.degraded += len(texts)
+            if self._fallback is not None:
+                return self._fallback.judge(texts)
+            return [Judgment(durability=0.5) for _ in texts]
+
+    def _judge_llm(self, texts: list[str]) -> list[Judgment]:
+        numbered = "\n".join(f"[{i}] {t}" for i, t in enumerate(texts))
+        payload = {
+            "model": self._model,
+            "max_tokens": 8192,
+            "messages": [{"role": "user", "content": _PROMPT + numbered}],
+        }
+        resp = _anthropic_request(payload, self._api_key, self._timeout)
+        raw = "".join(b.get("text", "") for b in resp.get("content", []) if b.get("type") == "text")
+        raw = raw.strip()
+        if raw.startswith("```"):
+            raw = raw.strip("`").lstrip("json").strip()
+        items = json.loads(raw)
+        by_i = {int(it["i"]): it for it in items}
+        out: list[Judgment] = []
+        for i, text in enumerate(texts):
+            it = by_i.get(i)
+            if it is None:
+                raise ValueError(f"missing judgment for index {i}")
+            durability = max(0.0, min(1.0, float(it["durability"])))
+            title = it.get("title") or None
+            distilled = it.get("distilled") or None
+            if distilled and len(distilled) > _MAX_DISTILL_RATIO * max(len(text), 1):
+                distilled = None
+            if title and len(title) > 120:
+                title = None
+            out.append(Judgment(durability=durability, title=title, distilled=distilled))
+        return out
+
+
+def resolve_judge(
+    *,
+    env: dict | None = None,
+    embedder=None,
+    embedder_loader=None,
+) -> Judge | None:
+    """Resolve the judge tier from env (spec: anthropic -> embedding -> none).
+    `embedder`/`embedder_loader` are injection seams; default loads FastEmbed."""
+    import os as _os
+
+    from cairn.config import judge_config
+
+    e = env if env is not None else dict(_os.environ)
+    mode, model, timeout = judge_config(e)
+    if mode in ("none", "off", "0", "false"):
+        return None
+
+    def _load_embedding_judge() -> EmbeddingJudge | None:
+        nonlocal embedder
+        try:
+            if embedder is None:
+                if embedder_loader is not None:
+                    embedder = embedder_loader()
+                else:
+                    from cairn.embed import get_embedder
+
+                    embedder = get_embedder("fastembed")
+            return EmbeddingJudge(embedder)
+        except Exception:
+            return None
+
+    emb_judge = _load_embedding_judge()
+    if mode == "anthropic":
+        key = e.get("ANTHROPIC_API_KEY")
+        if key:
+            return LLMJudge(api_key=key, model=model, timeout=timeout, fallback=emb_judge)
+        return emb_judge  # no key -> degrade
+    return emb_judge  # "embedding" / default
