@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-06-12
+
+### Fixed
+- **Redaction no longer swallows paths, URLs, branches, or identifiers.** The entropy heuristic's candidate token class no longer includes `/`, `-`, or `_`, so structured identifiers — file paths, GitHub URLs, git branches, hyphenated slugs, snake_case/dunder names — can't form a candidate by construction (a vault audit found the old class ~99% false-positive on such identifiers; a corpus replay over real transcripts went from 2,875 `high_entropy` hits to 78, the remainder being by-design redactions). A new guarded `aws_secret_value` pattern covers the one realistic separator-bearing bare secret shape (exactly-40-char base64 with upper+lower+digit), running before the entropy pass so it can't be partially consumed. All known vendor key shapes remain covered by the named patterns; the golden zero-leakage corpus is unchanged and passing.
+
 ## [0.7.0] - 2026-06-11
 
 ### Changed
@@ -71,7 +76,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Out-of-band capture from coding-agent transcripts (redacted, non-lossy `remember`).
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
-[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/ccf/agentcairn/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/ccf/agentcairn/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/ccf/agentcairn/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/ccf/agentcairn/compare/v0.6.0...v0.6.1
