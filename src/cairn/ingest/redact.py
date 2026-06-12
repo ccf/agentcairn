@@ -75,11 +75,13 @@ def _mixed_charset(token: str) -> bool:
 # Entropy heuristic bounds: only long, structureless tokens are candidates.
 _ENTROPY_MIN_LEN = 24
 _ENTROPY_BITS = 3.5
-# No '/' or '-' in the class: paths, URLs, branches, and hyphenated slugs must
-# never form an entropy candidate (2026-06-11 audit: 571 high_entropy hits were
-# ~99% structured identifiers). Separator-bearing bare secrets are covered by
-# the dedicated aws_secret_value pass; known vendor shapes by named patterns.
-_TOKEN_RE = re.compile(rf"[A-Za-z0-9+_]{{{_ENTROPY_MIN_LEN},}}")
+# No '/', '-', or '_' in the class: paths, URLs, branches, hyphenated slugs, and
+# snake_case/dunder identifiers (mcp__plugin_*, wrap_app_handling_exceptions) must
+# never form an entropy candidate — the 2026-06-11 audit + corpus replay showed
+# such structured identifiers were the overwhelming false-positive source.
+# Separator-bearing bare secrets are covered by the dedicated aws_secret_value
+# pass; known vendor shapes (github_pat_*, sk-proj-*, …) by named patterns.
+_TOKEN_RE = re.compile(rf"[A-Za-z0-9+]{{{_ENTROPY_MIN_LEN},}}")
 # git SHAs are pure hex (7–40 chars) — allow them to survive
 _HEX_RE = re.compile(r"(?i)^[0-9a-f]{7,40}$")
 

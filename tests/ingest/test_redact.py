@@ -279,6 +279,9 @@ OVERFIRE_SURVIVORS = [
     ("skill_slug", "use superpowers:subagent-driven-development for this"),
     ("plan_filename", "see docs/plans/2026-06-10-agentcairn-claude-code-plugin.md for details"),
     ("permalink_slug", "permalink: all-of-the-above-angles-are-31b5c3dc"),
+    # underscore identifiers (corpus replay found these as the residual FP class)
+    ("mcp_tool_name", "call mcp__plugin_playwright_playwright__browser_take_screenshot next"),
+    ("snake_case_fn", "the fix is in wrap_app_handling_exceptions in starlette"),
 ]
 
 
