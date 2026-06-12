@@ -5,6 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-06-12
+
+### Fixed
+- **Redaction: hyphenated vendor keys are no longer fragmented (security).** The named secret patterns now run *before* the entropy heuristic, so a key like `sk-ant-…` (or `sk-proj-…`, Slack `xox…-…`) is consumed whole by its precise pattern. Previously the entropy pass — narrowed in 0.7.1 to exclude hyphens — sliced the hyphen-free middle of such a key and replaced only that, leaving the key's hyphen-delimited prefix and tail to survive into the vault and the LLM judge's input. Found dogfooding 0.9.0 on a real key; verified the corpus now redacts it whole with zero fragments.
+- **The LLM-judge cache is tier-aware.** `JudgedCache` records which tier (embedding/llm) produced each verdict; a run only reuses a cached entry whose tier is at least the current run's. So an embedding-fallback verdict cached while no API key was set no longer permanently suppresses the LLM tier once a key is configured (legacy cache rows default to embedding and auto-heal on the next LLM run).
+
 ## [0.9.0] - 2026-06-12
 
 ### Added
@@ -94,7 +100,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Out-of-band capture from coding-agent transcripts (redacted, non-lossy `remember`).
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
-[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/ccf/agentcairn/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/ccf/agentcairn/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/ccf/agentcairn/compare/v0.7.2...v0.8.0
 [0.7.2]: https://github.com/ccf/agentcairn/compare/v0.7.1...v0.7.2
