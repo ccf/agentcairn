@@ -5,6 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-06-12
+
+### Added
+- **Layer B: semantic memory-worthiness judge.** Authored turns are now judged for durability (decision/preference/lesson vs ephemeral task chatter) and the score combines 50/50 with the importance heuristic at the same 0.5 gate. Default tier: a local **embedding-prototype judge** (cosine margin against curated exemplar sets, using the shipped FastEmbed model — no key, no new deps). Opt-in tier: `CAIRN_JUDGE=anthropic` (+`ANTHROPIC_API_KEY`) enables an **LLM judge** that additionally writes a descriptive title and a crisp distilled restatement — notes then carry `[context] <distilled>` plus the full `[verbatim]` original (non-lossy; enables future re-distillation). One batched LLM call per ingest run with a hard timeout (`CAIRN_JUDGE_TIMEOUT`, default 10s); any failure silently degrades a tier and is reported. `cairn ingest`/`sweep` report the judge tier; the plugin's SessionEnd sweep now runs detached so session close never waits.
+
+### Fixed
+- Note titles truncate at a word boundary with an ellipsis (no more mid-word "…Ca" fragments) and no longer fold across YAML lines.
+
 ## [0.7.2] - 2026-06-12
 
 ### Fixed
@@ -81,7 +89,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Out-of-band capture from coding-agent transcripts (redacted, non-lossy `remember`).
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
-[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.7.2...HEAD
+[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/ccf/agentcairn/compare/v0.7.2...v0.8.0
 [0.7.2]: https://github.com/ccf/agentcairn/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/ccf/agentcairn/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/ccf/agentcairn/compare/v0.6.2...v0.7.0
