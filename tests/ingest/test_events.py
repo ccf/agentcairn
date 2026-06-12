@@ -164,3 +164,17 @@ def test_authored_prose_starting_with_angle_bracket_survives():
         "message": {"role": "user", "content": "<div> renders before <span>, why?"},
     }
     assert classify_claude_code(obj) == EventKind.AUTHORED_USER
+
+
+def test_legacy_tag_behind_ansi_escapes_is_caught(tmp_path):
+    """Bugbot (PR #56): a legacy unflagged row whose tag is preceded by ANSI
+    escapes must still hit the backstop — the prefix check runs on sanitized
+    text, matching what gets ingested."""
+    from cairn.ingest.events import EventKind
+    from cairn.ingest.locate import classify_claude_code
+
+    content = (
+        "\x1b[1m\x1b[38;2;136;136;136m<local-command-stdout>Context Usage</local-command-stdout>"
+    )
+    obj = {"type": "user", "message": {"role": "user", "content": content}}  # NO flags
+    assert classify_claude_code(obj) == EventKind.META_INJECTION
