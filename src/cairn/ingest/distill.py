@@ -49,7 +49,9 @@ class ExtractiveDistiller:
     def distill(self, candidate: Candidate) -> Note:
         h = content_hash(candidate.text)
         slug = f"{_slugify(candidate.text)}-{h[:8]}"
-        title = _truncate_title(candidate.text)
+        j = candidate.judgment
+        title = (j.title if j and j.title else None) or _truncate_title(candidate.text)
+        imp = candidate.importance if candidate.importance is not None else score(candidate.text)
         frontmatter = {
             "title": title,
             "type": "memory",
@@ -57,9 +59,13 @@ class ExtractiveDistiller:
             "tags": ["ingested"],
             "created": candidate.timestamp,
             "source": f"memory://session/{candidate.session_id}",
-            "importance": round(score(candidate.text), 3),
+            "importance": round(imp, 3),
         }
-        body = f"- [context] {candidate.text.strip()} #ingested\n"
+        verbatim = candidate.text.strip()
+        if j and j.distilled:
+            body = f"- [context] {j.distilled.strip()} #ingested\n- [verbatim] {verbatim}\n"
+        else:
+            body = f"- [context] {verbatim} #ingested\n"
         return Note(permalink=slug, frontmatter=frontmatter, body=body)
 
 
