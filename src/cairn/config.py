@@ -80,7 +80,12 @@ KNOBS: tuple[Knob, ...] = (
         "Memory durability judge: anthropic | embedding | none.",
     ),
     Knob("judge_model", "CAIRN_JUDGE_MODEL", "claude-haiku-4-5", "Model for the LLM judge tier."),
-    Knob("judge_timeout", "CAIRN_JUDGE_TIMEOUT", "10", "LLM judge timeout (seconds)."),
+    Knob(
+        "judge_timeout",
+        "CAIRN_JUDGE_TIMEOUT",
+        "90",
+        "LLM judge timeout floor (seconds); the real budget scales with batch size.",
+    ),
     Knob(
         "ollama_host", "OLLAMA_HOST", "http://localhost:11434", "Ollama server (ollama embedder)."
     ),
@@ -191,7 +196,7 @@ def resolve_rerank(explicit: bool | None = None, env: Mapping[str, str] | None =
 
 
 _DEFAULT_JUDGE_MODEL = "claude-haiku-4-5"
-_DEFAULT_JUDGE_TIMEOUT = 10.0
+_DEFAULT_JUDGE_TIMEOUT = 90.0  # floor; LLMJudge scales the real budget per batch
 
 
 def judge_config(env: Mapping[str, str] | None = None) -> tuple[str, str, float]:

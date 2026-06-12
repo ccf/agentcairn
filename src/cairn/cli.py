@@ -446,12 +446,24 @@ def serve(
 
 
 def _warn_if_llm_tier_unavailable(rep) -> None:
-    """CAIRN_JUDGE=anthropic but the run didn't use the LLM tier — say so once."""
-    if cairn_env().get("CAIRN_JUDGE") == "anthropic" and rep.judge_tier != "llm":
+    """Surface a degraded LLM judge run. Two failure modes, both easy to miss:
+    the tier never resolved (no key), or it resolved but every batch failed and
+    fell back (e.g. the timeout was too low) — the latter kept the tier "llm" so
+    the old tier-only check stayed silent while the whole run used the fallback."""
+    if cairn_env().get("CAIRN_JUDGE") != "anthropic":
+        return
+    if rep.judge_tier != "llm":
         # Source-agnostic wording: the setting may come from env OR config file.
         typer.echo(
             "  note: judge=anthropic configured but LLM tier unavailable (missing key?) "
             f"— used {rep.judge_tier}"
+        )
+    elif rep.judge_degraded:
+        typer.secho(
+            f"  ⚠ LLM judge degraded: {rep.judge_degraded} candidate(s) fell back to a "
+            "weaker tier (the batch call failed — raise judge_timeout or check API "
+            "connectivity). Those turns were NOT distilled.",
+            fg=typer.colors.YELLOW,
         )
 
 

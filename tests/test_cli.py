@@ -847,6 +847,43 @@ def test_ingest_notes_when_anthropic_tier_unavailable(tmp_path, monkeypatch):
     assert "judge=anthropic configured but LLM tier unavailable" in r.output
 
 
+def test_ingest_warns_loudly_when_llm_tier_degraded(tmp_path, monkeypatch):
+    """The LLM tier was RESOLVED (judge_tier == 'llm') but every batch failed and
+    degraded to a fallback — the old warning (which only checked tier != 'llm')
+    stayed silent. A degraded run must say so, with a count and a remedy."""
+    import cairn.ingest.judge as jmod
+
+    def boom(payload, api_key, timeout):
+        raise TimeoutError("batch too slow for the timeout")
+
+    monkeypatch.setattr(jmod, "_anthropic_request", boom)
+    monkeypatch.setattr(
+        "cairn.cli.resolve_judge",
+        lambda **kw: jmod.LLMJudge(api_key="k", model="m", timeout=1.0),
+    )
+    projects = tmp_path / "projects"
+    cwd = "/Users/x/proj"
+    _seed_transcript(projects, cwd, "s-deg", [("user", "We decided to always do the thing.")])
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    r = runner.invoke(
+        app,
+        [
+            "ingest",
+            "--vault",
+            str(vault),
+            "--transcripts-dir",
+            str(projects),
+            "--ledger",
+            str(tmp_path / "led.sha256"),
+        ],
+        env={"CAIRN_JUDGE": "anthropic"},
+    )
+    assert r.exit_code == 0, r.output
+    assert "degraded" in r.output.lower()
+    assert "judge_timeout" in r.output  # points at the actual remedy
+
+
 def test_ingest_reports_judge_tier(tmp_path):
     import json as _j
 
@@ -1023,7 +1060,7 @@ def test_config_init_scaffolds_template(tmp_path, monkeypatch):
     # non-string knobs emit valid (unquoted) TOML so uncommenting just works
     assert "# rerank = true" in body and '# rerank = "true"' not in body
     assert "# usage = 1" in body and '# usage = "1"' not in body
-    assert "# judge_timeout = 10" in body and '# judge_timeout = "10"' not in body
+    assert "# judge_timeout = 90" in body and '# judge_timeout = "90"' not in body
     # refuses overwrite
     r2 = runner.invoke(app, ["config", "--init"])
     assert r2.exit_code == 0
