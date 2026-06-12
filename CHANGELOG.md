@@ -5,6 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.9.4] - 2026-06-12
+
+### Fixed
+- **The LLM judge no longer silently degrades on every batch.** The default `judge_timeout` was 10s, but a full 40-message batch takes ~30s on Sonnet — so with the shipped defaults *every* batch timed out and fell back to the embedding tier, producing extractive (un-distilled) notes while appearing to work. The request timeout now **scales with batch size** (at least 2s per message, with the configured `judge_timeout` as a floor), and the default floor is raised to 90s. Found dogfooding 0.9.3: a clean re-gate came back entirely extractive until the timeout was the suspect.
+- **Degraded LLM runs are now reported loudly.** The old "LLM tier unavailable" note only fired when the tier never resolved (missing key); a run where the tier resolved but every batch failed kept `judge_tier == "llm"` and stayed silent. `sweep`/`ingest` now emit a yellow warning naming the degraded count and the remedy (raise `judge_timeout` / check connectivity) whenever any candidate fell back.
+
 ## [0.9.3] - 2026-06-12
 
 ### Changed
@@ -114,6 +120,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
 [Unreleased]: https://github.com/ccf/agentcairn/compare/v0.9.3...HEAD
+[0.9.4]: https://github.com/ccf/agentcairn/compare/v0.9.3...v0.9.4
 [0.9.3]: https://github.com/ccf/agentcairn/compare/v0.9.2...v0.9.3
 [0.9.2]: https://github.com/ccf/agentcairn/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/ccf/agentcairn/compare/v0.9.0...v0.9.1

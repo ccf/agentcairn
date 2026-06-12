@@ -132,6 +132,15 @@ def test_resolvers_pick_up_file(tmp_path):
     assert cfg.fastembed_model() == "m-x"
 
 
+def test_default_judge_timeout_covers_a_full_batch():
+    """The default timeout must comfortably cover a full LLM batch — a 10s
+    default silently degraded every batch (each ~30s) to the embedding tier."""
+    from cairn.ingest.judge import _BATCH_SIZE, _TIMEOUT_PER_MSG_S
+
+    _, _, timeout = cfg.judge_config({"CAIRN_JUDGE": "anthropic"})
+    assert timeout >= _TIMEOUT_PER_MSG_S * _BATCH_SIZE  # >= a full batch's budget
+
+
 def test_config_file_values_exposes_file_layer(tmp_path):
     _write(tmp_path, 'judge = "anthropic"\n')
     assert cfg.config_file_values()["CAIRN_JUDGE"] == "anthropic"

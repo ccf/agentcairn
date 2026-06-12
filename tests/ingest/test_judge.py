@@ -90,6 +90,36 @@ def test_llm_judge_parses_batched_response(monkeypatch):
     assert out[1].durability == 0.1 and out[1].title is None
 
 
+def test_llm_judge_timeout_scales_with_batch_size(monkeypatch):
+    """The per-request timeout must scale with the chunk size: a fixed small
+    timeout (the old default 10s) cannot cover a full batch of 40 messages
+    (~30s on Sonnet), so every batch would time out and degrade silently.
+    The effective timeout is at least _TIMEOUT_PER_MSG_S per message."""
+    import cairn.ingest.judge as jmod
+
+    seen = {}
+
+    def fake_request(payload, api_key, timeout):
+        seen["timeout"] = timeout
+        n = payload["messages"][0]["content"].count("\n[")  # rough message count
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "["
+                    + ",".join(f'{{"i": {i}, "durability": 0.1}}' for i in range(n + 1))
+                    + "]",
+                }
+            ]
+        }
+
+    monkeypatch.setattr(jmod, "_anthropic_request", fake_request)
+    judge = jmod.LLMJudge(api_key="k", model="m", timeout=10.0)  # too-low fixed value
+    judge.judge([f"message number {i}" for i in range(20)])
+    assert seen["timeout"] >= jmod._TIMEOUT_PER_MSG_S * 20  # scaled past the fixed 10s
+    assert seen["timeout"] > 10.0
+
+
 def test_llm_judge_degrades_on_error(monkeypatch):
     import cairn.ingest.judge as jmod
 

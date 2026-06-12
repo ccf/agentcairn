@@ -109,6 +109,11 @@ class EmbeddingJudge:
 _ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 _MAX_DISTILL_RATIO = 4  # distilled longer than 4x verbatim -> discarded
 _BATCH_SIZE = 40  # texts per Messages call: large batches risk output truncation
+_TIMEOUT_PER_MSG_S = 2.0  # the request timeout SCALES with the chunk size: a full
+# 40-message batch takes ~30s on Sonnet, so a fixed small timeout (e.g. the old 10s
+# default) would time out every batch and degrade to embedding silently. The
+# configured judge_timeout is treated as a floor; the effective budget is at least
+# this many seconds per message in the chunk.
 
 _PROMPT = """You judge whether each numbered message from a developer's coding-agent \
 session is a DURABLE memory (decision, preference, lesson, durable fact, strategic \
@@ -192,7 +197,10 @@ class LLMJudge:
             "max_tokens": 8192,
             "messages": [{"role": "user", "content": _PROMPT + numbered}],
         }
-        resp = _anthropic_request(payload, self._api_key, self._timeout)
+        # Scale the timeout with the batch so a too-low configured value can't
+        # spuriously time out a full chunk (the floor is the configured timeout).
+        timeout = max(self._timeout, _TIMEOUT_PER_MSG_S * len(texts))
+        resp = _anthropic_request(payload, self._api_key, timeout)
         raw = "".join(b.get("text", "") for b in resp.get("content", []) if b.get("type") == "text")
         raw = raw.strip()
         if raw.startswith("```"):
