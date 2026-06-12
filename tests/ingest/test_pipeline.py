@@ -172,3 +172,104 @@ def test_ingest_package_exports_plan5_seams():
     for name in expected:
         assert hasattr(pkg, name), f"cairn.ingest missing export: {name!r}"
         assert name in pkg.__all__, f"{name!r} not in cairn.ingest.__all__"
+
+
+# ---------------------------------------------------------------------------
+# Layer B — batched ingest with one judge call per run
+# ---------------------------------------------------------------------------
+
+
+def test_ingest_transcripts_judges_once_and_gates_by_combined_score(tmp_path):
+    """One judge call per run across transcripts; combined = 0.5*heuristic+0.5*durability."""
+    from cairn.ingest.judge import Judgment
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    calls = []
+
+    class SpyJudge:
+        def judge(self, texts):
+            calls.append(list(texts))
+            # first candidate durable, second ephemeral
+            return [
+                Judgment(durability=1.0, title="Durable decision", distilled="The decision.")
+                if "decided" in t
+                else Judgment(durability=0.0)
+                for t in texts
+            ]
+
+    t1 = Transcript(
+        session_id="s1",
+        cwd="/Users/x/p",
+        git_branch="main",
+        path=tmp_path / "s1.jsonl",
+        events=[
+            _ev(
+                EventKind.AUTHORED_USER,
+                "We decided to always rebase-merge approved PRs because it is important.",
+            )
+        ],
+    )
+    t2 = Transcript(
+        session_id="s2",
+        cwd="/Users/x/p",
+        git_branch="main",
+        path=tmp_path / "s2.jsonl",
+        events=[
+            _ev(
+                EventKind.AUTHORED_USER,
+                "Check the CI status on PR #76 and merge it if everything is green "
+                "because we should ship.",
+            )
+        ],
+    )
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    ledger = DedupLedger(tmp_path / "led.sha256")
+    report = ingest_transcripts([t1, t2], vault_root=vault, ledger=ledger, judge=SpyJudge())
+
+    assert len(calls) == 1 and len(calls[0]) == 2  # ONE batched call for both transcripts
+    # durable: 0.5*h + 0.5*1.0 >= 0.5 -> written; ephemeral: 0.5*h + 0.5*0 < 0.5 -> gated
+    assert len(report.written) == 1
+    assert report.gated_out >= 1
+    blob = "\n".join(p.read_text() for p in vault.rglob("*.md"))
+    assert "- [context] The decision. #ingested" in blob
+    assert "- [verbatim] We decided" in blob
+    assert "CI status" not in blob
+
+
+def test_ingest_transcripts_without_judge_matches_legacy_behavior(tmp_path):
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    ledger = DedupLedger(tmp_path / "led.sha256")
+    report = ingest_transcripts(
+        [_transcript(tmp_path)], vault_root=vault, ledger=ledger, judge=None
+    )
+    assert report.judge_tier == "none"
+    assert len(report.written) == 1  # same as today's singular behavior
+
+
+def test_ingest_transcript_singular_still_works(tmp_path):
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    ledger = DedupLedger(tmp_path / "led.sha256")
+    report = ingest_transcript(_transcript(tmp_path), vault_root=vault, ledger=ledger)
+    assert len(report.written) == 1  # unchanged public API
+
+
+def test_report_judge_tier_recorded(tmp_path):
+    from cairn.ingest.judge import EmbeddingJudge
+    from cairn.ingest.pipeline import ingest_transcripts
+    from tests.ingest.test_judge import StubEmbedder
+
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    ledger = DedupLedger(tmp_path / "led.sha256")
+    report = ingest_transcripts(
+        [_transcript(tmp_path)],
+        vault_root=vault,
+        ledger=ledger,
+        judge=EmbeddingJudge(StubEmbedder()),
+    )
+    assert report.judge_tier == "embedding"
