@@ -469,3 +469,62 @@ def test_judged_cache_preserves_llm_distillation(tmp_path):
     assert "- [context] Always rotate tokens. #ingested" in blob  # distilled survived the cache
     assert "- [verbatim]" in blob
     assert "Rotation policy" in blob  # title survived too
+
+
+def test_llm_run_ignores_embedding_cache_entry(tmp_path, monkeypatch):
+    """An embedding-tier cache entry must NOT suppress an available LLM tier (the
+    key-less-window poisoning bug from the 0.9.0 dogfood). Uses a real LLMJudge
+    so the pipeline tags the run tier as "llm"."""
+    import json as _json
+
+    import cairn.ingest.judge as jmod
+    from cairn.ingest.dedup import content_hash
+    from cairn.ingest.judge import JudgedCache, Judgment, LLMJudge
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    text = "We decided to always rebase-merge approved PRs because it is important."
+    JudgedCache(tmp_path / "j.jsonl").put(
+        content_hash(text), Judgment(durability=0.1), tier="embedding"
+    )
+
+    monkeypatch.setattr(
+        jmod,
+        "_anthropic_request",
+        lambda payload, api_key, timeout: {
+            "content": [
+                {
+                    "type": "text",
+                    "text": _json.dumps(
+                        [
+                            {
+                                "i": 0,
+                                "durability": 0.9,
+                                "title": "Rebase policy",
+                                "distilled": "Always rebase-merge.",
+                            }
+                        ]
+                    ),
+                }
+            ]
+        },
+    )
+    judge = LLMJudge(api_key="k", model="m", timeout=5.0)
+
+    vault = tmp_path / "v"
+    vault.mkdir()
+    tr = Transcript(
+        session_id="s",
+        cwd="/Users/x/p",
+        git_branch="main",
+        path=tmp_path / "s.jsonl",
+        events=[_ev(EventKind.AUTHORED_USER, text)],
+    )
+    ingest_transcripts(
+        [tr],
+        vault_root=vault,
+        ledger=DedupLedger(tmp_path / "l.sha256"),
+        judge=judge,
+        judged_cache=JudgedCache(tmp_path / "j.jsonl"),
+    )
+    blob = "\n".join(p.read_text() for p in vault.rglob("*.md"))
+    assert "Always rebase-merge." in blob  # LLM re-judged despite the embedding cache entry

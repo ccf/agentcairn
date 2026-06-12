@@ -15,7 +15,7 @@ from cairn.ingest.dedup import DedupLedger, content_hash
 from cairn.ingest.distill import Distiller, ExtractiveDistiller, write_derived_note
 from cairn.ingest.events import EventKind
 from cairn.ingest.importance import KEEP_THRESHOLD, score
-from cairn.ingest.judge import Judge, JudgedCache, Judgment
+from cairn.ingest.judge import Judge, JudgedCache, Judgment, tier_at_least
 from cairn.ingest.models import Candidate, IngestReport, Transcript
 from cairn.ingest.redact import redact
 
@@ -93,8 +93,10 @@ def ingest_transcripts(
             seen_this_run.add(h)
             if judge is not None and judged_cache is not None:
                 cached = judged_cache.get(h)
-                if cached is not None:
-                    judged[len(pending)] = cached  # full Judgment, distillation included
+                # Only reuse a cached verdict if its tier is at least the current
+                # run's tier — an embedding-tier entry must not suppress the LLM.
+                if cached is not None and tier_at_least(cached[1], report.judge_tier):
+                    judged[len(pending)] = cached[0]  # full Judgment, distillation included
             pending.append((cand, h))
     report.event_kinds = dict(kind_totals)
 
@@ -128,7 +130,7 @@ def ingest_transcripts(
             # dry runs: they deliberately downgrade the tier, and persisting that
             # verdict would make later real runs cache-hit and skip the LLM.
             if judge is not None and judged_cache is not None and j is not None and not dry_run:
-                judged_cache.put(h, j)
+                judged_cache.put(h, j, report.judge_tier)
             continue
         report.candidates += 1
         note = distiller.distill(cand)

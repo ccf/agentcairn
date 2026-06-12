@@ -206,12 +206,12 @@ def test_judged_cache_roundtrip(tmp_path):
     c = JudgedCache(p)  # missing file -> empty
     assert c.get("abc") is None
     j = Judgment(durability=0.25, title="T", distilled="The fact.")
-    c.put("abc", j)
-    assert c.get("abc") == j
-    c.put("abc", j)  # idempotent: no duplicate line
+    c.put("abc", j, tier="llm")
+    assert c.get("abc") == (j, "llm")
+    c.put("abc", j, tier="llm")  # idempotent: no duplicate line
     assert len([ln for ln in p.read_text().splitlines() if ln.strip()]) == 1
     c2 = JudgedCache(p)  # reload from disk
-    assert c2.get("abc") == j  # full judgment survives disk roundtrip
+    assert c2.get("abc") == (j, "llm")  # full judgment + tier survive disk roundtrip
     assert c2.get("missing") is None
 
 
@@ -342,3 +342,34 @@ def test_llm_chunk_survives_failing_fallback(monkeypatch):
     assert all(j.durability == 0.9 for j in out[:40])  # chunk 1 results preserved
     assert all(j.durability == 0.5 for j in out[40:])  # chunk 2 neutral, not raised
     assert judge.degraded == 40  # counted once, not twice
+
+
+def test_judged_cache_records_tier(tmp_path):
+    from cairn.ingest.judge import JudgedCache, Judgment
+
+    c = JudgedCache(tmp_path / "j.jsonl")
+    c.put("h1", Judgment(durability=0.3), tier="embedding")
+    c.put("h2", Judgment(durability=0.9, title="T", distilled="D."), tier="llm")
+    c2 = JudgedCache(tmp_path / "j.jsonl")
+    assert c2.get("h1") == (Judgment(durability=0.3), "embedding")
+    assert c2.get("h2")[1] == "llm"
+    assert c2.get("missing") is None
+
+
+def test_legacy_cache_row_defaults_to_embedding_tier(tmp_path):
+    import json
+
+    from cairn.ingest.judge import JudgedCache, Judgment
+
+    p = tmp_path / "j.jsonl"
+    p.write_text(json.dumps({"h": "old", "d": 0.4}) + "\n")  # no "tier" field
+    assert JudgedCache(p).get("old") == (Judgment(durability=0.4), "embedding")
+
+
+def test_tier_at_least():
+    from cairn.ingest.judge import tier_at_least
+
+    assert tier_at_least("llm", "embedding")  # llm entry usable on an embedding run
+    assert tier_at_least("embedding", "embedding")
+    assert not tier_at_least("embedding", "llm")  # embedding entry NOT usable on an llm run
+    assert tier_at_least("llm", "llm")
