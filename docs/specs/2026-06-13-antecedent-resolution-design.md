@@ -115,6 +115,26 @@ The pipeline's single batched judge call (`pipeline.py` Phase B) already builds
 to_judge]`. It now also sends `contexts=[pending[i][0].antecedent for i in
 to_judge]` — the same index order, so `texts[k]` and `contexts[k]` correspond.
 
+### D.1 Distill-ratio guard must account for the antecedent (found during implementation)
+
+`LLMJudge._judge_llm` discards a distillation longer than `_MAX_DISTILL_RATIO ×
+len(user_turn)` (an anti-bloat/anti-hallucination guard from 0.8.0). This
+directly defeats antecedent resolution: a terse turn like "lock A" (6 chars)
+would cap the distillation at 24 chars, but a *resolved* distillation ("Approach
+A — the orderbook representation — is the locked direction") is necessarily
+longer than the turn it summarizes. The guard must therefore bound the
+distillation against the **larger of the turn and its antecedent**:
+
+```python
+ctx = contexts[i] if contexts is not None else None
+base_len = max(len(text), len(ctx) if ctx else 0)
+if distilled and len(distilled) > _MAX_DISTILL_RATIO * max(base_len, 1):
+    distilled = None
+```
+
+Anti-bloat protection is preserved (the distillation still cannot exceed 4× its
+actual source material); turns with no antecedent are unaffected.
+
 ### E. Prompt — render the block + resolve-only instruction (`judge.py`)
 
 Each item that has an antecedent renders as:
