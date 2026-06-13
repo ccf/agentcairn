@@ -30,7 +30,9 @@ class Judgment:
 
 
 class Judge(Protocol):
-    def judge(self, texts: list[str]) -> list[Judgment]: ...
+    def judge(
+        self, texts: list[str], *, contexts: list[str | None] | None = None
+    ) -> list[Judgment]: ...
 
 
 # Curated prototypes (tuned against the 2026-06 real-corpus eval; see
@@ -92,7 +94,9 @@ class EmbeddingJudge:
         self._durable_vecs = embedder.embed(list(_DURABLE_PROTOTYPES))
         self._ephemeral_vecs = embedder.embed(list(_EPHEMERAL_PROTOTYPES))
 
-    def judge(self, texts: list[str]) -> list[Judgment]:
+    def judge(
+        self, texts: list[str], *, contexts: list[str | None] | None = None
+    ) -> list[Judgment]:
         if not texts:
             return []
         out: list[Judgment] = []
