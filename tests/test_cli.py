@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import json
+import re
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -1210,12 +1211,17 @@ def test_transcripts_dir_requires_single_harness(tmp_path, monkeypatch):
     monkeypatch.delenv("CAIRN_HARNESSES", raising=False)
     vault = tmp_path / "vault"
     vault.mkdir()
+    # Render the error wide + uncolored so Typer's Rich panel doesn't wrap the
+    # message across lines (which breaks a naive substring match at CI's 80-col
+    # default). Strip residual ANSI, then collapse whitespace before matching.
     res = runner.invoke(
         app,
         ["sweep", "--vault", str(vault), "--transcripts-dir", str(tmp_path), "--embedder", "fake"],
+        env={"COLUMNS": "200", "NO_COLOR": "1"},
     )
     assert res.exit_code != 0
-    assert "exactly one --harness" in res.output
+    clean = " ".join(re.sub(r"\x1b\[[0-9;]*m", "", res.output).split())
+    assert "exactly one --harness" in clean
 
 
 def test_sweep_auto_detects_both_harnesses(tmp_path, monkeypatch):
