@@ -27,20 +27,19 @@ def select_candidates(transcript: Transcript) -> list[Candidate]:
     """One candidate per genuinely-authored user event. Everything else (tool
     results, meta injections, summaries, assistant turns) is excluded by kind.
     Each user candidate also carries its `antecedent`: the nearest preceding
-    AUTHORED_ASSISTANT turn in the SAME session (HEAD-truncated), used downstream
-    only as resolution context for the LLM judge — never stored in the note."""
+    AUTHORED_ASSISTANT turn in the SAME session (tracked per session, so
+    interleaved sessions don't steal each other's context), used downstream only
+    as resolution context for the LLM judge — never stored in the note."""
     out: list[Candidate] = []
-    last_assistant: str | None = None
-    last_assistant_session: str | None = None
+    last_assistant: dict[str, str] = {}  # session_id -> nearest preceding assistant text
     for e in transcript.events:
         sid = e.session_id or transcript.session_id
         if e.kind == EventKind.AUTHORED_ASSISTANT:
-            last_assistant = e.text
-            last_assistant_session = sid
+            last_assistant[sid] = e.text
             continue
         if e.kind != EventKind.AUTHORED_USER:
             continue  # tool results / meta / etc. do not clear the antecedent
-        antecedent = last_assistant if last_assistant_session == sid else None
+        antecedent = last_assistant.get(sid)
         out.append(
             Candidate(
                 text=e.text,
