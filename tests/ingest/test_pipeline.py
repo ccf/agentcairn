@@ -1277,3 +1277,33 @@ def test_consolidation_classifier_error_is_distinct(tmp_path):
         neighbor_index=nidx,
     )
     assert len(rep.written) == 1
+
+
+def test_consolidation_supersedes_survives_malformed_old_note(tmp_path, monkeypatch):
+    """If the existing note to mark superseded is malformed, the sweep must not
+    crash: skip the mark, still write the new note, don't increment superseded."""
+    from cairn.ingest.consolidate import ConsolidationVerdict
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    vault = tmp_path / "v"
+    (vault / "memories").mkdir(parents=True)
+    bad = vault / "memories" / "ram-old.md"
+    bad.write_text("\x00 not: [valid: yaml\n  -broken frontmatter", encoding="utf-8")
+    # monkeypatch mark_superseded to raise so we reliably exercise the except path
+    # (frontmatter.loads is lenient and may not raise on the raw malformed content)
+    monkeypatch.setattr(
+        "cairn.ingest.pipeline.mark_superseded",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("bad note")),
+    )
+    cons = _FakeConsolidator(ConsolidationVerdict.SUPERSEDES)
+    nidx = _FakeNeighborIndex({"4GB": ("ram-old", "RAM 2GB", "t0", 0.95)})
+    rep = ingest_transcripts(
+        [_consol_t(tmp_path, "scale RAM to 4GB", ts="t1")],
+        vault_root=vault,
+        ledger=DedupLedger(tmp_path / "l.sha256"),
+        judge=_llm_judge_keep_all(),
+        consolidator=cons,
+        neighbor_index=nidx,
+    )
+    assert len(rep.written) == 1  # new note still written despite the bad old note
+    assert rep.superseded == 0  # mark skipped, no crash
