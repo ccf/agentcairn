@@ -2,16 +2,22 @@
 
 **What this is:** a local-first agent-memory system. An Obsidian **Markdown vault is the source of truth**; a **rebuildable embedded DuckDB index** provides hybrid retrieval. Daemonless: a `cairn` CLI + an on-demand READ_ONLY MCP server. Capture is via **out-of-band transcript ingestion** + an agent `remember` tool — **not** live hooks.
 
-**Status (2026-06-08):** Design phase. The full spec is committed at
-`docs/specs/2026-06-08-agentcairn-design.md` — **read it first.** No implementation code yet.
-Next step: turn the spec into an implementation plan (superpowers `writing-plans`).
-Build order: `cairn.vault → cairn.index → cairn.embed → cairn.search → cairn.ingest → cairn.mcp`/CLI.
+**Status (2026-06-13):** Shipped and on PyPI — current **0.10.1**. The full loop is implemented
+(`cairn.vault/index/embed/search/ingest/mcp` + CLI + Claude Code plugin). Specs live in `docs/specs/`
+(the original is `2026-06-08-agentcairn-design.md`; later ones cover the config file, the Layer-B LLM
+judge, antecedent resolution, and memory consolidation). Releases follow the cut-a-release ritual
+(CHANGELOG → tag → Trusted-Publishing → GitHub Release).
+
+**Capture pipeline (ingest):** redact → structural candidate selection (authored user turns only) →
+judge (embedding/LLM tier; durability + optional distillation) → gate → distill → **consolidate**
+(semantic dedup + supersession, LLM-tier, fail-safe) → write. Redaction-before-write is mandatory;
+the judged cache is version-stamped (`_JUDGE_CACHE_VERSION`).
 
 ## Locked decisions
 - **Name:** package/org/repo `agentcairn`; **CLI command `cairn`**.
 - **Language:** Python 3.12+. Distribute via `uv`/`uvx`/`pipx`; MCP launched via `uvx agentcairn`.
 - **Index is a disposable cache** — always rebuildable from Markdown (`cairn reindex`); never the source of truth.
-- **Default embedder:** FastEmbed `bge-small-en-v1.5` (384-d), behind a pluggable interface (Ollama/cloud opt-in).
+- **Default embedder:** FastEmbed `nomic-embed-text-v1.5` (768-d) — a 5-model sweep settled it (best quality-per-dim; beat the original `bge-small-en-v1.5` 384-d default). Pluggable interface (Ollama/cloud opt-in).
 - **Retrieval:** BM25 + vector + wikilink-graph-boost + recency/importance, fused with RRF (k=60); degradation ladder down to BM25-only ("never silently dead").
 - **Concurrency:** MCP opens DuckDB **READ_ONLY**; one short-lived CLI process is the sole writer. The `.duckdb` lives on **local disk, NOT inside the synced vault folder**.
 - **Markdown contract:** basic-memory conventions (frontmatter `title/type/permalink/tags`; observations `- [category] text #tag (ctx)`; relations `- rel_type [[Target]]`; bare `[[link]]` ⇒ implicit `links_to`) + Dataview-compatible inline fields.
