@@ -342,9 +342,9 @@ def test_judged_cache_skips_rejudging_gated_candidates(tmp_path):
 def test_judged_cache_hit_still_flows_through_phase_c(tmp_path):
     """A cached durability is attached as a real Judgment: combined gating applies,
     and a durable cached candidate writes WITHOUT any judge call."""
-    from cairn.ingest.dedup import content_hash
     from cairn.ingest.judge import JudgedCache
-    from cairn.ingest.pipeline import ingest_transcripts
+    from cairn.ingest.models import Candidate
+    from cairn.ingest.pipeline import _judge_cache_key, ingest_transcripts
 
     class NeverCalledJudge:
         def judge(self, texts, *, contexts=None):
@@ -354,7 +354,18 @@ def test_judged_cache_hit_still_flows_through_phase_c(tmp_path):
     cache = JudgedCache(tmp_path / "judged.jsonl")
     from cairn.ingest.judge import Judgment
 
-    cache.put(content_hash(text), Judgment(durability=1.0))
+    # Pre-populate with the antecedent-aware key (no antecedent -> "\x00" suffix).
+    _stub_cand = Candidate(
+        text=text,
+        session_id="s-dur",
+        cwd="/Users/x/p",
+        git_branch="main",
+        timestamp="t0",
+        source_path=__import__("pathlib").Path("/tmp/s-dur.jsonl"),
+        project=None,
+        antecedent=None,
+    )
+    cache.put(_judge_cache_key(_stub_cand), Judgment(durability=1.0))
     t = Transcript(
         session_id="s-dur",
         cwd="/Users/x/p",
@@ -983,3 +994,74 @@ def test_antecedent_secret_straddling_truncation_boundary_is_redacted(tmp_path):
     assert key not in ctx  # full secret never reaches the judge
     assert "sk-ant" not in ctx  # not even a fragment of it
     assert len(ctx) <= _ANTECEDENT_CHARS  # still truncated, but AFTER redaction
+
+
+def test_judged_cache_key_is_antecedent_aware(tmp_path, monkeypatch):
+    """A gated verdict cached for a user turn against one antecedent must NOT
+    suppress the same turn when it later appears with a DIFFERENT, resolvable
+    antecedent — the cache key includes the antecedent (Bugbot #64)."""
+    import json as _json
+
+    import cairn.ingest.judge as jmod
+    from cairn.ingest.judge import JudgedCache, LLMJudge
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    calls = []
+
+    def fake_request(payload, api_key, timeout):
+        body = payload["messages"][0]["content"]
+        calls.append(body)
+        if "orderbook" in body:  # resolvable, durable
+            text = _json.dumps(
+                [
+                    {
+                        "i": 0,
+                        "durability": 0.8,
+                        "title": "Lock approach A: orderbook",
+                        "distilled": "Approach A is the orderbook representation, locked.",
+                    }
+                ]
+            )
+        else:  # ephemeral
+            text = _json.dumps([{"i": 0, "durability": 0.0, "title": None, "distilled": None}])
+        return {"content": [{"type": "text", "text": text}]}
+
+    monkeypatch.setattr(jmod, "_anthropic_request", fake_request)
+    cache_path = tmp_path / "j.jsonl"
+    vault = tmp_path / "v"
+    vault.mkdir()
+    ledger_path = tmp_path / "l.sha256"
+
+    def run(antecedent):
+        from cairn.ingest.dedup import DedupLedger
+
+        t = Transcript(
+            session_id="s",
+            cwd="/Users/x/p",
+            git_branch="main",
+            path=tmp_path / "s.jsonl",
+            events=[
+                _ev(EventKind.AUTHORED_ASSISTANT, antecedent),
+                _ev(EventKind.AUTHORED_USER, "lock A"),
+            ],
+        )
+        return ingest_transcripts(
+            [t],
+            vault_root=vault,
+            ledger=DedupLedger(ledger_path),
+            judge=LLMJudge(api_key="k", model="m", timeout=5.0),
+            judged_cache=JudgedCache(cache_path),
+        )
+
+    # Run 1: "lock A" after an ephemeral antecedent -> gated out, cached.
+    r1 = run("let us chat about the weather today")
+    assert r1.written == [] and r1.gated_out == 1
+    assert len(calls) == 1
+
+    # Run 2: SAME text "lock A" but a different, resolvable antecedent -> must be
+    # RE-JUDGED (cache miss on the antecedent-aware key) and written.
+    r2 = run("Approach A is the orderbook representation strategy.")
+    assert len(calls) == 2, "the differing antecedent must not hit the cache"
+    assert len(r2.written) == 1
+    blob = "\n".join(p.read_text() for p in vault.rglob("*.md"))
+    assert "orderbook representation" in blob
