@@ -241,3 +241,32 @@ def test_resolve_harnesses_precedence():
     assert _resolve_harnesses(None, {}) is None
     # empty/whitespace flag -> treated as unset
     assert _resolve_harnesses("  ", {}) is None
+
+
+def test_codex_adapter_non_string_cwd_does_not_crash(tmp_path):
+    # Bugbot #71: a non-string cwd in session_meta/turn_context must degrade to
+    # None (no project) rather than crash .rstrip()/Path() in find()/to_event.
+    from cairn.ingest.harness.codex import CodexAdapter
+    from cairn.ingest.locate import parse_transcript
+
+    day = tmp_path / "2026" / "03" / "08"
+    day.mkdir(parents=True)
+    f = day / "rollout-weird.jsonl"
+    f.write_text(
+        "\n".join(
+            [
+                _codex_line("session_meta", {"id": "s1", "cwd": {"unexpected": "object"}}),
+                _codex_line("response_item", _msg("user", "Ship the thing", "input_text")),
+            ]
+        )
+        + "\n"
+    )
+    a = CodexAdapter()
+    # find()'s project filter must not crash on a non-string cwd (treated as None)
+    assert a.find(root=tmp_path, project="/Users/x/insights") == []
+    # parse must not crash; the non-string cwd becomes None -> project None
+    tr = parse_transcript(TranscriptRef(path=f, harness="codex"))
+    assert tr.cwd is None
+    authored = [e for e in tr.events if e.kind == EventKind.AUTHORED_USER]
+    assert [e.text for e in authored] == ["Ship the thing"]
+    assert authored[0].project is None

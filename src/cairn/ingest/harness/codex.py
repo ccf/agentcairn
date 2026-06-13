@@ -48,6 +48,14 @@ def _payload(raw: dict) -> dict:
     return p if isinstance(p, dict) else {}
 
 
+def _payload_cwd(payload: dict) -> str | None:
+    """The payload's cwd only when it is a string. A non-string (or missing) cwd
+    becomes None so it can't crash `.rstrip()` / `Path()` downstream — defensive,
+    since a transcript's schema is not trusted to describe its older rows."""
+    cwd = payload.get("cwd")
+    return cwd if isinstance(cwd, str) else None
+
+
 def _extract_codex_text(payload: dict) -> str:
     """Join the input_text/output_text blocks of a Codex message payload,
     sanitized. Other block types are dropped."""
@@ -88,7 +96,7 @@ class CodexAdapter:
                     except (json.JSONDecodeError, ValueError):
                         continue
                     if isinstance(obj, dict) and obj.get("type") == "session_meta":
-                        return _payload(obj).get("cwd")
+                        return _payload_cwd(_payload(obj))
         except OSError:
             return None
         return None
@@ -155,11 +163,11 @@ class CodexAdapter:
             if ctx.session_id is None:
                 ctx.session_id = p.get("id")
             if ctx.cwd is None:
-                ctx.cwd = p.get("cwd")
+                ctx.cwd = _payload_cwd(p)
             return None
         if t == "turn_context":
             if ctx.cwd is None:
-                ctx.cwd = _payload(raw).get("cwd")
+                ctx.cwd = _payload_cwd(_payload(raw))
             return None
         if t != "response_item":
             return None  # compacted: counted in kind_counts, not a candidate
