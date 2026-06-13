@@ -236,7 +236,12 @@ class LLMJudge:
         if raw.startswith("```"):
             raw = raw.strip("`").removeprefix("json").strip()
         items = json.loads(raw)  # malformed/truncated JSON raises -> whole chunk degrades
-        by_i = {int(it["i"]): it for it in items}
+        by_i: dict[int, dict] = {}
+        for it in items:
+            try:
+                by_i[int(it["i"])] = it  # an item with no/garbled "i" is unusable -> skip
+            except (KeyError, ValueError, TypeError):
+                continue
         out: list[Judgment | None] = [None] * len(texts)
         missing: list[int] = []
         for i, text in enumerate(texts):
@@ -246,20 +251,26 @@ class LLMJudge:
                 # large batches). Degrade ONLY this item, not the whole chunk.
                 missing.append(i)
                 continue
-            durability = max(0.0, min(1.0, float(it["durability"])))
-            title = it.get("title") or None
-            distilled = it.get("distilled") or None
-            # The distillation summarizes the user turn AND (when present) the
-            # antecedent it resolves against, so bound its length on the larger of
-            # the two — a terse turn like "lock A" legitimately yields a longer,
-            # self-contained fact once its referent is resolved.
-            ctx = contexts[i] if contexts is not None else None
-            base_len = max(len(text), len(ctx) if ctx else 0)
-            if distilled and len(distilled) > _MAX_DISTILL_RATIO * max(base_len, 1):
-                distilled = None
-            if title and len(title) > 120:
-                title = None
-            out[i] = Judgment(durability=durability, title=title, distilled=distilled)
+            try:
+                durability = max(0.0, min(1.0, float(it["durability"])))
+                title = it.get("title") or None
+                distilled = it.get("distilled") or None
+                # The distillation summarizes the user turn AND (when present) the
+                # antecedent it resolves against, so bound its length on the larger
+                # of the two — a terse turn like "lock A" legitimately yields a
+                # longer, self-contained fact once its referent is resolved.
+                ctx = contexts[i] if contexts is not None else None
+                base_len = max(len(text), len(ctx) if ctx else 0)
+                if distilled and len(distilled) > _MAX_DISTILL_RATIO * max(base_len, 1):
+                    distilled = None
+                if title and len(title) > 120:
+                    title = None
+                out[i] = Judgment(durability=durability, title=title, distilled=distilled)
+            except (KeyError, ValueError, TypeError):
+                # A malformed individual item (missing/non-numeric durability, etc.)
+                # degrades only this index, not the whole chunk. Only a top-level
+                # invalid/truncated JSON (json.loads above) degrades the chunk.
+                missing.append(i)
         if missing:
             # Fill omitted indices from the fallback judge (or neutral), marked
             # degraded so they gate by the fallback rule and re-judge next run —

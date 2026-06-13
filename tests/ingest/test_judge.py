@@ -323,6 +323,43 @@ def test_llm_judge_max_tokens_is_16k(monkeypatch):
     assert seen["max_tokens"] == 16384  # raised from 8192 to fit large antecedent batches
 
 
+def test_llm_judge_tolerates_malformed_item(monkeypatch):
+    """Per-item degrade is total: a valid-JSON response where one item is missing
+    its `durability` (or has a garbled `i`) degrades only that index, not the
+    whole chunk. Only top-level invalid/truncated JSON degrades everything."""
+    import json as _json
+
+    import cairn.ingest.judge as jmod
+
+    def fake_request(payload, api_key, timeout):
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": _json.dumps(
+                        [
+                            {
+                                "i": 0,
+                                "durability": 0.9,
+                                "title": "T0",
+                                "distilled": "Decision zero.",
+                            },
+                            {"i": 1, "title": "no durability field"},  # malformed item
+                        ]
+                    ),
+                }
+            ]
+        }
+
+    monkeypatch.setattr(jmod, "_anthropic_request", fake_request)
+    judge = jmod.LLMJudge(api_key="k", model="m", timeout=5.0)
+    out = judge.judge(["turn zero", "turn one"])
+    assert len(out) == 2
+    assert out[0].distilled == "Decision zero." and not out[0].degraded
+    assert out[1].degraded is True and out[1].distilled is None  # malformed -> degraded
+    assert judge.degraded == 1  # only the malformed item
+
+
 def test_judged_cache_roundtrip(tmp_path):
     from cairn.ingest.judge import JudgedCache
 
