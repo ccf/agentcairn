@@ -4,6 +4,7 @@ import { benchmark } from "../lib/content";
 ---
 <Section id="measured" eyebrow="Benchmarks measured">
   <div class="prose-measure">
+    <h3 class="font-sans text-[13px] text-[var(--color-ink-muted)] mb-2">Retrieval — LoCoMo</h3>
     <table class="w-full border-collapse font-mono text-[13px]">
       <thead><tr class="text-[var(--color-ink-muted)] text-left border-b border-[var(--color-border)]">
         <th class="py-2 font-normal">arm</th><th class="py-2 font-normal">r@5</th><th class="py-2 font-normal">r@10</th><th class="py-2 font-normal">MRR</th>
@@ -16,12 +17,39 @@ import { benchmark } from "../lib/content";
         ))}
       </tbody>
     </table>
-    <p class="font-serif text-[14px] text-[var(--color-ink-faint)] mt-3">{benchmark.caption}</p>
-    <p class="font-serif text-[15px] text-[var(--color-ink-muted)] mt-4">{benchmark.longmemeval}</p>
-    <p class="font-serif text-[15px] text-[var(--color-ink)] mt-6 border-l-2 border-[var(--color-accent)] pl-4">
-      <span class="font-sans font-medium">Context efficiency.</span> {benchmark.contextEfficiency}
-    </p>
-    <ul class="font-serif text-[14px] text-[var(--color-ink-muted)] mt-4 list-disc pl-5 space-y-1">
+    <p class="font-serif text-[14px] text-[var(--color-ink-faint)] mt-3">{benchmark.locomoCaption}</p>
+
+    <h3 class="font-sans text-[13px] text-[var(--color-ink-muted)] mb-2 mt-8">Retrieval — LongMemEval-S</h3>
+    <table class="w-full border-collapse font-mono text-[13px]">
+      <thead><tr class="text-[var(--color-ink-muted)] text-left border-b border-[var(--color-border)]">
+        <th class="py-2 font-normal">arm</th><th class="py-2 font-normal">session r@5</th><th class="py-2 font-normal">session MRR</th><th class="py-2 font-normal">turn r@5</th>
+      </tr></thead>
+      <tbody>
+        {benchmark.longmemevalRows.map((r) => (
+          <tr class={"border-b border-[var(--color-border-faint)] " + (r.strong ? "text-[var(--color-ink)] font-medium" : "text-[var(--color-ink-muted)]")}>
+            <td class="py-2">{r.arm}</td><td>{r.sessionR5}</td><td>{r.sessionMrr}</td><td>{r.turnR5}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    <p class="font-serif text-[14px] text-[var(--color-ink-faint)] mt-3">{benchmark.longmemevalCaption}</p>
+
+    <h3 class="font-sans text-[13px] text-[var(--color-ink-muted)] mb-2 mt-8">Context efficiency</h3>
+    <table class="w-full border-collapse font-mono text-[13px]">
+      <thead><tr class="text-[var(--color-ink-muted)] text-left border-b border-[var(--color-border)]">
+        <th class="py-2 font-normal">dataset</th><th class="py-2 font-normal">haystack</th><th class="py-2 font-normal">recalled</th><th class="py-2 font-normal">reduction</th>
+      </tr></thead>
+      <tbody>
+        {benchmark.contextRows.map((r) => (
+          <tr class="border-b border-[var(--color-border-faint)] text-[var(--color-ink-muted)]">
+            <td class="py-2">{r.dataset}</td><td>{r.haystack}</td><td>{r.recalled}</td><td class="text-[var(--color-ink)] font-medium">{r.reduction}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    <p class="font-serif text-[14px] text-[var(--color-ink-faint)] mt-3">{benchmark.contextCaption}</p>
+
+    <ul class="font-serif text-[14px] text-[var(--color-ink-muted)] mt-6 list-disc pl-5 space-y-1">
       {benchmark.caveats.map((c) => <li>{c}</li>)}
     </ul>
   </div>
