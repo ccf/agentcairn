@@ -55,25 +55,33 @@ export const howItWorks = {
 };
 
 export const benchmark = {
-  caption: "LoCoMo retrieval, turn-level macro-avg, FastEmbed nomic-embed-text-v1.5 (the default).",
+  // Numbers mirror the README "Benchmarks measured" tables (source of truth:
+  // benchmarks/ harness). Keep them in sync with the README — do not edit here alone.
+  locomoCaption:
+    "LoCoMo retrieval, turn-level macro-avg, FastEmbed nomic-embed-text-v1.5 (the default).",
   rows: [
     { arm: "BM25 only", r5: "0.527", r10: "0.604", mrr: "0.459", strong: false },
     { arm: "vector only", r5: "0.536", r10: "0.637", mrr: "0.433", strong: false },
     { arm: "hybrid (RRF)", r5: "0.562", r10: "0.648", mrr: "0.477", strong: false },
     { arm: "hybrid + reranker", r5: "0.662", r10: "0.735", mrr: "0.608", strong: true },
   ],
+  longmemevalCaption: "LongMemEval-S, full 500-instance set. Full turn r@10/MRR in the README.",
+  longmemevalRows: [
+    { arm: "BM25 only", sessionR5: "0.920", sessionMrr: "0.918", turnR5: "0.680", strong: false },
+    { arm: "vector only", sessionR5: "0.936", sessionMrr: "0.916", turnR5: "0.507", strong: false },
+    { arm: "hybrid (RRF)", sessionR5: "0.954", sessionMrr: "0.938", turnR5: "0.640", strong: false },
+    { arm: "hybrid + reranker", sessionR5: "0.969", sessionMrr: "0.963", turnR5: "0.788", strong: true },
+  ],
+  contextCaption: "Context the default config recalls vs the full history. Estimate (~4 chars/tok).",
+  contextRows: [
+    { dataset: "LoCoMo", haystack: "25,646 tok", recalled: "529 tok", reduction: "51.1×" },
+    { dataset: "LongMemEval-S", haystack: "136,552 tok", recalled: "2,207 tok", reduction: "64.7×" },
+  ],
   caveats: [
     "No single headline number — these are relative ablation signals.",
     "graph-boost is inert on chat corpora (no native wikilink graph); it's for real vaults.",
     "QA-accuracy numbers use an Anthropic judge, not GPT-4o — not comparable to published leaderboards.",
   ],
-  contextEfficiency:
-    "On LongMemEval-S (~136k-token sessions), agentcairn answers from ~2,200 tokens of recalled " +
-    "context per query — a ~65× reduction in what the model has to read. Estimate; full 500-set.",
-  longmemeval:
-    "On LongMemEval-S's full 500-instance set, session-level retrieval reaches 0.969 recall@5 with " +
-    "the reranker (right alongside prior work's ≈0.95), and turn-level reaches 0.788 — the " +
-    "cross-encoder reranker is the lever.",
 };
 
 export const cli = [
