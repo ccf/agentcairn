@@ -37,6 +37,8 @@ class Candidate:
     project: str | None = None  # origin project identity (provenance plumbing for #28)
     judgment: Judgment | None = None  # Layer-B verdict (set by the pipeline)
     importance: float | None = None  # combined score (heuristic x judge); distiller uses it
+    antecedent: str | None = None  # nearest preceding assistant turn (resolution
+    # context for the LLM judge ONLY; redacted; never stored in the note)
 
 
 @dataclass
