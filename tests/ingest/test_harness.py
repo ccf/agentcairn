@@ -106,3 +106,24 @@ def test_claude_code_adapter_skips_textless_row(tmp_path):
 
 def test_claude_code_adapter_registered():
     assert get_adapter("claude-code").name == "claude-code"
+
+
+def test_find_transcripts_auto_detect_unions(monkeypatch, tmp_path):
+    from cairn.ingest import harness as hp
+    from cairn.ingest.locate import find_transcripts
+
+    a_dir = tmp_path / "a"
+    a_dir.mkdir()
+    fa = a_dir / "1.jsonl"
+    fa.write_text("{}\n")
+    b_dir = tmp_path / "b"
+    b_dir.mkdir()
+    fb = b_dir / "2.jsonl"
+    fb.write_text("{}\n")
+
+    monkeypatch.setitem(hp.REGISTRY, "ha", _FakeAdapter("ha", a_dir, files=[fa]))
+    monkeypatch.setitem(hp.REGISTRY, "hb", _FakeAdapter("hb", b_dir, files=[fb]))
+
+    refs = find_transcripts(harness=None, harnesses=["ha", "hb"])
+    assert {r.path.name for r in refs} == {"1.jsonl", "2.jsonl"}
+    assert {r.harness for r in refs} == {"ha", "hb"}
