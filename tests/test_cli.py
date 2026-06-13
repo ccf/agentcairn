@@ -1065,3 +1065,31 @@ def test_config_init_scaffolds_template(tmp_path, monkeypatch):
     r2 = runner.invoke(app, ["config", "--init"])
     assert r2.exit_code == 0
     assert "exists" in r2.output.lower()
+
+
+def test_duckdb_neighbor_index_unions_index_and_batch(tmp_path):
+    """nearest() returns the higher-cosine of (DuckDB index, this-sweep batch),
+    None below the gate; add() registers this-sweep writes."""
+    from cairn.cli import _DuckDBNeighborIndex
+    from cairn.ingest.consolidate import _CONSOLIDATE_GATE
+
+    class FakeEmbedder:
+        dim = 3
+
+        def embed(self, texts):
+            out = []
+            for t in texts:
+                if "ram" in t.lower():
+                    out.append([1.0, 0.0, 0.0])
+                elif "signoz" in t.lower():
+                    out.append([0.0, 1.0, 0.0])
+                else:
+                    out.append([0.0, 0.0, 1.0])
+            return out
+
+    nidx = _DuckDBNeighborIndex(con=None, dim=3, embedder=FakeEmbedder())  # no index -> batch only
+    assert nidx.nearest("ram usage") is None  # batch empty
+    nidx.add("ram-2gb", "ram 2gb", "t0")
+    hit = nidx.nearest("ram 4gb")
+    assert hit is not None and hit[0].permalink == "ram-2gb" and hit[1] >= _CONSOLIDATE_GATE
+    assert nidx.nearest("signoz endpoint") is None  # orthogonal -> below gate -> None

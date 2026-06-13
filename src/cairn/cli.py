@@ -16,11 +16,65 @@ from cairn.config import cairn_env, resolve_rerank
 from cairn.embed import get_embedder
 from cairn.index import get_meta, open_index, reconcile
 from cairn.ingest import find_transcripts, parse_transcript
+from cairn.ingest.consolidate import _CONSOLIDATE_GATE, Neighbor, resolve_consolidator
 from cairn.ingest.dedup import DedupLedger
 from cairn.ingest.judge import JudgedCache, resolve_judge
 from cairn.ingest.pipeline import ingest_transcripts
 from cairn.search import open_search, search
+from cairn.search.engine import vector_search
 from cairn.vault import parse_note
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    import math
+
+    dot = sum(x * y for x, y in zip(a, b, strict=True))
+    na = math.sqrt(sum(x * x for x in a))
+    nb = math.sqrt(sum(y * y for y in b))
+    return 0.0 if na == 0 or nb == 0 else dot / (na * nb)
+
+
+class _DuckDBNeighborIndex:
+    """NeighborIndex over the DuckDB index (prior notes) unioned with an in-memory
+    list of this-sweep's writes. Embeds query text with the sweep's embedder.
+    Returns the closest memory only when its cosine >= _CONSOLIDATE_GATE."""
+
+    def __init__(self, *, con, dim: int, embedder) -> None:
+        self._con = con
+        self._dim = dim
+        self._embedder = embedder
+        self._batch: list[tuple[str, list[float], str, str | None]] = []  # perm, vec, text, ts
+
+    def _embed(self, text: str) -> list[float]:
+        return self._embedder.embed([text])[0]
+
+    def nearest(self, text: str):
+        vec = self._embed(text)
+        best = None  # (Neighbor, cosine)
+        for perm, bvec, btext, bts in self._batch:
+            cos = _cosine(vec, bvec)
+            if best is None or cos > best[1]:
+                best = (Neighbor(permalink=perm, text=btext, timestamp=bts), cos)
+        if self._con is not None:
+            rows = vector_search(self._con, vec, dim=self._dim, pool=1)
+            if rows:
+                chunk_id, cos = rows[0]
+                meta = self._con.execute(
+                    "SELECT n.permalink, c.text, n.mtime"
+                    " FROM chunks c JOIN notes n ON n.permalink = c.note_permalink"
+                    " WHERE c.chunk_id = ?",
+                    [chunk_id],
+                ).fetchone()
+                if meta is not None and (best is None or cos > best[1]):
+                    ts = str(meta[2]) if meta[2] is not None else None
+                    best = (Neighbor(permalink=meta[0], text=meta[1] or "", timestamp=ts), cos)
+        if best is None or best[1] < _CONSOLIDATE_GATE:
+            return None
+        return best
+
+    def add(self, permalink: str, text: str, timestamp: str | None) -> None:
+        self._batch.append((permalink, self._embed(text), text, timestamp))
+
 
 app = typer.Typer(
     no_args_is_help=True, add_completion=False, help="agentcairn — local-first agent memory."
@@ -500,8 +554,22 @@ def sweep(
     led = DedupLedger(led_path)
     paths = find_transcripts(root=transcripts_dir, project=project)
     transcripts = [parse_transcript(tp) for tp in paths]
-    # One embedder serves both the judge and the reindex (avoid a double model load).
+    # One embedder serves the judge, consolidation neighbor queries, and reindex
+    # (avoid a double model load).
     emb = get_embedder(embedder)
+    idx = index or _default_index()
+    idx.parent.mkdir(parents=True, exist_ok=True)
+    # Build consolidation deps before ingest. Open a read handle to the existing
+    # index for neighbor queries; close it before reconcile opens its write handle
+    # (DuckDB permits only one writer per file at a time).
+    consolidator = resolve_consolidator()
+    neighbor_index = None
+    nbr_con = None
+    if consolidator is not None and idx.exists():
+        nbr_con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
+        neighbor_index = _DuckDBNeighborIndex(con=nbr_con, dim=emb.dim, embedder=emb)
+    elif consolidator is not None:
+        neighbor_index = _DuckDBNeighborIndex(con=None, dim=emb.dim, embedder=emb)
     rep = ingest_transcripts(
         transcripts,
         vault_root=vault,
@@ -509,16 +577,22 @@ def sweep(
         threshold=threshold,
         judge=resolve_judge(embedder=emb),
         judged_cache=JudgedCache(led_path.parent / f"{vault_key}.judged.jsonl"),
+        consolidator=consolidator,
+        neighbor_index=neighbor_index,
     )
-    idx = index or _default_index()
-    idx.parent.mkdir(parents=True, exist_ok=True)
+    # Release the neighbor read handle before reconcile opens its write handle.
+    if nbr_con is not None:
+        nbr_con.close()
     con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
     try:
         stats = reconcile(con, str(vault), emb)
     finally:
         con.close()  # release the write lock even if reconcile fails
+    extra = ""
+    if rep.semantic_deduped or rep.superseded:
+        extra = f"; {rep.semantic_deduped} deduped, {rep.superseded} superseded"
     typer.echo(
-        f"swept: {len(rep.written)} memory note(s) written; reindexed "
+        f"swept: {len(rep.written)} memory note(s) written{extra}; reindexed "
         f"{stats.added} added, {stats.updated} updated, {stats.deleted} removed"
     )
     _warn_if_llm_tier_unavailable(rep)
