@@ -56,8 +56,10 @@ to each user candidate as a new optional field.
   events from more than one session id).
 - Intervening `TOOL_RESULT` / `META_INJECTION` / other kinds do **not** clear the
   tracker — only a newer assistant turn (or a session change) replaces it.
-- Truncate the antecedent to `_ANTECEDENT_CHARS = 2000` from the **HEAD** (the
-  proposal's option list is near the top; consistent with `_JUDGE_INPUT_CHARS`).
+- `select_candidates` stores the **full** antecedent text (untruncated). HEAD-
+  truncation to `_ANTECEDENT_CHARS = 2000` happens in Phase A **after** redaction
+  (see §C) — truncating before redaction could split a boundary-straddling secret
+  into a fragment the named-pattern redactors no longer match.
 - No preceding assistant turn (e.g. the first user turn) → `antecedent is None` →
   identical to today's behavior.
 
@@ -76,13 +78,17 @@ Defaulted, so all existing constructors are unaffected.
 
 In Phase A, the candidate text is already redacted before hashing. The antecedent
 is redacted in the **same place**, immediately, so no unredacted assistant text is
-ever passed to the judge:
+ever passed to the judge. Redaction runs on the **full** antecedent and truncation
+to `_ANTECEDENT_CHARS` happens **after** — redacting a fragment could leak a
+boundary-straddling secret:
 
 ```python
 red = redact(cand.text)
 cand = replace(cand, text=red.text)
 if cand.antecedent is not None:
-    cand = replace(cand, antecedent=redact(cand.antecedent).text)
+    ared = redact(cand.antecedent)          # redact the FULL antecedent first
+    report.redactions += ared.count
+    cand = replace(cand, antecedent=ared.text[:_ANTECEDENT_CHARS])  # then truncate
 ```
 
 The antecedent does **not** participate in the dedup hash (`content_hash` stays
