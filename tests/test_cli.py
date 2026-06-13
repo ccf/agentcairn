@@ -1095,10 +1095,9 @@ def test_duckdb_neighbor_index_unions_index_and_batch(tmp_path):
     assert nidx.nearest("signoz endpoint") is None  # orthogonal -> below gate -> None
 
 
-def test_duckdb_neighbor_index_arm_and_iso_timestamp(monkeypatch):
-    """The DuckDB index arm: vector_search hit -> JOIN row -> Neighbor with an
-    ISO-8601 timestamp (mtime float normalized), and index-vs-batch picks higher cosine."""
-    import cairn.cli as climod
+def test_duckdb_neighbor_index_arm_and_iso_timestamp():
+    """The DuckDB index arm: single JOIN query -> Neighbor with real path and
+    ISO-8601 timestamp (mtime float normalized), superseded notes excluded."""
     from cairn.cli import _DuckDBNeighborIndex
 
     class FakeEmbedder:
@@ -1111,18 +1110,41 @@ def test_duckdb_neighbor_index_arm_and_iso_timestamp(monkeypatch):
         def execute(self, sql, params=None):
             class _R:
                 def fetchone(self_inner):
-                    # (permalink, chunk text, mtime float)
-                    return ("idx-note", "indexed memory text", 1700000000.0)
+                    # (permalink, path, chunk text, mtime float, sim)
+                    return (
+                        "idx-note",
+                        "memories/idx-note.md",
+                        "indexed memory text",
+                        1700000000.0,
+                        0.99,
+                    )
 
             return _R()
 
-    # vector_search returns one chunk hit with cosine 0.99 (>= gate)
-    monkeypatch.setattr(climod, "vector_search", lambda con, vec, *, dim, pool: [("chunk-1", 0.99)])
     nidx = _DuckDBNeighborIndex(con=FakeCon(), dim=3, embedder=FakeEmbedder())
     hit = nidx.nearest("anything")
     assert hit is not None
     neighbor, cos = hit
-    assert neighbor.permalink == "idx-note" and neighbor.text == "indexed memory text"
+    assert neighbor.permalink == "idx-note"
+    assert neighbor.path == "memories/idx-note.md"
+    assert neighbor.text == "indexed memory text"
     assert cos == 0.99
     assert neighbor.timestamp is not None and "T" in neighbor.timestamp  # ISO-8601
     assert not neighbor.timestamp.replace(".", "").isdigit()  # not a raw epoch float string
+
+
+def test_neighbor_index_excludes_superseded_batch_entry():
+    """Batch entries flagged via note_superseded() are skipped in nearest()."""
+    from cairn.cli import _DuckDBNeighborIndex
+
+    class FakeEmbedder:
+        dim = 3
+
+        def embed(self, texts):
+            return [[1.0, 0.0, 0.0] for _ in texts]
+
+    nidx = _DuckDBNeighborIndex(con=None, dim=3, embedder=FakeEmbedder())
+    nidx.add("a", "ram 2gb", "t0")
+    nidx.note_superseded("a")
+    result = nidx.nearest("ram 4gb")
+    assert result is None  # the only batch entry is flagged superseded

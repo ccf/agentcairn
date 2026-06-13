@@ -1110,8 +1110,11 @@ class _FakeNeighborIndex:
                 return self._Neighbor(permalink=perm, text=ntext, timestamp=ts), cos
         return None
 
-    def add(self, permalink, text, timestamp):
+    def add(self, permalink, text, timestamp, path=None):
         self.added.append((permalink, text))
+
+    def note_superseded(self, permalink):
+        pass  # no-op in fake
 
 
 class _FakeConsolidator:
