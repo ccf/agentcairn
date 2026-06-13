@@ -244,11 +244,16 @@ def ingest_transcripts(
                 ledger.add(h)
                 continue
             if verdict is ConsolidationVerdict.SUPERSEDES and neighbor is not None:
-                old_path = vault_root / subdir / f"{neighbor.permalink}.md"
+                if neighbor.path:
+                    p = Path(neighbor.path)
+                    old_path = p if p.is_absolute() else vault_root / p
+                else:
+                    old_path = vault_root / subdir / f"{neighbor.permalink}.md"
                 if old_path.exists():
                     try:
                         mark_superseded(old_path, note.permalink)
                         report.superseded += 1
+                        neighbor_index.note_superseded(neighbor.permalink)
                     except Exception:
                         # A malformed pre-existing note must not abort the sweep:
                         # skip the supersede mark and keep both notes (safe).
@@ -257,7 +262,7 @@ def ingest_transcripts(
         ledger.add(h)
         report.written.append(path)
         if consolidating:
-            neighbor_index.add(note.permalink, _memory_text(cand), cand.timestamp)
+            neighbor_index.add(note.permalink, _memory_text(cand), cand.timestamp, str(path))
     return report
 
 

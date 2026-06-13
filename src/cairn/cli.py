@@ -23,7 +23,6 @@ from cairn.ingest.dedup import DedupLedger
 from cairn.ingest.judge import JudgedCache, resolve_judge
 from cairn.ingest.pipeline import ingest_transcripts
 from cairn.search import open_search, search
-from cairn.search.engine import vector_search
 from cairn.vault import parse_note
 
 
@@ -43,7 +42,9 @@ class _DuckDBNeighborIndex:
         self._con = con
         self._dim = dim
         self._embedder = embedder
-        self._batch: list[tuple[str, list[float], str, str | None]] = []  # perm, vec, text, ts
+        # perm, vec, text, ts, path
+        self._batch: list[tuple[str, list[float], str, str | None, str | None]] = []
+        self._superseded: set[str] = set()
 
     def _embed(self, text: str) -> list[float]:
         return self._embedder.embed([text])[0]
@@ -51,36 +52,46 @@ class _DuckDBNeighborIndex:
     def nearest(self, text: str):
         vec = self._embed(text)
         best = None  # (Neighbor, cosine)
-        for perm, bvec, btext, bts in self._batch:
+        for perm, bvec, btext, bts, bpath in self._batch:
+            if perm in self._superseded:
+                continue
             cos = _cosine(vec, bvec)
             if best is None or cos > best[1]:
-                best = (Neighbor(permalink=perm, text=btext, timestamp=bts), cos)
+                best = (Neighbor(permalink=perm, text=btext, timestamp=bts, path=bpath), cos)
         if self._con is not None:
-            rows = vector_search(self._con, vec, dim=self._dim, pool=1)
-            if rows:
-                chunk_id, cos = rows[0]
-                meta = self._con.execute(
-                    "SELECT n.permalink, c.text, n.mtime"
-                    " FROM chunks c JOIN notes n ON n.permalink = c.note_permalink"
-                    " WHERE c.chunk_id = ?",
-                    [chunk_id],
-                ).fetchone()
-                if meta is not None and (best is None or cos > best[1]):
+            row = self._con.execute(
+                f"SELECT n.permalink, n.path, c.text, n.mtime, "
+                f"array_cosine_similarity(e.vec, ?::FLOAT[{self._dim}]) AS sim "
+                f"FROM chunk_embeddings e "
+                f"JOIN chunks c ON c.chunk_id = e.chunk_id "
+                f"JOIN notes n ON n.permalink = c.note_permalink "
+                f"WHERE n.superseded_by IS NULL "
+                f"ORDER BY sim DESC LIMIT 1",
+                [vec],
+            ).fetchone()
+            if row is not None:
+                perm, npath, ctext, mtime, sim = row
+                if best is None or sim > best[1]:
                     ts_iso = (
-                        datetime.datetime.fromtimestamp(meta[2], tz=datetime.UTC).isoformat()
-                        if meta[2] is not None
+                        datetime.datetime.fromtimestamp(mtime, tz=datetime.UTC).isoformat()
+                        if mtime is not None
                         else None
                     )
                     best = (
-                        Neighbor(permalink=meta[0], text=meta[1] or "", timestamp=ts_iso),
-                        cos,
+                        Neighbor(permalink=perm, text=ctext or "", timestamp=ts_iso, path=npath),
+                        sim,
                     )
         if best is None or best[1] < _CONSOLIDATE_GATE:
             return None
         return best
 
-    def add(self, permalink: str, text: str, timestamp: str | None) -> None:
-        self._batch.append((permalink, self._embed(text), text, timestamp))
+    def add(
+        self, permalink: str, text: str, timestamp: str | None, path: str | None = None
+    ) -> None:
+        self._batch.append((permalink, self._embed(text), text, timestamp, path))
+
+    def note_superseded(self, permalink: str) -> None:
+        self._superseded.add(permalink)
 
 
 app = typer.Typer(

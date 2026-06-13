@@ -30,6 +30,7 @@ class Neighbor:
     permalink: str
     text: str  # the existing memory's distilled text (for the classify prompt)
     timestamp: str | None
+    path: str | None = None
 
 
 class NeighborIndex(Protocol):
@@ -37,8 +38,14 @@ class NeighborIndex(Protocol):
         """Closest existing memory to `text` and its cosine, or None if empty.
         Spans prior-sweep index notes AND this-sweep writes; embeds internally."""
 
-    def add(self, permalink: str, text: str, timestamp: str | None) -> None:
+    def add(
+        self, permalink: str, text: str, timestamp: str | None, path: str | None = None
+    ) -> None:
         """Register a memory written this sweep so later candidates can match it."""
+
+    def note_superseded(self, permalink: str) -> None:
+        """Flag a this-sweep note as superseded so it is not returned as a neighbor
+        again (prior-index notes are excluded via SQL)."""
 
 
 class Consolidator(Protocol):
