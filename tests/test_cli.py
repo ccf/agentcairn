@@ -52,6 +52,8 @@ def test_ingest_command(tmp_path):
             str(vault),
             "--transcripts-dir",
             str(projects),
+            "--harness",
+            "claude-code",
             "--project",
             cwd,
         ],
@@ -125,6 +127,8 @@ def test_default_ledger_is_outside_vault(tmp_path, monkeypatch):
             str(vault),
             "--transcripts-dir",
             str(projects),
+            "--harness",
+            "claude-code",
             "--project",
             cwd,
         ],
@@ -178,6 +182,8 @@ def test_sweep_command(tmp_path):
             str(vault),
             "--transcripts-dir",
             str(projects),
+            "--harness",
+            "claude-code",
             "--project",
             cwd,
             "--index",
@@ -227,6 +233,8 @@ def test_sweep_embedder_from_config_file(tmp_path, monkeypatch):
             str(vault),
             "--transcripts-dir",
             str(projects),
+            "--harness",
+            "claude-code",
             "--project",
             cwd,
             "--index",
@@ -278,6 +286,8 @@ def test_sweep_closes_index_when_reconcile_fails(tmp_path, monkeypatch):
             str(vault),
             "--transcripts-dir",
             str(projects),
+            "--harness",
+            "claude-code",
             "--project",
             cwd,
             "--index",
@@ -733,6 +743,8 @@ def test_ingest_reports_per_kind_skips(tmp_path, monkeypatch):
             str(vault),
             "--transcripts-dir",
             str(tmp_path / "projects"),
+            "--harness",
+            "claude-code",
             "--ledger",
             str(tmp_path / "led.sha256"),
         ],
@@ -780,6 +792,8 @@ def test_ingest_counts_nontext_tool_results(tmp_path):
             str(vault),
             "--transcripts-dir",
             str(tmp_path / "projects"),
+            "--harness",
+            "claude-code",
             "--ledger",
             str(tmp_path / "led.sha256"),
         ],
@@ -812,6 +826,8 @@ def test_ingest_dry_run_skips_llm_judge(tmp_path, monkeypatch):
             str(vault),
             "--transcripts-dir",
             str(projects),
+            "--harness",
+            "claude-code",
             "--ledger",
             str(tmp_path / "led.sha256"),
             "--dry-run",
@@ -838,6 +854,8 @@ def test_ingest_notes_when_anthropic_tier_unavailable(tmp_path, monkeypatch):
             str(vault),
             "--transcripts-dir",
             str(projects),
+            "--harness",
+            "claude-code",
             "--ledger",
             str(tmp_path / "led.sha256"),
         ],
@@ -874,6 +892,8 @@ def test_ingest_warns_loudly_when_llm_tier_degraded(tmp_path, monkeypatch):
             str(vault),
             "--transcripts-dir",
             str(projects),
+            "--harness",
+            "claude-code",
             "--ledger",
             str(tmp_path / "led.sha256"),
         ],
@@ -912,6 +932,8 @@ def test_ingest_reports_judge_tier(tmp_path):
             str(vault),
             "--transcripts-dir",
             str(tmp_path / "projects"),
+            "--harness",
+            "claude-code",
             "--ledger",
             str(tmp_path / "led.sha256"),
         ],
@@ -950,6 +972,8 @@ def test_ingest_embedder_flag_drives_judge(tmp_path):
             str(tmp_path / "vault"),
             "--transcripts-dir",
             str(tmp_path / "projects"),
+            "--harness",
+            "claude-code",
             "--ledger",
             str(tmp_path / "led.sha256"),
             "--embedder",
@@ -994,6 +1018,8 @@ def test_config_file_drives_judge_tier(tmp_path, monkeypatch):
             str(tmp_path / "vault"),
             "--transcripts-dir",
             str(tmp_path / "projects"),
+            "--harness",
+            "claude-code",
             "--ledger",
             str(tmp_path / "led.sha256"),
         ],
@@ -1178,3 +1204,15 @@ def test_distilled_neighbor_index_skips_malformed_note(tmp_path):
     nidx = _DistilledNeighborIndex(vault_root=tmp_path, subdir="memories", embedder=FakeEmbedder())
     perms = {row[0] for row in nidx._live}
     assert "good" in perms and "bad" not in perms  # malformed skipped, construction succeeded
+
+
+def test_transcripts_dir_requires_single_harness(tmp_path, monkeypatch):
+    monkeypatch.delenv("CAIRN_HARNESSES", raising=False)
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    res = runner.invoke(
+        app,
+        ["sweep", "--vault", str(vault), "--transcripts-dir", str(tmp_path), "--embedder", "fake"],
+    )
+    assert res.exit_code != 0
+    assert "exactly one --harness" in res.output

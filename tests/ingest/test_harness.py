@@ -225,3 +225,19 @@ def test_codex_adapter_find_rglobs_and_filters_project(tmp_path):
     assert [p.name for p in a.find(root=tmp_path, project="/Users/x/insights")] == [
         "rollout-keep.jsonl"
     ]
+
+
+def test_resolve_harnesses_precedence():
+    from cairn.cli import _resolve_harnesses
+
+    # explicit flag wins, comma-split + trimmed
+    assert _resolve_harnesses("claude-code, codex", {"CAIRN_HARNESSES": "codex"}) == [
+        "claude-code",
+        "codex",
+    ]
+    # env used when no flag
+    assert _resolve_harnesses(None, {"CAIRN_HARNESSES": "codex"}) == ["codex"]
+    # nothing -> None (auto-detect all present)
+    assert _resolve_harnesses(None, {}) is None
+    # empty/whitespace flag -> treated as unset
+    assert _resolve_harnesses("  ", {}) is None

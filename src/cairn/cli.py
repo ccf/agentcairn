@@ -8,6 +8,7 @@ import hashlib
 import json
 import math
 import os
+from collections.abc import Mapping
 from pathlib import Path
 
 import typer
@@ -121,6 +122,16 @@ def _default_index() -> Path:
     if env:
         return Path(env).expanduser()
     return Path.home() / ".cache" / "agentcairn" / "index.duckdb"
+
+
+def _resolve_harnesses(harness_opt: str | None, env: Mapping[str, str]) -> list[str] | None:
+    """Resolve which harnesses to ingest. --harness flag wins, else
+    CAIRN_HARNESSES, else None (auto-detect every present harness). A comma list
+    is split and trimmed; an all-whitespace/empty value is treated as unset."""
+    raw = harness_opt if (harness_opt and harness_opt.strip()) else env.get("CAIRN_HARNESSES")
+    if not raw or not raw.strip():
+        return None
+    return [h.strip() for h in raw.split(",") if h.strip()]
 
 
 @app.command()
@@ -546,6 +557,12 @@ def sweep(
         None, "--transcripts-dir", help="Override the ~/.claude/projects root."
     ),
     project: str = typer.Option(None, "--project", help="Absolute cwd filter (default: all)."),
+    harness: str = typer.Option(
+        None,
+        "--harness",
+        help="Comma list of harnesses to ingest (default: CAIRN_HARNESSES or "
+        "auto-detect every present harness, e.g. 'claude-code,codex').",
+    ),
     threshold: float = typer.Option(0.5, "--threshold", help="Importance keep-threshold."),
     index: Path = typer.Option(
         None, "--index", help="Index .duckdb path (default ~/.cache/agentcairn/index.duckdb)."
@@ -570,8 +587,14 @@ def sweep(
     else:
         led_path = Path.home() / ".cache" / "agentcairn" / "ledgers" / f"{vault_key}.sha256"
     led = DedupLedger(led_path)
-    paths = find_transcripts(root=transcripts_dir, project=project)
-    transcripts = [parse_transcript(tp) for tp in paths]
+    selected = _resolve_harnesses(harness, cairn_env())
+    if transcripts_dir is not None and (selected is None or len(selected) != 1):
+        raise typer.BadParameter("--transcripts-dir requires exactly one --harness")
+    if transcripts_dir is not None:
+        refs = find_transcripts(harness=selected[0], root=transcripts_dir, project=project)
+    else:
+        refs = find_transcripts(harness=None, harnesses=selected, project=project)
+    transcripts = [parse_transcript(ref) for ref in refs]
     # One embedder serves the judge, consolidation neighbor queries, and reindex
     # (avoid a double model load).
     emb = get_embedder(embedder)
@@ -658,6 +681,12 @@ def ingest(
     project: str = typer.Option(
         None, "--project", help="Absolute cwd to filter transcripts to (default: all)."
     ),
+    harness: str = typer.Option(
+        None,
+        "--harness",
+        help="Comma list of harnesses to ingest (default: CAIRN_HARNESSES or "
+        "auto-detect every present harness, e.g. 'claude-code,codex').",
+    ),
     threshold: float = typer.Option(0.5, "--threshold", help="Importance keep-threshold."),
     ledger: Path = typer.Option(
         None, "--ledger", help="Dedup ledger path (default: <vault>/.cairn/ingested.sha256)."
@@ -682,11 +711,17 @@ def ingest(
     else:
         led_path = Path.home() / ".cache" / "agentcairn" / "ledgers" / f"{vault_key}.sha256"
     led = DedupLedger(led_path)
-    paths = find_transcripts(root=transcripts_dir, project=project)
-    if not paths:
+    selected = _resolve_harnesses(harness, cairn_env())
+    if transcripts_dir is not None and (selected is None or len(selected) != 1):
+        raise typer.BadParameter("--transcripts-dir requires exactly one --harness")
+    if transcripts_dir is not None:
+        refs = find_transcripts(harness=selected[0], root=transcripts_dir, project=project)
+    else:
+        refs = find_transcripts(harness=None, harnesses=selected, project=project)
+    if not refs:
         typer.echo("No transcripts found.")
         return
-    transcripts = [parse_transcript(tp) for tp in paths]
+    transcripts = [parse_transcript(ref) for ref in refs]
     # Same --embedder flag as sweep, so the judge scores in the same embedding
     # space regardless of which command ingests (lazy: tier "none" loads nothing).
     loader = lambda: get_embedder(embedder)  # noqa: E731
