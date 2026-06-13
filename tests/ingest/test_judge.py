@@ -433,3 +433,66 @@ def test_embedding_judge_accepts_and_ignores_contexts():
     with_ctx = judge.judge(texts, contexts=["some prior assistant proposal", None])
     # the embedding tier produces no distillation, so the antecedent is irrelevant
     assert [j.durability for j in with_ctx] == [j.durability for j in without]
+
+
+def test_resolve_only_instruction_present_in_prompt():
+    from cairn.ingest.judge import _PROMPT
+
+    assert "PRIOR ASSISTANT MESSAGE" in _PROMPT
+    assert "resolve" in _PROMPT.lower()
+    assert "acknowledgement" in _PROMPT.lower() or "contentless" in _PROMPT.lower()
+
+
+def test_llm_judge_renders_prior_assistant_block_only_when_present(monkeypatch):
+    import cairn.ingest.judge as jmod
+
+    bodies = []
+
+    def fake_request(payload, api_key, timeout):
+        body = payload["messages"][0]["content"]
+        bodies.append(body)
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": '[{"i":0,"durability":0.1,"title":null,"distilled":null},'
+                    '{"i":1,"durability":0.1,"title":null,"distilled":null}]',
+                }
+            ]
+        }
+
+    monkeypatch.setattr(jmod, "_anthropic_request", fake_request)
+    judge = jmod.LLMJudge(api_key="k", model="m", timeout=5.0)
+    judge.judge(["lock A", "we should always rebase-merge"], contexts=["Propose approach A", None])
+    body = bodies[0]
+    assert "PRIOR ASSISTANT MESSAGE (context only): Propose approach A" in body
+    assert "DEVELOPER MESSAGE: lock A" in body
+    assert "[1] we should always rebase-merge" in body  # no antecedent -> rendered plainly
+
+
+def test_llm_judge_contexts_index_aligned_across_chunks(monkeypatch):
+    """contexts must stay aligned with texts within each _BATCH_SIZE chunk."""
+    import cairn.ingest.judge as jmod
+
+    seen_blocks = []
+
+    def fake_request(payload, api_key, timeout):
+        body = payload["messages"][0]["content"]
+        for line in body.splitlines():
+            if "PRIOR ASSISTANT MESSAGE" in line:
+                seen_blocks.append(line)
+        import re
+
+        idxs = [int(m) for m in re.findall(r"^\[(\d+)\]", body, flags=re.M)]
+        items = [{"i": i, "durability": 0.1, "title": None, "distilled": None} for i in idxs]
+        return {"content": [{"type": "text", "text": __import__("json").dumps(items)}]}
+
+    monkeypatch.setattr(jmod, "_anthropic_request", fake_request)
+    judge = jmod.LLMJudge(api_key="k", model="m", timeout=5.0)
+    n = jmod._BATCH_SIZE + 5  # force two chunks
+    texts = [f"msg {i}" for i in range(n)]
+    contexts = [f"ctx {i}" if i % 2 == 0 else None for i in range(n)]
+    out = judge.judge(texts, contexts=contexts)
+    assert len(out) == n
+    assert len(seen_blocks) == len([c for c in contexts if c])
+    assert all(f"ctx {i}" in "\n".join(seen_blocks) for i in range(n) if i % 2 == 0)
