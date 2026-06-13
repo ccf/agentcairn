@@ -68,3 +68,41 @@ def test_parsectx_and_ref_shapes(tmp_path):
     assert ref.path.name == "a.jsonl" and ref.harness == "fake"
     ctx = ParseCtx(path=tmp_path / "a.jsonl")
     assert ctx.session_id is None and ctx.cwd is None and ctx.git_branch is None
+
+
+def test_claude_code_adapter_classify_and_event(tmp_path):
+    from cairn.ingest.harness.claude_code import ClaudeCodeAdapter
+
+    a = ClaudeCodeAdapter()
+    assert a.name == "claude-code"
+    raw = {
+        "type": "user",
+        "sessionId": "sess-1",
+        "cwd": "/Users/x/proj",
+        "gitBranch": "main",
+        "timestamp": "2026-06-08T10:00:00Z",
+        "message": {"role": "user", "content": "fix the bug"},
+    }
+    kind = a.classify(raw)
+    assert kind == EventKind.AUTHORED_USER
+    ctx = ParseCtx(path=tmp_path / "s.jsonl")
+    ev = a.to_event(raw, kind, ctx)
+    assert ev.text == "fix the bug"
+    assert ev.kind == EventKind.AUTHORED_USER
+    assert ev.harness == "claude-code"
+    assert ev.project == "proj"
+    assert ctx.session_id == "sess-1" and ctx.cwd == "/Users/x/proj"
+
+
+def test_claude_code_adapter_skips_textless_row(tmp_path):
+    from cairn.ingest.harness.claude_code import ClaudeCodeAdapter
+
+    a = ClaudeCodeAdapter()
+    raw = {"type": "user", "sessionId": "skipme", "message": {"role": "user", "content": ""}}
+    ctx = ParseCtx(path=tmp_path / "s.jsonl")
+    assert a.to_event(raw, a.classify(raw), ctx) is None
+    assert ctx.session_id is None  # a skipped row must not set provenance
+
+
+def test_claude_code_adapter_registered():
+    assert get_adapter("claude-code").name == "claude-code"

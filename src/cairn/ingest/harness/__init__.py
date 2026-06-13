@@ -73,3 +73,12 @@ def present_harnesses(selected: list[str] | None = None) -> list[HarnessAdapter]
     Unknown names raise ValueError (via get_adapter)."""
     names = selected if selected is not None else list(REGISTRY)
     return [a for a in (get_adapter(n) for n in names) if a.is_present()]
+
+
+def _bootstrap_registry() -> None:
+    from cairn.ingest.harness.claude_code import ClaudeCodeAdapter
+
+    _register(ClaudeCodeAdapter())
+
+
+_bootstrap_registry()
