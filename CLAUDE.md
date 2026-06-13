@@ -8,7 +8,9 @@
 judge, antecedent resolution, and memory consolidation). Releases follow the cut-a-release ritual
 (CHANGELOG → tag → Trusted-Publishing → GitHub Release).
 
-**Capture pipeline (ingest):** redact → structural candidate selection (authored user turns only) →
+**Capture pipeline (ingest):** transcripts from Claude Code and Codex are ingested automatically
+(auto-detected via a `HarnessAdapter` seam; `cairn sweep` picks up whichever harnesses are present).
+Then: redact → structural candidate selection (authored user turns only) →
 judge (embedding/LLM tier; durability + optional distillation) → gate → distill → **consolidate**
 (semantic dedup + supersession, LLM-tier, fail-safe) → write. Redaction-before-write is mandatory;
 the judged cache is version-stamped (`_JUDGE_CACHE_VERSION`).
