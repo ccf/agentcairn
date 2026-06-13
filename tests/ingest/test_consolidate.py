@@ -78,3 +78,19 @@ def test_resolve_consolidator(monkeypatch):
         resolve_consolidator(env={"CAIRN_JUDGE": "anthropic", "ANTHROPIC_API_KEY": "k"}),
         LLMConsolidator,
     )
+
+
+def test_extract_context():
+    from cairn.ingest.consolidate import extract_context
+
+    assert (
+        extract_context("- [context] The endpoint is https://x #ingested\n- [verbatim] raw turn\n")
+        == "The endpoint is https://x"
+    )
+    # no LLM distillation -> the [context] line holds the verbatim, still extracted
+    body = "- [context] just the verbatim text #ingested\n"
+    assert extract_context(body) == "just the verbatim text"
+    # a note with no [context] line
+    assert extract_context("some hand-authored body without the marker") is None
+    # tolerate a missing #ingested suffix
+    assert extract_context("- [context] bare fact\n") == "bare fact"

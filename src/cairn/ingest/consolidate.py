@@ -8,6 +8,7 @@ or error -> DISTINCT, i.e. keep both). LLM tier only."""
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
@@ -17,6 +18,20 @@ from cairn.ingest.judge import _anthropic_request
 _CONSOLIDATE_GATE = 0.88  # cosine below this -> no classify call (write normally).
 # Validated on the real corpus (scripts/eval_consolidate.py); conservative on
 # purpose — a higher gate means fewer chances to drop a distinct memory.
+
+_CONTEXT_RE = re.compile(r"^- \[context\] (.+)$", re.MULTILINE)
+
+
+def extract_context(body: str) -> str | None:
+    """The distilled fact from a derived-note body (`- [context] <text> #ingested`),
+    used as the consolidation similarity signal — the `[verbatim]` turn is excluded
+    because it makes notes cluster by conversational genre. Returns None if the note
+    has no `[context]` line."""
+    m = _CONTEXT_RE.search(body)
+    if not m:
+        return None
+    text = m.group(1).strip().removesuffix("#ingested").rstrip()
+    return text or None
 
 
 class ConsolidationVerdict(StrEnum):
