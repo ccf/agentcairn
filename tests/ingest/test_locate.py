@@ -77,13 +77,12 @@ def test_find_transcripts_project_filter_tolerates_trailing_slash(tmp_path):
     proj = tmp_path / "-Users-x-proj"
     proj.mkdir(parents=True)
     (proj / "a.jsonl").write_text("{}\n")
-    # passing the project WITH a trailing slash must still find the transcript
     found = find_transcripts(root=tmp_path, project="/Users/x/proj/")
-    assert [p.name for p in found] == ["a.jsonl"]
+    assert [r.path.name for r in found] == ["a.jsonl"]
+    assert all(r.harness == "claude-code" for r in found)
 
 
 def test_find_transcripts_empty_when_missing(tmp_path):
-    # graceful: no projects dir -> [] (never raise)
     assert find_transcripts(root=tmp_path / "nope") == []
 
 
@@ -95,7 +94,7 @@ def test_find_transcripts_filters_by_project(tmp_path):
     other.mkdir(parents=True)
     (other / "b.jsonl").write_text("{}\n")
     found = find_transcripts(root=tmp_path, project="/Users/x/proj")
-    assert [p.name for p in found] == ["a.jsonl"]
+    assert [r.path.name for r in found] == ["a.jsonl"]
 
 
 def test_parse_transcript_extracts_turns_and_provenance(tmp_path):
@@ -114,11 +113,11 @@ def test_parse_transcript_extracts_turns_and_provenance(tmp_path):
     assert tr.events[0].project == "proj"  # provenance from cwd
 
 
-def test_parse_transcript_unknown_harness_raises():
+def test_find_transcripts_unknown_harness_raises():
     import pytest
 
     with pytest.raises(ValueError):
-        find_transcripts(harness="codex")
+        find_transcripts(harness="definitely-not-a-harness")
 
 
 def test_session_id_from_first_content_line(tmp_path):
