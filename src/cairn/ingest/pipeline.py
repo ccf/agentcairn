@@ -41,8 +41,6 @@ def select_candidates(transcript: Transcript) -> list[Candidate]:
         if e.kind != EventKind.AUTHORED_USER:
             continue  # tool results / meta / etc. do not clear the antecedent
         antecedent = last_assistant if last_assistant_session == sid else None
-        if antecedent is not None:
-            antecedent = antecedent[:_ANTECEDENT_CHARS]
         out.append(
             Candidate(
                 text=e.text,
@@ -107,9 +105,12 @@ def ingest_transcripts(
             report.redactions += red.count
             cand = replace(cand, text=red.text)
             if cand.antecedent is not None:
+                # Redact the FULL antecedent BEFORE truncating: truncating first
+                # could split a boundary-straddling secret into a fragment the
+                # named-pattern redactors no longer match, leaking it to the judge.
                 ared = redact(cand.antecedent)
                 report.redactions += ared.count
-                cand = replace(cand, antecedent=ared.text)
+                cand = replace(cand, antecedent=ared.text[:_ANTECEDENT_CHARS])
             h = content_hash(cand.text)
             if ledger.seen(h) or h in seen_this_run:
                 report.deduped += 1

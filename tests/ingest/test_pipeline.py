@@ -806,7 +806,10 @@ def test_select_candidates_does_not_cross_session_boundary():
     assert cand.antecedent is None  # the s1 proposal must not resolve an s2 turn
 
 
-def test_select_candidates_truncates_long_antecedent():
+def test_select_candidates_keeps_full_antecedent_untruncated():
+    """select_candidates stores the FULL antecedent; truncation happens later in
+    Phase A AFTER redaction (truncating first could fragment a boundary-straddling
+    secret and leak it to the judge)."""
     from cairn.ingest.pipeline import _ANTECEDENT_CHARS, select_candidates
 
     long_proposal = "x" * (_ANTECEDENT_CHARS + 500)
@@ -821,8 +824,7 @@ def test_select_candidates_truncates_long_antecedent():
         ],
     )
     (cand,) = select_candidates(t)
-    assert len(cand.antecedent) == _ANTECEDENT_CHARS  # HEAD-truncated
-    assert cand.antecedent == long_proposal[:_ANTECEDENT_CHARS]
+    assert cand.antecedent == long_proposal  # full, untruncated at selection time
 
 
 def test_select_candidates_consecutive_user_turns_share_antecedent():
@@ -941,3 +943,43 @@ def test_phase_a_redacts_antecedent_before_judge(tmp_path):
     assert secret not in (seen_contexts[0] or "")  # raw secret never reaches the judge
     assert "[REDACTED:" in (seen_contexts[0] or "")
     assert rep.redactions >= 1  # antecedent redaction counted
+
+
+def test_antecedent_secret_straddling_truncation_boundary_is_redacted(tmp_path):
+    """A secret straddling the _ANTECEDENT_CHARS boundary must be redacted WHOLE
+    (redact runs before truncation) — truncating first would fragment it and leak
+    the prefix to the judge."""
+    from cairn.ingest.judge import Judgment
+    from cairn.ingest.pipeline import _ANTECEDENT_CHARS, ingest_transcripts
+
+    seen = []
+
+    class SpyJudge:
+        degraded = 0
+
+        def judge(self, texts, *, contexts=None):
+            seen.extend(contexts or [None] * len(texts))
+            return [Judgment(durability=0.0) for _ in texts]
+
+    key = "sk-ant-api03-" + "Z" * 40 + "-deadbeefcafe1234567890AB_cd-ef"
+    # position the key so it starts ~10 chars before the truncation boundary
+    antecedent = ("x" * (_ANTECEDENT_CHARS - 10)) + key + " trailing context for option A"
+    t = Transcript(
+        session_id="s",
+        cwd="/Users/x/p",
+        git_branch="main",
+        path=tmp_path / "s.jsonl",
+        events=[
+            _ev(EventKind.AUTHORED_ASSISTANT, antecedent),
+            _ev(EventKind.AUTHORED_USER, "lock A"),
+        ],
+    )
+    vault = tmp_path / "v"
+    vault.mkdir()
+    ingest_transcripts(
+        [t], vault_root=vault, ledger=DedupLedger(tmp_path / "l.sha256"), judge=SpyJudge()
+    )
+    ctx = seen[0] or ""
+    assert key not in ctx  # full secret never reaches the judge
+    assert "sk-ant" not in ctx  # not even a fragment of it
+    assert len(ctx) <= _ANTECEDENT_CHARS  # still truncated, but AFTER redaction
