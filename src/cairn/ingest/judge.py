@@ -125,6 +125,15 @@ direction) or EPHEMERAL chatter (task coordination, status checks, one-off proce
 instructions). For each, return durability in [0,1] (1 = clearly durable), a short \
 descriptive title (<=70 chars), and a crisp 1-2 sentence distillation of the durable \
 fact. For ephemeral messages use null title/distilled.
+
+Some items include a "PRIOR ASSISTANT MESSAGE", provided only as context. Use it \
+ONLY to resolve a referent that appears in the developer's message — e.g. "A", \
+"option (i)", "all three", "that approach", "the second one". When you resolve such \
+a referent, write the title and distillation so they stand alone (name what "A" \
+was). If the developer's message carries no such referent, or is itself ephemeral, \
+ignore the prior message entirely and judge the developer's message exactly as you \
+would without it. Never manufacture a decision from a contentless acknowledgement \
+("yes", "do it", "ok").
 Return ONLY a JSON array: [{"i": <index>, "durability": <float>, "title": <str|null>, \
 "distilled": <str|null>}, ...] with one entry per input, in order.
 
@@ -167,14 +176,17 @@ class LLMJudge:
         self._fallback = fallback
         self.degraded = 0  # candidates that fell back a tier
 
-    def judge(self, texts: list[str]) -> list[Judgment]:
+    def judge(
+        self, texts: list[str], *, contexts: list[str | None] | None = None
+    ) -> list[Judgment]:
         if not texts:
             return []
         out: list[Judgment] = []
         for start in range(0, len(texts), _BATCH_SIZE):
             chunk = texts[start : start + _BATCH_SIZE]
+            chunk_ctx = contexts[start : start + _BATCH_SIZE] if contexts is not None else None
             try:
-                out.extend(self._judge_llm(chunk))
+                out.extend(self._judge_llm(chunk, chunk_ctx))
             except Exception:
                 self.degraded += len(chunk)
                 # The fallback itself may fail (e.g. embedder dies mid-run); that
@@ -194,12 +206,25 @@ class LLMJudge:
                 out.extend(replace(j, degraded=True) for j in fell_back)
         return out
 
-    def _judge_llm(self, texts: list[str]) -> list[Judgment]:
-        numbered = "\n".join(f"[{i}] {_judge_input(t)}" for i, t in enumerate(texts))
+    def _judge_llm(
+        self, texts: list[str], contexts: list[str | None] | None = None
+    ) -> list[Judgment]:
+        lines: list[str] = []
+        for i, t in enumerate(texts):
+            ctx = contexts[i] if contexts is not None else None
+            if ctx:
+                lines.append(
+                    f"[{i}] PRIOR ASSISTANT MESSAGE (context only): {_judge_input(ctx)}\n"
+                    f"    DEVELOPER MESSAGE: {_judge_input(t)}"
+                )
+            else:
+                lines.append(f"[{i}] {_judge_input(t)}")
+        numbered = "\n".join(lines)
         payload = {
             "model": self._model,
             "max_tokens": 8192,
-            "messages": [{"role": "user", "content": _PROMPT + numbered}],
+            "system": _PROMPT,
+            "messages": [{"role": "user", "content": numbered}],
         }
         # Scale the timeout with the batch so a too-low configured value can't
         # spuriously time out a full chunk (the floor is the configured timeout).
