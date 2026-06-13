@@ -532,3 +532,14 @@ def test_distill_ratio_uses_antecedent_length_when_present(monkeypatch):
     # WITHOUT an antecedent: 67 chars > 4 * len("lock A")=24 -> discarded (original guard)
     (no_ctx,) = judge.judge(["lock A"], contexts=None)
     assert no_ctx.distilled is None
+
+
+def test_judge_cache_version_is_3_and_discards_v2(tmp_path):
+    import json
+
+    from cairn.ingest.judge import _JUDGE_CACHE_VERSION, JudgedCache
+
+    assert _JUDGE_CACHE_VERSION == 3  # bumped for the antecedent-resolution prompt
+    p = tmp_path / "j.jsonl"
+    p.write_text(json.dumps({"h": "old", "d": 0.9, "tier": "llm", "v": 2}) + "\n")
+    assert JudgedCache(p).get("old") is None  # v2 verdict discarded, will be re-judged

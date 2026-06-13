@@ -262,7 +262,8 @@ class LLMJudge:
 # are discarded on load, so the candidate is re-judged instead of reusing stale
 # data. v2: invalidate the silent-timeout era (judge_timeout=10 degraded every
 # batch and cached embedding-fallback verdicts as tier "llm"; see 0.9.4).
-_JUDGE_CACHE_VERSION = 2
+# v3: the prompt now resolves referents from a prior-assistant block (0.9.6).
+_JUDGE_CACHE_VERSION = 3
 
 
 class JudgedCache:
