@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import dataclasses
+import datetime
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 
@@ -26,8 +28,6 @@ from cairn.vault import parse_note
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
-    import math
-
     dot = sum(x * y for x, y in zip(a, b, strict=True))
     na = math.sqrt(sum(x * x for x in a))
     nb = math.sqrt(sum(y * y for y in b))
@@ -66,8 +66,15 @@ class _DuckDBNeighborIndex:
                     [chunk_id],
                 ).fetchone()
                 if meta is not None and (best is None or cos > best[1]):
-                    ts = str(meta[2]) if meta[2] is not None else None
-                    best = (Neighbor(permalink=meta[0], text=meta[1] or "", timestamp=ts), cos)
+                    ts_iso = (
+                        datetime.datetime.fromtimestamp(meta[2], tz=datetime.UTC).isoformat()
+                        if meta[2] is not None
+                        else None
+                    )
+                    best = (
+                        Neighbor(permalink=meta[0], text=meta[1] or "", timestamp=ts_iso),
+                        cos,
+                    )
         if best is None or best[1] < _CONSOLIDATE_GATE:
             return None
         return best
@@ -570,19 +577,21 @@ def sweep(
         neighbor_index = _DuckDBNeighborIndex(con=nbr_con, dim=emb.dim, embedder=emb)
     elif consolidator is not None:
         neighbor_index = _DuckDBNeighborIndex(con=None, dim=emb.dim, embedder=emb)
-    rep = ingest_transcripts(
-        transcripts,
-        vault_root=vault,
-        ledger=led,
-        threshold=threshold,
-        judge=resolve_judge(embedder=emb),
-        judged_cache=JudgedCache(led_path.parent / f"{vault_key}.judged.jsonl"),
-        consolidator=consolidator,
-        neighbor_index=neighbor_index,
-    )
-    # Release the neighbor read handle before reconcile opens its write handle.
-    if nbr_con is not None:
-        nbr_con.close()
+    try:
+        rep = ingest_transcripts(
+            transcripts,
+            vault_root=vault,
+            ledger=led,
+            threshold=threshold,
+            judge=resolve_judge(embedder=emb),
+            judged_cache=JudgedCache(led_path.parent / f"{vault_key}.judged.jsonl"),
+            consolidator=consolidator,
+            neighbor_index=neighbor_index,
+        )
+    finally:
+        # Release the neighbor read handle before reconcile opens its write handle.
+        if nbr_con is not None:
+            nbr_con.close()
     con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
     try:
         stats = reconcile(con, str(vault), emb)

@@ -1093,3 +1093,36 @@ def test_duckdb_neighbor_index_unions_index_and_batch(tmp_path):
     hit = nidx.nearest("ram 4gb")
     assert hit is not None and hit[0].permalink == "ram-2gb" and hit[1] >= _CONSOLIDATE_GATE
     assert nidx.nearest("signoz endpoint") is None  # orthogonal -> below gate -> None
+
+
+def test_duckdb_neighbor_index_arm_and_iso_timestamp(monkeypatch):
+    """The DuckDB index arm: vector_search hit -> JOIN row -> Neighbor with an
+    ISO-8601 timestamp (mtime float normalized), and index-vs-batch picks higher cosine."""
+    import cairn.cli as climod
+    from cairn.cli import _DuckDBNeighborIndex
+
+    class FakeEmbedder:
+        dim = 3
+
+        def embed(self, texts):
+            return [[1.0, 0.0, 0.0] for _ in texts]  # everything aligns on axis 0
+
+    class FakeCon:
+        def execute(self, sql, params=None):
+            class _R:
+                def fetchone(self_inner):
+                    # (permalink, chunk text, mtime float)
+                    return ("idx-note", "indexed memory text", 1700000000.0)
+
+            return _R()
+
+    # vector_search returns one chunk hit with cosine 0.99 (>= gate)
+    monkeypatch.setattr(climod, "vector_search", lambda con, vec, *, dim, pool: [("chunk-1", 0.99)])
+    nidx = _DuckDBNeighborIndex(con=FakeCon(), dim=3, embedder=FakeEmbedder())
+    hit = nidx.nearest("anything")
+    assert hit is not None
+    neighbor, cos = hit
+    assert neighbor.permalink == "idx-note" and neighbor.text == "indexed memory text"
+    assert cos == 0.99
+    assert neighbor.timestamp is not None and "T" in neighbor.timestamp  # ISO-8601
+    assert not neighbor.timestamp.replace(".", "").isdigit()  # not a raw epoch float string
