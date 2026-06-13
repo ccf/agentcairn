@@ -56,6 +56,15 @@ def select_candidates(transcript: Transcript) -> list[Candidate]:
     return out
 
 
+def _judge_cache_key(cand: Candidate) -> str:
+    """Key for a cached judge verdict: depends on the user turn AND its (redacted)
+    antecedent, because the LLM distillation resolves against the antecedent — the
+    same turn after a different proposal is a different verdict (Bugbot #64). The
+    dedup ledger stays keyed on the turn alone, so re-runs never duplicate an
+    already-written note."""
+    return content_hash(f"{cand.text}\x00{cand.antecedent or ''}")
+
+
 def _judge_tier_name(judge: Judge | None) -> str:
     if judge is None:
         return "none"
@@ -117,7 +126,7 @@ def ingest_transcripts(
                 continue
             seen_this_run.add(h)
             if judge is not None and judged_cache is not None:
-                cached = judged_cache.get(h)
+                cached = judged_cache.get(_judge_cache_key(cand))
                 # Only reuse a cached verdict if its tier is at least the current
                 # run's tier — an embedding-tier entry must not suppress the LLM.
                 if cached is not None and tier_at_least(cached[1], report.judge_tier):
@@ -181,7 +190,7 @@ def ingest_transcripts(
                 and not j.degraded
                 and not dry_run
             ):
-                judged_cache.put(h, j, report.judge_tier)
+                judged_cache.put(_judge_cache_key(cand), j, report.judge_tier)
             continue
         report.candidates += 1
         note = distiller.distill(cand)
