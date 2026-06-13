@@ -187,7 +187,7 @@ def test_ingest_transcripts_judges_once_and_gates_by_combined_score(tmp_path):
     calls = []
 
     class SpyJudge:
-        def judge(self, texts):
+        def judge(self, texts, *, contexts=None):
             calls.append(list(texts))
             # first candidate durable, second ephemeral
             return [
@@ -307,7 +307,7 @@ def test_judged_cache_skips_rejudging_gated_candidates(tmp_path):
     calls: list[list[str]] = []
 
     class SpyJudge:
-        def judge(self, texts):
+        def judge(self, texts, *, contexts=None):
             calls.append(list(texts))
             return [Judgment(durability=0.0) for _ in texts]  # everything gated out
 
@@ -347,7 +347,7 @@ def test_judged_cache_hit_still_flows_through_phase_c(tmp_path):
     from cairn.ingest.pipeline import ingest_transcripts
 
     class NeverCalledJudge:
-        def judge(self, texts):
+        def judge(self, texts, *, contexts=None):
             raise AssertionError(f"judge must not be called, got {texts!r}")
 
     text = "We decided to always rebase-merge approved PRs because it is important."
@@ -396,7 +396,7 @@ def test_dry_run_does_not_write_judged_cache(tmp_path):
     from cairn.ingest.pipeline import ingest_transcripts
 
     class LowJudge:
-        def judge(self, texts):
+        def judge(self, texts, *, contexts=None):
             return [Judgment(durability=0.0) for _ in texts]  # everything gates out
 
     vault = tmp_path / "vault"
@@ -428,7 +428,7 @@ def test_judged_cache_preserves_llm_distillation(tmp_path):
     class LLMishJudge:
         degraded = 0
 
-        def judge(self, texts):
+        def judge(self, texts, *, contexts=None):
             return [
                 Judgment(durability=0.4, title="Rotation policy", distilled="Always rotate tokens.")
                 for _ in texts
@@ -452,7 +452,7 @@ def test_judged_cache_preserves_llm_distillation(tmp_path):
     class MustNotBeCalled:
         degraded = 0
 
-        def judge(self, texts):
+        def judge(self, texts, *, contexts=None):
             raise AssertionError(f"LLM re-judged cached texts: {texts}")
 
     # Run 2: lower threshold; cache hits must pass the gate WITH distillation.
@@ -673,7 +673,7 @@ def test_degraded_llm_chunk_does_not_poison_cache(tmp_path, monkeypatch):
     )
 
     class LowFallback:
-        def judge(self, texts):
+        def judge(self, texts, *, contexts=None):
             return [Judgment(durability=0.0) for _ in texts]
 
     cache_path = tmp_path / "j.jsonl"
@@ -842,3 +842,50 @@ def test_select_candidates_consecutive_user_turns_share_antecedent():
     c1, c2 = select_candidates(t)
     assert c1.antecedent == "I propose approach A."
     assert c2.antecedent == "I propose approach A."  # a user turn does not clear it
+
+
+def test_pipeline_passes_antecedent_as_judge_context_and_writes_resolved(tmp_path):
+    """The judge receives each candidate's antecedent as context, and a resolved
+    distillation is written self-contained; [verbatim] stays the user's words."""
+    from cairn.ingest.judge import Judgment
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    received = {}
+
+    class ResolvingJudge:
+        degraded = 0
+
+        def judge(self, texts, *, contexts=None):
+            received["texts"] = list(texts)
+            received["contexts"] = list(contexts or [])
+            return [
+                Judgment(
+                    durability=0.8,
+                    title="Lock approach A: orderbook representation",
+                    distilled=(
+                        "Approach A — the orderbook representation — is the locked direction."
+                    ),
+                )
+                for _ in texts
+            ]
+
+    t = Transcript(
+        session_id="s",
+        cwd="/Users/x/p",
+        git_branch="main",
+        path=tmp_path / "s.jsonl",
+        events=[
+            _ev(EventKind.AUTHORED_ASSISTANT, "Approach A is the orderbook representation."),
+            _ev(EventKind.AUTHORED_USER, "lock A"),
+        ],
+    )
+    vault = tmp_path / "v"
+    vault.mkdir()
+    rep = ingest_transcripts(
+        [t], vault_root=vault, ledger=DedupLedger(tmp_path / "l.sha256"), judge=ResolvingJudge()
+    )
+    assert received["contexts"] == ["Approach A is the orderbook representation."]
+    assert len(rep.written) == 1
+    blob = "\n".join(p.read_text() for p in vault.rglob("*.md"))
+    assert "orderbook representation" in blob  # resolved distillation is self-contained
+    assert "- [verbatim] lock A" in blob  # verbatim is still the user's literal turn
