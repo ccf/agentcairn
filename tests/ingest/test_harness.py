@@ -127,3 +127,101 @@ def test_find_transcripts_auto_detect_unions(monkeypatch, tmp_path):
     refs = find_transcripts(harness=None, harnesses=["ha", "hb"])
     assert {r.path.name for r in refs} == {"1.jsonl", "2.jsonl"}
     assert {r.harness for r in refs} == {"ha", "hb"}
+
+
+def _codex_line(type_, payload):
+    import json
+
+    return json.dumps({"type": type_, "payload": payload, "timestamp": "2026-03-08T13:35:29Z"})
+
+
+def _msg(role, text, block_type):
+    return {"type": "message", "role": role, "content": [{"type": block_type, "text": text}]}
+
+
+def test_codex_adapter_classifies_each_kind():
+    from cairn.ingest.harness.codex import CodexAdapter
+
+    a = CodexAdapter()
+    assert a.name == "codex"
+
+    def C(p):
+        return a.classify({"type": "response_item", "payload": p})
+
+    assert C({"type": "function_call"}) == EventKind.TOOL_RESULT
+    assert C({"type": "function_call_output"}) == EventKind.TOOL_RESULT
+    assert C({"type": "custom_tool_call"}) == EventKind.TOOL_RESULT
+    assert C({"type": "web_search_call"}) == EventKind.TOOL_RESULT
+    assert C({"type": "reasoning"}) == EventKind.AUTHORED_ASSISTANT
+    assert C(_msg("assistant", "done", "output_text")) == EventKind.AUTHORED_ASSISTANT
+    assert (
+        C(_msg("developer", "<permissions instructions>x", "input_text"))
+        == EventKind.META_INJECTION
+    )
+    assert C(_msg("user", "Review the code base please", "input_text")) == EventKind.AUTHORED_USER
+    # injected AGENTS.md / INSTRUCTIONS blocks arrive as role=user -> tag-backstop demotes them
+    assert (
+        C(_msg("user", "# AGENTS.md instructions for /repo", "input_text"))
+        == EventKind.META_INJECTION
+    )
+    assert C(_msg("user", "<INSTRUCTIONS>\n# Primer", "input_text")) == EventKind.META_INJECTION
+    assert a.classify({"type": "compacted", "payload": {}}) == EventKind.COMPACT_SUMMARY
+    assert a.classify({"type": "session_meta", "payload": {}}) == EventKind.SYSTEM
+    assert a.classify({"type": "turn_context", "payload": {}}) == EventKind.SYSTEM
+    assert a.classify({"type": "event_msg", "payload": {}}) == EventKind.SYSTEM
+    assert a.classify({"type": "weird_future_type", "payload": {}}) == EventKind.UNKNOWN
+
+
+def test_codex_adapter_parses_session_and_user_turn(tmp_path):
+    from cairn.ingest.locate import parse_transcript
+
+    day = tmp_path / "2026" / "03" / "08"
+    day.mkdir(parents=True)
+    f = day / "rollout-2026-03-08T09-35-29-abc.jsonl"
+    f.write_text(
+        "\n".join(
+            [
+                _codex_line("session_meta", {"id": "sess-codex", "cwd": "/Users/x/insights"}),
+                _codex_line("turn_context", {"cwd": "/Users/x/insights"}),
+                _codex_line("event_msg", {"foo": "bar"}),  # UI noise -> no event
+                _codex_line(
+                    "response_item", _msg("user", "# AGENTS.md instructions", "input_text")
+                ),
+                _codex_line(
+                    "response_item", _msg("developer", "<permissions instructions>", "input_text")
+                ),
+                _codex_line(
+                    "response_item", _msg("user", "Review the roadmap and advise", "input_text")
+                ),
+                _codex_line("response_item", _msg("assistant", "Here is my take.", "output_text")),
+                _codex_line("response_item", {"type": "function_call", "name": "shell"}),
+            ]
+        )
+        + "\n"
+    )
+    tr = parse_transcript(TranscriptRef(path=f, harness="codex"))
+    assert tr.session_id == "sess-codex"
+    assert tr.cwd == "/Users/x/insights"
+    authored = [e for e in tr.events if e.kind == EventKind.AUTHORED_USER]
+    assert [e.text for e in authored] == ["Review the roadmap and advise"]
+    assert all(e.harness == "codex" for e in tr.events)
+    assert authored[0].project == "insights"
+
+
+def test_codex_adapter_find_rglobs_and_filters_project(tmp_path):
+    from cairn.ingest.harness.codex import CodexAdapter
+
+    a = CodexAdapter()
+    day = tmp_path / "2026" / "03" / "08"
+    day.mkdir(parents=True)
+    keep = day / "rollout-keep.jsonl"
+    keep.write_text(_codex_line("session_meta", {"id": "s1", "cwd": "/Users/x/insights"}) + "\n")
+    drop = day / "rollout-drop.jsonl"
+    drop.write_text(_codex_line("session_meta", {"id": "s2", "cwd": "/Users/x/other"}) + "\n")
+    assert {p.name for p in a.find(root=tmp_path, project=None)} == {
+        "rollout-keep.jsonl",
+        "rollout-drop.jsonl",
+    }
+    assert [p.name for p in a.find(root=tmp_path, project="/Users/x/insights")] == [
+        "rollout-keep.jsonl"
+    ]
