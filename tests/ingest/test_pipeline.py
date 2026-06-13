@@ -844,31 +844,39 @@ def test_select_candidates_consecutive_user_turns_share_antecedent():
     assert c2.antecedent == "I propose approach A."  # a user turn does not clear it
 
 
-def test_pipeline_passes_antecedent_as_judge_context_and_writes_resolved(tmp_path):
-    """The judge receives each candidate's antecedent as context, and a resolved
-    distillation is written self-contained; [verbatim] stays the user's words."""
-    from cairn.ingest.judge import Judgment
+def test_pipeline_passes_antecedent_as_judge_context_and_writes_resolved(tmp_path, monkeypatch):
+    """The pipeline feeds each candidate's antecedent to the real LLM judge as
+    context (rendered into the prompt), and a resolved distillation is written
+    self-contained; [verbatim] stays the user's words."""
+    import json as _json
+
+    import cairn.ingest.judge as jmod
+    from cairn.ingest.judge import LLMJudge
     from cairn.ingest.pipeline import ingest_transcripts
 
-    received = {}
+    seen = {}
 
-    class ResolvingJudge:
-        degraded = 0
-
-        def judge(self, texts, *, contexts=None):
-            received["texts"] = list(texts)
-            received["contexts"] = list(contexts or [])
-            return [
-                Judgment(
-                    durability=0.8,
-                    title="Lock approach A: orderbook representation",
-                    distilled=(
-                        "Approach A — the orderbook representation — is the locked direction."
+    def fake_request(payload, api_key, timeout):
+        seen["body"] = payload["messages"][0]["content"]
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": _json.dumps(
+                        [
+                            {
+                                "i": 0,
+                                "durability": 0.8,
+                                "title": "Lock approach A: orderbook representation",
+                                "distilled": "orderbook representation",
+                            }
+                        ]
                     ),
-                )
-                for _ in texts
+                }
             ]
+        }
 
+    monkeypatch.setattr(jmod, "_anthropic_request", fake_request)
     t = Transcript(
         session_id="s",
         cwd="/Users/x/p",
@@ -882,9 +890,15 @@ def test_pipeline_passes_antecedent_as_judge_context_and_writes_resolved(tmp_pat
     vault = tmp_path / "v"
     vault.mkdir()
     rep = ingest_transcripts(
-        [t], vault_root=vault, ledger=DedupLedger(tmp_path / "l.sha256"), judge=ResolvingJudge()
+        [t],
+        vault_root=vault,
+        ledger=DedupLedger(tmp_path / "l.sha256"),
+        judge=LLMJudge(api_key="k", model="m", timeout=5.0),
     )
-    assert received["contexts"] == ["Approach A is the orderbook representation."]
+    assert rep.judge_tier == "llm"
+    # the antecedent was rendered into the judge prompt as resolution context
+    assert "Approach A is the orderbook representation." in seen["body"]
+    assert "DEVELOPER MESSAGE: lock A" in seen["body"]
     assert len(rep.written) == 1
     blob = "\n".join(p.read_text() for p in vault.rglob("*.md"))
     assert "orderbook representation" in blob  # resolved distillation is self-contained
