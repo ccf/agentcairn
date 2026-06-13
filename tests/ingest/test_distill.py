@@ -56,3 +56,18 @@ def test_write_derived_note_rejects_path_traversal(tmp_path):
     note.permalink = "../../etc/evil"  # malicious slug
     with pytest.raises(ValueError):
         write_derived_note(note, vault, subdir="memories")
+
+
+def test_mark_superseded_sets_frontmatter(tmp_path):
+    from cairn.ingest.distill import mark_superseded
+    from cairn.vault import parse_note
+
+    p = tmp_path / "old.md"
+    p.write_text(
+        "---\ntitle: Old\ntype: memory\npermalink: old\n---\n\n- [context] old fact #ingested\n",
+        encoding="utf-8",
+    )
+    mark_superseded(p, "new-permalink")
+    note = parse_note(p.read_text(encoding="utf-8"))
+    assert note.frontmatter.get("superseded_by") == "new-permalink"
+    assert "old fact" in note.body  # body preserved

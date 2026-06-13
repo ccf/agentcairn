@@ -16,7 +16,7 @@ from typing import Protocol
 from cairn.ingest.dedup import content_hash
 from cairn.ingest.importance import score
 from cairn.ingest.models import Candidate
-from cairn.vault import Note, write_note
+from cairn.vault import Note, parse_note, write_note
 
 _SLUG_STOP = re.compile(r"[^a-z0-9]+")
 
@@ -70,6 +70,17 @@ class ExtractiveDistiller:
         else:
             body = f"- [context] {verbatim} #ingested\n"
         return Note(permalink=slug, frontmatter=frontmatter, body=body)
+
+
+def mark_superseded(path: Path, by_permalink: str) -> None:
+    """Set `superseded_by: <by_permalink>` in an existing note's frontmatter,
+    preserving body/observations. Idempotent (re-setting the same value rewrites
+    identical content). The reindex picks up the change and demotes it in recall."""
+    note = parse_note(path.read_text(encoding="utf-8"))
+    if note.frontmatter.get("superseded_by") == by_permalink:
+        return
+    note.frontmatter["superseded_by"] = by_permalink
+    path.write_text(write_note(note), encoding="utf-8")
 
 
 def write_derived_note(note: Note, vault_root: Path, *, subdir: str = "memories") -> Path:
