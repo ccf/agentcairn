@@ -259,8 +259,10 @@ class LLMJudge:
         if raw.startswith("```"):
             raw = raw.strip("`").removeprefix("json").strip()
         # raw_decode parses the leading JSON value and ignores any trailing text,
-        # tolerating a model that appends prose after the array ("Extra data").
-        # Malformed/truncated JSON still raises -> the chunk is retried, then degrades.
+        # tolerating a model that appends prose after the array ("Extra data"). Only
+        # the FIRST top-level value is consumed; a leading non-array (or a second
+        # array) leaves indices unfilled, so they degrade per-item below — never
+        # wrong data. Malformed/truncated JSON still raises -> retried, then degraded.
         items, _ = json.JSONDecoder().raw_decode(raw)
         by_i: dict[int, dict] = {}
         for it in items:

@@ -194,6 +194,37 @@ def test_llm_judge_degrades_after_exhausting_retries(monkeypatch):
     assert j.degraded is True and judge.degraded == 1
 
 
+def test_llm_judge_retry_backoff_is_linear(monkeypatch):
+    """Backoff grows linearly between attempts and is skipped after the last one.
+    (The test installs its own _SLEEP recorder, overriding the autouse no-op.)"""
+    import cairn.ingest.judge as jmod
+
+    waits: list[float] = []
+    monkeypatch.setattr(jmod, "_SLEEP", lambda s: waits.append(s))
+
+    calls = {"n": 0}
+
+    def fail_then_ok(payload, api_key, timeout):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise TimeoutError("transient")
+        return _ok_response(0.9)
+
+    monkeypatch.setattr(jmod, "_anthropic_request", fail_then_ok)
+    jmod.LLMJudge(api_key="k", model="m", timeout=5.0).judge(["x"])  # one retry -> one wait
+    assert waits == [jmod._RETRY_BACKOFF_S]  # base backoff, and no sleep after the success
+
+    waits.clear()
+
+    def always_fail(payload, api_key, timeout):
+        raise TimeoutError("persistent")
+
+    monkeypatch.setattr(jmod, "_anthropic_request", always_fail)
+    jmod.LLMJudge(api_key="k", model="m", timeout=5.0).judge(["x"])  # exhaust retries
+    # _MAX_RETRIES waits (one before each retry), linear, NONE after the final attempt
+    assert waits == [jmod._RETRY_BACKOFF_S * (k + 1) for k in range(jmod._MAX_RETRIES)]
+
+
 def test_llm_judge_tolerates_trailing_data(monkeypatch):
     """A response with a valid JSON array followed by trailing prose ("Extra
     data") is parsed via raw_decode, not degraded (a real 0.9.7 failure mode)."""
