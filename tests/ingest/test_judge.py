@@ -496,3 +496,39 @@ def test_llm_judge_contexts_index_aligned_across_chunks(monkeypatch):
     assert len(out) == n
     assert len(seen_blocks) == len([c for c in contexts if c])
     assert all(f"ctx {i}" in "\n".join(seen_blocks) for i in range(n) if i % 2 == 0)
+
+
+def test_distill_ratio_uses_antecedent_length_when_present(monkeypatch):
+    """A terse turn ('lock A') resolved against a long antecedent may have a
+    distillation far longer than 4x the turn — it must survive the ratio guard.
+    Without an antecedent, the guard still discards an overlong distillation."""
+    import cairn.ingest.judge as jmod
+
+    long_distilled = (
+        "Approach A — the orderbook representation — is the locked direction."  # ~67 chars
+    )
+
+    def fake_request(payload, api_key, timeout):
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": __import__("json").dumps(
+                        [{"i": 0, "durability": 0.8, "title": "T", "distilled": long_distilled}]
+                    ),
+                }
+            ]
+        }
+
+    monkeypatch.setattr(jmod, "_anthropic_request", fake_request)
+    judge = jmod.LLMJudge(api_key="k", model="m", timeout=5.0)
+
+    # WITH a long antecedent: 67 chars <= 4 * len(antecedent) -> kept
+    (with_ctx,) = judge.judge(
+        ["lock A"], contexts=["Approach A is the orderbook representation strategy."]
+    )
+    assert with_ctx.distilled == long_distilled
+
+    # WITHOUT an antecedent: 67 chars > 4 * len("lock A")=24 -> discarded (original guard)
+    (no_ctx,) = judge.judge(["lock A"], contexts=None)
+    assert no_ctx.distilled is None
