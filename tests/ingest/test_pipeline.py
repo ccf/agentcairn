@@ -16,7 +16,7 @@ def _ev(kind, text, ts="t0"):
 
     return NormalizedEvent(
         kind=kind,
-        role="user",
+        role="user" if kind == EventKind.AUTHORED_USER else "assistant",
         text=text,
         timestamp=ts,
         session_id="sess-1",
@@ -823,3 +823,22 @@ def test_select_candidates_truncates_long_antecedent():
     (cand,) = select_candidates(t)
     assert len(cand.antecedent) == _ANTECEDENT_CHARS  # HEAD-truncated
     assert cand.antecedent == long_proposal[:_ANTECEDENT_CHARS]
+
+
+def test_select_candidates_consecutive_user_turns_share_antecedent():
+    from cairn.ingest.pipeline import select_candidates
+
+    t = Transcript(
+        session_id="s",
+        cwd="/Users/x/p",
+        git_branch="main",
+        path=__import__("pathlib").Path("/tmp/s.jsonl"),
+        events=[
+            _ev(EventKind.AUTHORED_ASSISTANT, "I propose approach A."),
+            _ev(EventKind.AUTHORED_USER, "lock A"),
+            _ev(EventKind.AUTHORED_USER, "and also document it"),
+        ],
+    )
+    c1, c2 = select_candidates(t)
+    assert c1.antecedent == "I propose approach A."
+    assert c2.antecedent == "I propose approach A."  # a user turn does not clear it
