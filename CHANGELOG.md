@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-06-13
+
+### Added
+- **Memory consolidation during ingest (LLM judge tier).** A new memory that semantically duplicates an existing one is skipped, and a memory that is a strictly newer version of the same evolving fact marks the old one `superseded_by` (kept in the vault, demoted in recall). Detection is cosine-pre-gated against the existing index plus this-sweep's writes, then classified by the LLM; any uncertainty or error resolves to "distinct" (both kept), so a wrong call never silently drops a distinct memory. Off the LLM tier, behavior is unchanged. New `CAIRN_CONSOLIDATE` knob (default on) is a kill-switch; the sweep reports `N deduped, M superseded`.
+
 ## [0.9.8] - 2026-06-13
 
 ### Fixed
@@ -140,6 +145,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
 [Unreleased]: https://github.com/ccf/agentcairn/compare/v0.9.6...HEAD
+[0.10.0]: https://github.com/ccf/agentcairn/compare/v0.9.8...v0.10.0
 [0.9.8]: https://github.com/ccf/agentcairn/compare/v0.9.7...v0.9.8
 [0.9.7]: https://github.com/ccf/agentcairn/compare/v0.9.6...v0.9.7
 [0.9.6]: https://github.com/ccf/agentcairn/compare/v0.9.5...v0.9.6
