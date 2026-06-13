@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.9.6] - 2026-06-13
+
+### Fixed
+- **Confirmation-style decisions now distill into self-contained memories.** A turn like "lock A" or "go with (i)" previously produced an accurate but context-orphaned note ("Approach A is the decided direction" — A of what?), because the referent lived in the assistant's prior turn, which the user-turns-only model excludes. The LLM judge now receives the nearest preceding assistant turn as **transient, redacted resolution context** and is instructed to use it *only* to resolve a referent already present in your turn — never to manufacture a decision from a bare acknowledgement. `[verbatim]` (your literal words) and the keep-iff-distilled rule are unchanged; the antecedent is never stored. The judged cache is invalidated (v3) so the next sweep re-resolves existing orphaned notes.
+
 ## [0.9.5] - 2026-06-12
 
 ### Fixed
@@ -124,7 +129,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Out-of-band capture from coding-agent transcripts (redacted, non-lossy `remember`).
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
-[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.9.3...HEAD
+[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.9.6...HEAD
+[0.9.6]: https://github.com/ccf/agentcairn/compare/v0.9.5...v0.9.6
 [0.9.5]: https://github.com/ccf/agentcairn/compare/v0.9.4...v0.9.5
 [0.9.4]: https://github.com/ccf/agentcairn/compare/v0.9.3...v0.9.4
 [0.9.3]: https://github.com/ccf/agentcairn/compare/v0.9.2...v0.9.3
