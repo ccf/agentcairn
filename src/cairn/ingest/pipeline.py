@@ -11,8 +11,9 @@ from collections import Counter
 from dataclasses import replace
 from pathlib import Path
 
+from cairn.ingest.consolidate import ConsolidationVerdict, Consolidator, NeighborIndex
 from cairn.ingest.dedup import DedupLedger, content_hash
-from cairn.ingest.distill import Distiller, ExtractiveDistiller, write_derived_note
+from cairn.ingest.distill import Distiller, ExtractiveDistiller, mark_superseded, write_derived_note
 from cairn.ingest.events import EventKind
 from cairn.ingest.importance import KEEP_THRESHOLD, score
 from cairn.ingest.judge import Judge, JudgedCache, Judgment, tier_at_least
@@ -76,6 +77,28 @@ def _judge_tier_name(judge: Judge | None) -> str:
     return type(judge).__name__.lower()
 
 
+def _memory_text(cand: Candidate, note) -> str:
+    """Text used to embed/compare a memory: the LLM distillation if present, else
+    the candidate's redacted text."""
+    j = cand.judgment
+    return j.distilled if (j and j.distilled) else cand.text
+
+
+def _consolidate(cand, note, consolidator, neighbor_index):
+    """Return (verdict, neighbor). Fail-safe: any error -> (DISTINCT, None)."""
+    try:
+        hit = neighbor_index.nearest(_memory_text(cand, note))
+        if hit is None:
+            return ConsolidationVerdict.DISTINCT, None
+        neighbor, _cos = hit
+        verdict = consolidator.classify(
+            new_text=_memory_text(cand, note), new_ts=cand.timestamp, neighbor=neighbor
+        )
+        return verdict, neighbor
+    except Exception:
+        return ConsolidationVerdict.DISTINCT, None
+
+
 def ingest_transcripts(
     transcripts: list[Transcript],
     *,
@@ -87,6 +110,8 @@ def ingest_transcripts(
     distiller: Distiller | None = None,
     subdir: str = "memories",
     dry_run: bool = False,
+    consolidator: Consolidator | None = None,
+    neighbor_index: NeighborIndex | None = None,
 ) -> IngestReport:
     """Ingest a batch of transcripts with ONE judge call across all new candidates.
     Order per spec: redact -> dedup -> judge (batched) -> combined gate -> distill -> write.
@@ -149,8 +174,20 @@ def ingest_transcripts(
     if judge is not None and hasattr(judge, "degraded"):
         report.judge_degraded += judge.degraded
 
-    # Phase C: combined gate -> distill -> write. Gated-out judgments are cached
-    # so future runs never re-judge them (written ones are ledgered instead).
+    # Phase C: gate. Kept candidates are collected (not written yet) so the write
+    # pass can run in timestamp order for correct supersession.
+    # Consolidation requires an LLM-like judge (duck-typed: exposes a `degraded`
+    # counter, which both LLMJudge and compatible test doubles provide).
+    # EmbeddingJudge and heuristic-only runs are NOT consolidated — the cosine
+    # pre-gate in the NeighborIndex already assumes LLM-quality distillations.
+    consolidating = (
+        consolidator is not None
+        and neighbor_index is not None
+        and judge is not None
+        and hasattr(judge, "degraded")
+        and not dry_run
+    )
+    kept: list[tuple[Candidate, str]] = []
     for idx, (cand, h) in enumerate(pending):
         heuristic = score(cand.text)
         j = judged.get(idx)
@@ -166,10 +203,11 @@ def ingest_transcripts(
             combined = j.durability  # frontmatter importance only
             cand = replace(cand, judgment=j, importance=combined)
         elif j is not None:
-            # Weaker (embedding) judge OR a degraded LLM chunk: blend durability
-            # with the heuristic, exactly as the embedding tier would.
+            # Weaker (embedding) judge OR a degraded LLM chunk: let the judge's
+            # durability float drive the keep decision directly; the heuristic still
+            # sets `importance` in the frontmatter but does not gate the note.
             combined = max(0.0, min(1.0, 0.5 * heuristic + 0.5 * j.durability))
-            keep = combined >= threshold
+            keep = j.durability >= threshold
             cand = replace(cand, judgment=j, importance=combined)
         else:
             combined = heuristic
@@ -191,13 +229,30 @@ def ingest_transcripts(
             ):
                 judged_cache.put(_judge_cache_key(cand), j, report.judge_tier)
             continue
-        report.candidates += 1
+        kept.append((cand, h))
+
+    for cand, h in sorted(kept, key=lambda ch: ch[0].timestamp or ""):
         note = distiller.distill(cand)
         if dry_run:
+            report.candidates += 1
             continue
+        if consolidating:
+            verdict, neighbor = _consolidate(cand, note, consolidator, neighbor_index)
+            if verdict is ConsolidationVerdict.DUPLICATE:
+                report.semantic_deduped += 1
+                ledger.add(h)
+                continue
+            if verdict is ConsolidationVerdict.SUPERSEDES and neighbor is not None:
+                old_path = vault_root / subdir / f"{neighbor.permalink}.md"
+                if old_path.exists():
+                    mark_superseded(old_path, note.permalink)
+                    report.superseded += 1
+        report.candidates += 1
         path = write_derived_note(note, vault_root, subdir=subdir)
         ledger.add(h)
         report.written.append(path)
+        if consolidating:
+            neighbor_index.add(note.permalink, _memory_text(cand, note), cand.timestamp)
     return report
 
 

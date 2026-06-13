@@ -1085,3 +1085,192 @@ def test_judged_cache_key_is_antecedent_aware(tmp_path, monkeypatch):
     assert len(r2.written) == 1
     blob = "\n".join(p.read_text() for p in vault.rglob("*.md"))
     assert "orderbook representation" in blob
+
+
+# ---------------------------------------------------------------------------
+# Phase C — consolidation step (semantic dedup + supersession, llm tier only)
+# ---------------------------------------------------------------------------
+
+
+class _FakeNeighborIndex:
+    """Returns a (Neighbor, cos) when a candidate text contains a registered
+    substring; remembers add()ed notes. The real impl applies the cosine gate
+    internally; this fake returns None when nothing matches (= below gate)."""
+
+    def __init__(self, pairs=None):
+        from cairn.ingest.consolidate import Neighbor
+
+        self._pairs = pairs or {}
+        self.added = []
+        self._Neighbor = Neighbor
+
+    def nearest(self, text):
+        for sub, (perm, ntext, ts, cos) in self._pairs.items():
+            if sub in text:
+                return self._Neighbor(permalink=perm, text=ntext, timestamp=ts), cos
+        return None
+
+    def add(self, permalink, text, timestamp):
+        self.added.append((permalink, text))
+
+
+class _FakeConsolidator:
+    def __init__(self, verdict):
+        self.verdict = verdict
+        self.calls = 0
+
+    def classify(self, *, new_text, new_ts, neighbor):
+        self.calls += 1
+        return self.verdict
+
+
+def _llm_judge_keep_all():
+    from cairn.ingest.judge import Judgment
+
+    class LLMishKeep:
+        degraded = 0
+
+        def judge(self, texts, *, contexts=None):
+            return [Judgment(durability=0.9, title="T", distilled=t) for t in texts]
+
+    return LLMishKeep()
+
+
+def _consol_t(tmp_path, text, ts="t0", sid="s"):
+    return Transcript(
+        session_id=sid,
+        cwd="/Users/x/p",
+        git_branch="main",
+        path=tmp_path / f"{sid}.jsonl",
+        events=[_ev(EventKind.AUTHORED_USER, text, ts=ts)],
+    )
+
+
+def test_consolidation_only_on_llm_tier(tmp_path):
+    from cairn.ingest.consolidate import ConsolidationVerdict
+    from cairn.ingest.judge import EmbeddingJudge
+    from cairn.ingest.pipeline import ingest_transcripts
+    from tests.ingest.test_judge import StubEmbedder
+
+    cons = _FakeConsolidator(ConsolidationVerdict.DUPLICATE)
+    nidx = _FakeNeighborIndex({"rebase": ("old", "old", "t0", 0.99)})
+    vault = tmp_path / "v"
+    vault.mkdir()
+    rep = ingest_transcripts(
+        [_consol_t(tmp_path, "we always rebase-merge approved PRs")],
+        vault_root=vault,
+        ledger=DedupLedger(tmp_path / "l.sha256"),
+        judge=EmbeddingJudge(StubEmbedder()),
+        consolidator=cons,
+        neighbor_index=nidx,
+    )
+    assert cons.calls == 0 and len(rep.written) == 1 and rep.semantic_deduped == 0
+
+
+def test_consolidation_duplicate_skips_and_ledgers(tmp_path):
+    from cairn.ingest.consolidate import ConsolidationVerdict
+    from cairn.ingest.dedup import DedupLedger as _DL
+    from cairn.ingest.dedup import content_hash
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    text = "the signoz endpoint is https://ingest.us2.signoz.cloud"
+    cons = _FakeConsolidator(ConsolidationVerdict.DUPLICATE)
+    nidx = _FakeNeighborIndex({"signoz": ("signoz-old", "signoz endpoint", "t0", 0.97)})
+    vault = tmp_path / "v"
+    vault.mkdir()
+    ledger_path = tmp_path / "l.sha256"
+    rep = ingest_transcripts(
+        [_consol_t(tmp_path, text)],
+        vault_root=vault,
+        ledger=DedupLedger(ledger_path),
+        judge=_llm_judge_keep_all(),
+        consolidator=cons,
+        neighbor_index=nidx,
+    )
+    assert cons.calls == 1 and rep.written == [] and rep.semantic_deduped == 1
+    assert _DL(ledger_path).seen(content_hash(text))
+
+
+def test_consolidation_supersedes_marks_old(tmp_path):
+    from cairn.ingest.consolidate import ConsolidationVerdict
+    from cairn.ingest.pipeline import ingest_transcripts
+    from cairn.vault import parse_note
+
+    vault = tmp_path / "v"
+    (vault / "memories").mkdir(parents=True)
+    old = vault / "memories" / "ram-old.md"
+    old.write_text(
+        "---\ntitle: RAM\ntype: memory\npermalink: ram-old\n---\n\n- [context] RAM 2GB #ingested\n",
+        encoding="utf-8",
+    )
+    cons = _FakeConsolidator(ConsolidationVerdict.SUPERSEDES)
+    nidx = _FakeNeighborIndex({"4GB": ("ram-old", "RAM 2GB", "t0", 0.95)})
+    rep = ingest_transcripts(
+        [_consol_t(tmp_path, "scale RAM to 4GB", ts="t1")],
+        vault_root=vault,
+        ledger=DedupLedger(tmp_path / "l.sha256"),
+        judge=_llm_judge_keep_all(),
+        consolidator=cons,
+        neighbor_index=nidx,
+    )
+    assert len(rep.written) == 1 and rep.superseded == 1
+    assert parse_note(old.read_text(encoding="utf-8")).frontmatter.get("superseded_by")
+
+
+def test_consolidation_distinct_writes_both(tmp_path):
+    from cairn.ingest.consolidate import ConsolidationVerdict
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    cons = _FakeConsolidator(ConsolidationVerdict.DISTINCT)
+    nidx = _FakeNeighborIndex({"rebase": ("old", "old", "t0", 0.95)})
+    vault = tmp_path / "v"
+    vault.mkdir()
+    rep = ingest_transcripts(
+        [_consol_t(tmp_path, "we always rebase-merge approved PRs")],
+        vault_root=vault,
+        ledger=DedupLedger(tmp_path / "l.sha256"),
+        judge=_llm_judge_keep_all(),
+        consolidator=cons,
+        neighbor_index=nidx,
+    )
+    assert len(rep.written) == 1 and rep.semantic_deduped == 0 and rep.superseded == 0
+
+
+def test_consolidation_below_gate_skips_classify(tmp_path):
+    from cairn.ingest.consolidate import ConsolidationVerdict
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    cons = _FakeConsolidator(ConsolidationVerdict.DUPLICATE)
+    nidx = _FakeNeighborIndex({})  # nearest() always None
+    vault = tmp_path / "v"
+    vault.mkdir()
+    rep = ingest_transcripts(
+        [_consol_t(tmp_path, "a distinct durable decision")],
+        vault_root=vault,
+        ledger=DedupLedger(tmp_path / "l.sha256"),
+        judge=_llm_judge_keep_all(),
+        consolidator=cons,
+        neighbor_index=nidx,
+    )
+    assert cons.calls == 0 and len(rep.written) == 1
+
+
+def test_consolidation_classifier_error_is_distinct(tmp_path):
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    class Boom:
+        def classify(self, *, new_text, new_ts, neighbor):
+            raise RuntimeError("classifier down")
+
+    nidx = _FakeNeighborIndex({"rebase": ("old", "old", "t0", 0.99)})
+    vault = tmp_path / "v"
+    vault.mkdir()
+    rep = ingest_transcripts(
+        [_consol_t(tmp_path, "we always rebase-merge approved PRs")],
+        vault_root=vault,
+        ledger=DedupLedger(tmp_path / "l.sha256"),
+        judge=_llm_judge_keep_all(),
+        consolidator=Boom(),
+        neighbor_index=nidx,
+    )
+    assert len(rep.written) == 1
