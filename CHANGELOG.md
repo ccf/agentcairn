@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-06-13
+
+### Fixed
+- **Memory consolidation now works on incremental sweeps, not just full rebuilds.** Dogfooding 0.10.0 showed the cosine gate only separates duplicates on *distilled-vs-distilled* embeddings — comparing against the recall index's full-note-body chunk embeddings clustered by conversational genre (74% of notes scored ≥0.88, and the highest-cosine pairs were distinct). Consolidation's neighbor lookup now embeds each live note's distilled `[context]` line (excluding superseded notes), held in memory per sweep, dropping the DuckDB dependency from the consolidation path entirely. The gate is re-tuned to **0.75** on this signal (the genuine dup/supersession pairs sit ~0.67–0.78, near the distilled median, so the gate is a coarse pre-filter and the LLM adjudicates every above-gate pair; fail-safe means a low gate only costs classify calls, never a wrong drop). `scripts/eval_consolidate.py` is fixed (it OOM'd, and measured the wrong full-body signal).
+
 ## [0.10.0] - 2026-06-13
 
 ### Added
@@ -145,6 +150,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
 [Unreleased]: https://github.com/ccf/agentcairn/compare/v0.9.6...HEAD
+[0.10.1]: https://github.com/ccf/agentcairn/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/ccf/agentcairn/compare/v0.9.8...v0.10.0
 [0.9.8]: https://github.com/ccf/agentcairn/compare/v0.9.7...v0.9.8
 [0.9.7]: https://github.com/ccf/agentcairn/compare/v0.9.6...v0.9.7
