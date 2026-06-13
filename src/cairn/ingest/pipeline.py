@@ -126,7 +126,10 @@ def ingest_transcripts(
     to_judge = [i for i in range(len(pending)) if i not in judged]
     if judge is not None and to_judge:
         try:
-            results = judge.judge([pending[i][0].text for i in to_judge])
+            results = judge.judge(
+                [pending[i][0].text for i in to_judge],
+                contexts=[pending[i][0].antecedent for i in to_judge],
+            )
             judged.update(zip(to_judge, results, strict=True))
         except Exception:
             report.judge_degraded += len(to_judge)
@@ -141,6 +144,13 @@ def ingest_transcripts(
         # A degraded judgment is a fallback verdict wearing the LLM run's tier — it
         # must gate by the fallback (blend) rule, not the LLM keep rule.
         llm_verdict = j is not None and report.judge_tier == "llm" and not j.degraded
+        # A non-LLM judge that returned a resolved distillation uses durability as
+        # the keep gate (not the heuristic blend): the distillation itself is proof
+        # of semantic understanding, and a short antecedent-resolved user turn (e.g.
+        # "lock A") may score 0 heuristically but be fully durable in context.
+        distill_verdict = (
+            j is not None and not llm_verdict and not j.degraded and j.distilled is not None
+        )
         if llm_verdict:
             # The LLM's decision to DISTILL is the keep signal. Its durability float
             # is noisy (clusters 0.3-0.5), but distilled-vs-null is a clean
@@ -148,6 +158,13 @@ def ingest_transcripts(
             # threshold swept in hundreds of short junk turns rated ~0.5 — dogfood.)
             keep = j.distilled is not None
             combined = j.durability  # frontmatter importance only
+            cand = replace(cand, judgment=j, importance=combined)
+        elif distill_verdict:
+            # Non-LLM judge with resolved distillation: use durability as the sole
+            # keep gate (distillation proves semantic value; heuristic blend would
+            # incorrectly drop short-but-durable context-resolved turns).
+            combined = j.durability
+            keep = combined >= threshold
             cand = replace(cand, judgment=j, importance=combined)
         elif j is not None:
             # Weaker (embedding) judge OR a degraded LLM chunk: blend durability
