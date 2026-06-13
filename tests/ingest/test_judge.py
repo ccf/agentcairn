@@ -386,14 +386,35 @@ def test_judged_cache_records_tier(tmp_path):
     assert c2.get("missing") is None
 
 
-def test_legacy_cache_row_defaults_to_embedding_tier(tmp_path):
+def test_judged_cache_discards_stale_and_versionless_rows(tmp_path):
+    """A judge/prompt change (or a degradation-bug fix) bumps the cache version;
+    rows from an older version — and legacy rows with no version at all — are
+    discarded on load so the candidate is re-judged, never reused. This is what
+    keeps a poisoned cache (e.g. the silent-timeout era) from being carried
+    forward forever."""
     import json
 
+    from cairn.ingest.judge import _JUDGE_CACHE_VERSION, JudgedCache
+
+    p = tmp_path / "j.jsonl"
+    p.write_text(
+        json.dumps({"h": "legacy", "d": 0.4, "tier": "llm"})  # no "v"
+        + "\n"
+        + json.dumps({"h": "old", "d": 0.9, "tier": "llm", "v": _JUDGE_CACHE_VERSION - 1})
+        + "\n"
+    )
+    c = JudgedCache(p)
+    assert c.get("legacy") is None  # version-less -> discarded
+    assert c.get("old") is None  # older version -> discarded
+
+
+def test_judged_cache_roundtrips_current_version(tmp_path):
     from cairn.ingest.judge import JudgedCache, Judgment
 
     p = tmp_path / "j.jsonl"
-    p.write_text(json.dumps({"h": "old", "d": 0.4}) + "\n")  # no "tier" field
-    assert JudgedCache(p).get("old") == (Judgment(durability=0.4), "embedding")
+    JudgedCache(p).put("h", Judgment(durability=0.9, title="T", distilled="D."), tier="llm")
+    # reload: a current-version row survives with its full judgment + tier
+    assert JudgedCache(p).get("h") == (Judgment(durability=0.9, title="T", distilled="D."), "llm")
 
 
 def test_tier_at_least():

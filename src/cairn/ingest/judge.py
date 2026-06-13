@@ -223,13 +223,23 @@ class LLMJudge:
         return out
 
 
+# Bump when a change to the judge (prompt, model defaults, output handling, or a
+# degradation/caching bug fix) means previously-cached verdicts can no longer be
+# trusted. Rows from an older version — and legacy rows with no version at all —
+# are discarded on load, so the candidate is re-judged instead of reusing stale
+# data. v2: invalidate the silent-timeout era (judge_timeout=10 degraded every
+# batch and cached embedding-fallback verdicts as tier "llm"; see 0.9.4).
+_JUDGE_CACHE_VERSION = 2
+
+
 class JudgedCache:
     """hash -> Judgment for already-judged-but-not-written candidates, so the
     LLM never re-judges the same text across runs. JSONL beside the dedup ledger.
     (Written candidates are dedup-ledgered and never reconsidered; this cache
     covers the gated-out ones, which stay pending forever.) The FULL judgment is
     cached — title/distilled included — so a candidate that later passes the gate
-    (e.g. a lower threshold) still gets the LLM distillation format."""
+    (e.g. a lower threshold) still gets the LLM distillation format. Each row is
+    stamped with _JUDGE_CACHE_VERSION; stale-version rows are dropped on load."""
 
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
@@ -241,14 +251,15 @@ class JudgedCache:
                     continue
                 try:
                     obj = json.loads(ln)
+                    # Discard verdicts from a prior judge version (incl. legacy
+                    # rows with no "v"): re-judge rather than trust stale data.
+                    if obj.get("v") != _JUDGE_CACHE_VERSION:
+                        continue
                     j = Judgment(
                         durability=float(obj["d"]),
                         title=obj.get("t") or None,
                         distilled=obj.get("s") or None,
                     )
-                    # Legacy rows (pre-0.9.1) have no tier — treat as "embedding"
-                    # so an LLM run re-judges them (auto-heals a key-less-window
-                    # poisoned cache).
                     self._mem[str(obj["h"])] = (j, obj.get("tier") or "embedding")
                 except Exception:
                     continue  # tolerate torn/corrupt lines — it's a rebuildable cache
@@ -262,7 +273,7 @@ class JudgedCache:
             return  # idempotent: no duplicate appends across runs
         self._mem[h] = (judgment, tier)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        row: dict = {"h": h, "d": judgment.durability, "tier": tier}
+        row: dict = {"h": h, "d": judgment.durability, "tier": tier, "v": _JUDGE_CACHE_VERSION}
         if judgment.title:
             row["t"] = judgment.title
         if judgment.distilled:

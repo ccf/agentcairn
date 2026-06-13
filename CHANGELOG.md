@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.9.5] - 2026-06-12
+
+### Fixed
+- **The judged cache is now version-stamped, so a judge fix can't be undone by stale cached verdicts.** Each cached verdict records a `_JUDGE_CACHE_VERSION`; rows from an older version — and legacy rows with no version — are discarded on load and re-judged. Without this, a poisoned cache outlived the bug that created it: the silent-timeout era (pre-0.9.4) cached ~812 degraded embedding-fallback verdicts as tier `llm`, and a cache-*reuse* re-gate kept reusing them (82 notes), whereas a full from-scratch re-judge produced the true result (327 distilled notes). Bumping the version (v2) invalidates every pre-0.9.4 cache automatically — the next sweep re-judges once and self-heals.
+
 ## [0.9.4] - 2026-06-12
 
 ### Fixed
@@ -120,6 +125,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
 [Unreleased]: https://github.com/ccf/agentcairn/compare/v0.9.3...HEAD
+[0.9.5]: https://github.com/ccf/agentcairn/compare/v0.9.4...v0.9.5
 [0.9.4]: https://github.com/ccf/agentcairn/compare/v0.9.3...v0.9.4
 [0.9.3]: https://github.com/ccf/agentcairn/compare/v0.9.2...v0.9.3
 [0.9.2]: https://github.com/ccf/agentcairn/compare/v0.9.1...v0.9.2
