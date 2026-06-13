@@ -128,7 +128,7 @@ def test_llm_judge_degrades_on_error(monkeypatch):
 
     monkeypatch.setattr(jmod, "_anthropic_request", boom)
     fallback = EmbeddingJudge(StubEmbedder())
-    judge = jmod.LLMJudge(api_key="k", model="m", timeout=1.0, fallback=fallback)
+    judge = jmod.LLMJudge(api_key="k", model="m", timeout=1.0, fallback=fallback, retries=0)
     out = judge.judge(["D: decision text here"])
     assert len(out) == 1 and out[0].durability > 0.5  # fallback judged it
     assert judge.degraded == 1
@@ -143,10 +143,71 @@ def test_llm_judge_degrades_on_malformed_json(monkeypatch):
         lambda payload, api_key, timeout: {"content": [{"type": "text", "text": "not json"}]},
     )
     judge = jmod.LLMJudge(
-        api_key="k", model="m", timeout=1.0, fallback=EmbeddingJudge(StubEmbedder())
+        api_key="k", model="m", timeout=1.0, fallback=EmbeddingJudge(StubEmbedder()), retries=0
     )
     out = judge.judge(["D: decision"])
     assert len(out) == 1 and judge.degraded == 1
+
+
+def _ok_response(durability=0.9):
+    return {"content": [{"type": "text", "text": json.dumps([{"i": 0, "durability": durability}])}]}
+
+
+def test_llm_judge_retries_transient_failure_then_succeeds(monkeypatch):
+    """A transient chunk failure (timeout / malformed JSON) is retried and, when
+    the re-roll succeeds, the chunk is NOT degraded. Dogfooding 0.9.7 showed the
+    real failures are transient timeouts + malformed JSON, which a retry cures."""
+    import cairn.ingest.judge as jmod
+
+    monkeypatch.setattr(jmod, "_SLEEP", lambda _s: None)  # don't actually wait
+    calls = {"n": 0}
+
+    def fail_then_ok(payload, api_key, timeout):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise TimeoutError("transient slow generation")
+        return _ok_response(0.9)
+
+    monkeypatch.setattr(jmod, "_anthropic_request", fail_then_ok)
+    judge = jmod.LLMJudge(api_key="k", model="m", timeout=5.0)  # default retries
+    (j,) = judge.judge(["a decision"])
+    assert calls["n"] == 2  # one retry
+    assert j.durability == 0.9 and not j.degraded
+    assert judge.degraded == 0  # recovered, not degraded
+
+
+def test_llm_judge_degrades_after_exhausting_retries(monkeypatch):
+    """If every attempt fails, the chunk degrades after _MAX_RETRIES+1 tries."""
+    import cairn.ingest.judge as jmod
+
+    monkeypatch.setattr(jmod, "_SLEEP", lambda _s: None)
+    calls = {"n": 0}
+
+    def always_fail(payload, api_key, timeout):
+        calls["n"] += 1
+        raise TimeoutError("persistent")
+
+    monkeypatch.setattr(jmod, "_anthropic_request", always_fail)
+    judge = jmod.LLMJudge(api_key="k", model="m", timeout=5.0)  # default retries
+    (j,) = judge.judge(["a decision"])
+    assert calls["n"] == jmod._MAX_RETRIES + 1  # initial attempt + retries
+    assert j.degraded is True and judge.degraded == 1
+
+
+def test_llm_judge_tolerates_trailing_data(monkeypatch):
+    """A response with a valid JSON array followed by trailing prose ("Extra
+    data") is parsed via raw_decode, not degraded (a real 0.9.7 failure mode)."""
+    import cairn.ingest.judge as jmod
+
+    def trailing(payload, api_key, timeout):
+        body = '[{"i": 0, "durability": 0.7, "title": "T", "distilled": "A decision."}]\n\nDone!'
+        return {"content": [{"type": "text", "text": body}]}
+
+    monkeypatch.setattr(jmod, "_anthropic_request", trailing)
+    judge = jmod.LLMJudge(api_key="k", model="m", timeout=5.0)
+    (j,) = judge.judge(["a decision"])
+    assert j.distilled == "A decision." and not j.degraded
+    assert judge.degraded == 0
 
 
 def test_llm_judge_discards_overlong_distillation(monkeypatch):
@@ -222,7 +283,9 @@ def test_llm_judge_chunk_failure_degrades_only_that_chunk(monkeypatch):
         return inner(payload, api_key, timeout)
 
     monkeypatch.setattr(jmod, "_anthropic_request", flaky)
-    judge = jmod.LLMJudge(api_key="k", model="m", timeout=5.0)  # no fallback -> neutral
+    # retries=0: this test exercises single-attempt chunk isolation (a retry would
+    # re-roll the flaky request and succeed, defeating the point).
+    judge = jmod.LLMJudge(api_key="k", model="m", timeout=5.0, retries=0)  # no fallback -> neutral
     out = judge.judge([f"text number {n}" for n in range(90)])
     bs = jmod._BATCH_SIZE
     assert len(out) == 90
@@ -496,7 +559,9 @@ def test_llm_chunk_survives_failing_fallback(monkeypatch):
             raise RuntimeError("embedder died")
 
     monkeypatch.setattr(jmod, "_anthropic_request", flaky_request)
-    judge = jmod.LLMJudge(api_key="k", model="m", timeout=1.0, fallback=ExplodingFallback())
+    judge = jmod.LLMJudge(
+        api_key="k", model="m", timeout=1.0, fallback=ExplodingFallback(), retries=0
+    )
     bs = jmod._BATCH_SIZE
     texts = [f"text {i}" for i in range(4 * bs)]  # four chunks
     out = judge.judge(texts)

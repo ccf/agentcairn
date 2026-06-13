@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import math
+import time
 import urllib.request
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -121,6 +122,13 @@ _TIMEOUT_PER_MSG_S = 2.0  # the request timeout SCALES with the chunk size: a fu
 # default) would time out every batch and degrade to embedding silently. The
 # configured judge_timeout is treated as a floor; the effective budget is at least
 # this many seconds per message in the chunk.
+_MAX_RETRIES = 2  # retry a failed chunk (transient timeout / malformed JSON from the
+# model) before degrading it — the model is non-deterministic, so a re-roll usually
+# returns valid JSON, and a retry rides out an occasional slow/timed-out call.
+# (Dogfooding 0.9.7 showed the real failures are timeouts + malformed JSON, not the
+# missing-index case — retry cures both; per-item handling covers partial responses.)
+_RETRY_BACKOFF_S = 2.0  # linear backoff: attempt k waits k * this before retrying
+_SLEEP = time.sleep  # seam so tests don't actually wait between retries
 
 _PROMPT = """You judge whether each numbered message from a developer's coding-agent \
 session is a DURABLE memory (decision, preference, lesson, durable fact, strategic \
@@ -170,11 +178,13 @@ class LLMJudge:
         model: str,
         timeout: float,
         fallback: Judge | None = None,
+        retries: int = _MAX_RETRIES,
     ) -> None:
         self._api_key = api_key
         self._model = model
         self._timeout = timeout
         self._fallback = fallback
+        self._retries = retries
         self.degraded = 0  # candidates that fell back a tier
 
     def judge(
@@ -186,26 +196,39 @@ class LLMJudge:
         for start in range(0, len(texts), _BATCH_SIZE):
             chunk = texts[start : start + _BATCH_SIZE]
             chunk_ctx = contexts[start : start + _BATCH_SIZE] if contexts is not None else None
-            try:
-                out.extend(self._judge_llm(chunk, chunk_ctx))
-            except Exception:
-                self.degraded += len(chunk)
-                # The fallback itself may fail (e.g. embedder dies mid-run); that
-                # must degrade THIS chunk to neutral, not nuke earlier chunks'
-                # successful results by escaping judge().
-                fell_back: list[Judgment] | None = None
-                if self._fallback is not None:
-                    try:
-                        fell_back = self._fallback.judge(chunk)
-                    except Exception:
-                        fell_back = None
-                if fell_back is None:
-                    fell_back = [Judgment(durability=0.5) for _ in chunk]
-                # Mark every fallback verdict degraded so the pipeline gates it by
-                # the fallback's rule (not the LLM keep rule) and never caches it
-                # at the LLM tier — a real LLM verdict must replace it next run.
-                out.extend(replace(j, degraded=True) for j in fell_back)
+            judgments = self._judge_chunk(chunk, chunk_ctx)
+            if judgments is not None:
+                out.extend(judgments)
+                continue
+            # Every attempt failed -> degrade THIS chunk to the fallback judge (or
+            # neutral), marking each verdict degraded so the pipeline gates it by
+            # the fallback rule and never caches it at the LLM tier — a real LLM
+            # verdict must replace it next run.
+            self.degraded += len(chunk)
+            fell_back: list[Judgment] | None = None
+            if self._fallback is not None:
+                try:
+                    fell_back = self._fallback.judge(chunk)
+                except Exception:
+                    fell_back = None  # embedder died mid-run -> neutral, don't escape
+            if fell_back is None:
+                fell_back = [Judgment(durability=0.5) for _ in chunk]
+            out.extend(replace(j, degraded=True) for j in fell_back)
         return out
+
+    def _judge_chunk(
+        self, chunk: list[str], chunk_ctx: list[str | None] | None
+    ) -> list[Judgment] | None:
+        """One chunk's LLM call, retrying transient failures (timeout, network,
+        malformed JSON) up to `self._retries` times with linear backoff. Returns
+        the judgments, or None if every attempt failed (caller then degrades)."""
+        for attempt in range(self._retries + 1):
+            try:
+                return self._judge_llm(chunk, chunk_ctx)
+            except Exception:
+                if attempt < self._retries:
+                    _SLEEP(_RETRY_BACKOFF_S * (attempt + 1))
+        return None
 
     def _judge_llm(
         self, texts: list[str], contexts: list[str | None] | None = None
@@ -235,7 +258,10 @@ class LLMJudge:
         raw = raw.strip()
         if raw.startswith("```"):
             raw = raw.strip("`").removeprefix("json").strip()
-        items = json.loads(raw)  # malformed/truncated JSON raises -> whole chunk degrades
+        # raw_decode parses the leading JSON value and ignores any trailing text,
+        # tolerating a model that appends prose after the array ("Extra data").
+        # Malformed/truncated JSON still raises -> the chunk is retried, then degrades.
+        items, _ = json.JSONDecoder().raw_decode(raw)
         by_i: dict[int, dict] = {}
         for it in items:
             try:
