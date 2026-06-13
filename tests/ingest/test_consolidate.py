@@ -49,6 +49,11 @@ def test_llm_consolidator_failsafe_distinct(monkeypatch):
     )
     assert c.classify(new_text="y", new_ts=None, neighbor=nb) == ConsolidationVerdict.DISTINCT
 
+    # valid JSON but missing the "relation" key -> DISTINCT
+    _no_relation = {"content": [{"type": "text", "text": '{"verdict": "distinct"}'}]}
+    monkeypatch.setattr(cmod, "_anthropic_request", lambda p, k, t: _no_relation)
+    assert c.classify(new_text="y", new_ts=None, neighbor=nb) == ConsolidationVerdict.DISTINCT
+
     def boom(p, k, t):
         raise TimeoutError("down")
 
@@ -64,7 +69,12 @@ def test_resolve_consolidator(monkeypatch):
     assert resolve_consolidator(env={**env, "CAIRN_CONSOLIDATE": "false"}) is None
     assert (
         resolve_consolidator(env={"CAIRN_JUDGE": "anthropic", "CAIRN_CONSOLIDATE": "true"}) is None
-    )  # noqa: E501
+    )
     assert (
         resolve_consolidator(env={"CAIRN_JUDGE": "embedding", "CAIRN_CONSOLIDATE": "true"}) is None
-    )  # noqa: E501
+    )
+    # CAIRN_CONSOLIDATE absent -> default on -> LLMConsolidator
+    assert isinstance(
+        resolve_consolidator(env={"CAIRN_JUDGE": "anthropic", "ANTHROPIC_API_KEY": "k"}),
+        LLMConsolidator,
+    )

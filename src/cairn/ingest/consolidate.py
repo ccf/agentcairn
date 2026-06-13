@@ -50,8 +50,10 @@ class Consolidator(Protocol):
 _PROMPT = """You compare a NEW developer memory against the most similar EXISTING \
 memory and classify their relationship. Respond with ONLY a JSON object \
 {"relation": "<value>"} where value is one of:
-- "duplicate": they state the same fact and the NEW one adds nothing newer (same \
-value, or the NEW one is an older/equal version of an evolving fact).
+- "duplicate": they state the same fact and the NEW one adds nothing newer — \
+either the same value, or the NEW one is an OLDER/equal version of an evolving \
+fact (e.g. EXISTING says "scaled to 4GB" and NEW says "scaled to 2GB": the new is \
+stale, answer "duplicate" so the existing newer note is kept).
 - "supersedes": the NEW one is a strictly NEWER version of the SAME evolving fact \
 (e.g. an updated count, status, or decision that replaces the old value).
 - "distinct": they are different facts, or you are unsure.
