@@ -1125,10 +1125,13 @@ class _FakeConsolidator:
 
 
 def _llm_judge_keep_all():
-    from cairn.ingest.judge import Judgment
+    """A real LLMJudge subclass (so the pipeline tags the run tier 'llm') that
+    keeps+distills everything without a network call."""
+    from cairn.ingest.judge import Judgment, LLMJudge
 
-    class LLMishKeep:
-        degraded = 0
+    class LLMishKeep(LLMJudge):
+        def __init__(self):
+            super().__init__(api_key="k", model="m", timeout=5.0)
 
         def judge(self, texts, *, contexts=None):
             return [Judgment(durability=0.9, title="T", distilled=t) for t in texts]
@@ -1157,7 +1160,7 @@ def test_consolidation_only_on_llm_tier(tmp_path):
     vault = tmp_path / "v"
     vault.mkdir()
     rep = ingest_transcripts(
-        [_consol_t(tmp_path, "we always rebase-merge approved PRs")],
+        [_consol_t(tmp_path, "D: we always rebase-merge approved PRs")],
         vault_root=vault,
         ledger=DedupLedger(tmp_path / "l.sha256"),
         judge=EmbeddingJudge(StubEmbedder()),

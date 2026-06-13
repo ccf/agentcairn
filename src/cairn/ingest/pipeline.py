@@ -176,15 +176,13 @@ def ingest_transcripts(
 
     # Phase C: gate. Kept candidates are collected (not written yet) so the write
     # pass can run in timestamp order for correct supersession.
-    # Consolidation requires an LLM-like judge (duck-typed: exposes a `degraded`
-    # counter, which both LLMJudge and compatible test doubles provide).
+    # Consolidation requires an explicit LLM-tier run (report.judge_tier == "llm").
     # EmbeddingJudge and heuristic-only runs are NOT consolidated — the cosine
     # pre-gate in the NeighborIndex already assumes LLM-quality distillations.
     consolidating = (
         consolidator is not None
         and neighbor_index is not None
-        and judge is not None
-        and hasattr(judge, "degraded")
+        and report.judge_tier == "llm"
         and not dry_run
     )
     kept: list[tuple[Candidate, str]] = []
@@ -203,11 +201,10 @@ def ingest_transcripts(
             combined = j.durability  # frontmatter importance only
             cand = replace(cand, judgment=j, importance=combined)
         elif j is not None:
-            # Weaker (embedding) judge OR a degraded LLM chunk: let the judge's
-            # durability float drive the keep decision directly; the heuristic still
-            # sets `importance` in the frontmatter but does not gate the note.
+            # Weaker (embedding) judge OR a degraded LLM chunk: blend durability
+            # with the heuristic, exactly as the embedding tier would.
             combined = max(0.0, min(1.0, 0.5 * heuristic + 0.5 * j.durability))
-            keep = j.durability >= threshold
+            keep = combined >= threshold
             cand = replace(cand, judgment=j, importance=combined)
         else:
             combined = heuristic
@@ -232,9 +229,9 @@ def ingest_transcripts(
         kept.append((cand, h))
 
     for cand, h in sorted(kept, key=lambda ch: ch[0].timestamp or ""):
+        report.candidates += 1
         note = distiller.distill(cand)
         if dry_run:
-            report.candidates += 1
             continue
         if consolidating:
             verdict, neighbor = _consolidate(cand, note, consolidator, neighbor_index)
@@ -247,7 +244,6 @@ def ingest_transcripts(
                 if old_path.exists():
                     mark_superseded(old_path, note.permalink)
                     report.superseded += 1
-        report.candidates += 1
         path = write_derived_note(note, vault_root, subdir=subdir)
         ledger.add(h)
         report.written.append(path)
