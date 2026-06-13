@@ -77,22 +77,22 @@ def _judge_tier_name(judge: Judge | None) -> str:
     return type(judge).__name__.lower()
 
 
-def _memory_text(cand: Candidate, note) -> str:
+def _memory_text(cand: Candidate) -> str:
     """Text used to embed/compare a memory: the LLM distillation if present, else
     the candidate's redacted text."""
     j = cand.judgment
     return j.distilled if (j and j.distilled) else cand.text
 
 
-def _consolidate(cand, note, consolidator, neighbor_index):
+def _consolidate(cand: Candidate, consolidator: Consolidator, neighbor_index: NeighborIndex):
     """Return (verdict, neighbor). Fail-safe: any error -> (DISTINCT, None)."""
     try:
-        hit = neighbor_index.nearest(_memory_text(cand, note))
+        hit = neighbor_index.nearest(_memory_text(cand))
         if hit is None:
             return ConsolidationVerdict.DISTINCT, None
         neighbor, _cos = hit
         verdict = consolidator.classify(
-            new_text=_memory_text(cand, note), new_ts=cand.timestamp, neighbor=neighbor
+            new_text=_memory_text(cand), new_ts=cand.timestamp, neighbor=neighbor
         )
         return verdict, neighbor
     except Exception:
@@ -228,13 +228,17 @@ def ingest_transcripts(
             continue
         kept.append((cand, h))
 
-    for cand, h in sorted(kept, key=lambda ch: ch[0].timestamp or ""):
+    # Consolidation needs timestamp order so a later memory supersedes an earlier
+    # one (None timestamps sort first via `or ""`). Off the consolidating path we
+    # keep the original collection order so write/ledger order is unchanged.
+    ordered = sorted(kept, key=lambda ch: ch[0].timestamp or "") if consolidating else kept
+    for cand, h in ordered:
         report.candidates += 1
         note = distiller.distill(cand)
         if dry_run:
             continue
         if consolidating:
-            verdict, neighbor = _consolidate(cand, note, consolidator, neighbor_index)
+            verdict, neighbor = _consolidate(cand, consolidator, neighbor_index)
             if verdict is ConsolidationVerdict.DUPLICATE:
                 report.semantic_deduped += 1
                 ledger.add(h)
@@ -248,7 +252,7 @@ def ingest_transcripts(
         ledger.add(h)
         report.written.append(path)
         if consolidating:
-            neighbor_index.add(note.permalink, _memory_text(cand, note), cand.timestamp)
+            neighbor_index.add(note.permalink, _memory_text(cand), cand.timestamp)
     return report
 
 
