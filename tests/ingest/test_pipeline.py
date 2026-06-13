@@ -731,3 +731,95 @@ def test_degraded_llm_chunk_does_not_poison_cache(tmp_path, monkeypatch):
     )
     blob = "\n".join(p.read_text() for p in vault.rglob("*.md"))
     assert "Always rebase-merge." in blob  # re-judged after the transient failure
+
+
+# ---------------------------------------------------------------------------
+# Antecedent resolution — nearest preceding assistant turn per session
+# ---------------------------------------------------------------------------
+
+
+def _ev_sid(kind, text, sid, ts="t0"):
+    """Like _ev but with an explicit session_id (default _ev uses None)."""
+    from pathlib import Path
+
+    return NormalizedEvent(
+        kind=kind,
+        role="user" if kind == EventKind.AUTHORED_USER else "assistant",
+        text=text,
+        timestamp=ts,
+        session_id=sid,
+        project="p",
+        git_branch="main",
+        source_path=Path("/tmp/s.jsonl"),
+    )
+
+
+def test_select_candidates_attaches_nearest_preceding_assistant():
+    from cairn.ingest.pipeline import select_candidates
+
+    t = Transcript(
+        session_id="s",
+        cwd="/Users/x/p",
+        git_branch="main",
+        path=__import__("pathlib").Path("/tmp/s.jsonl"),
+        events=[
+            _ev(
+                EventKind.AUTHORED_ASSISTANT, "I propose approach A: the orderbook representation."
+            ),
+            _ev(EventKind.TOOL_RESULT, "some tool output"),  # must NOT clear the antecedent
+            _ev(EventKind.AUTHORED_USER, "lock A"),
+        ],
+    )
+    (cand,) = select_candidates(t)
+    assert cand.text == "lock A"
+    assert cand.antecedent == "I propose approach A: the orderbook representation."
+
+
+def test_select_candidates_no_antecedent_before_any_assistant():
+    from cairn.ingest.pipeline import select_candidates
+
+    t = Transcript(
+        session_id="s",
+        cwd="/Users/x/p",
+        git_branch="main",
+        path=__import__("pathlib").Path("/tmp/s.jsonl"),
+        events=[_ev(EventKind.AUTHORED_USER, "first turn, no prior assistant")],
+    )
+    (cand,) = select_candidates(t)
+    assert cand.antecedent is None
+
+
+def test_select_candidates_does_not_cross_session_boundary():
+    from cairn.ingest.pipeline import select_candidates
+
+    t = Transcript(
+        session_id="s1",
+        cwd="/Users/x/p",
+        git_branch="main",
+        path=__import__("pathlib").Path("/tmp/s.jsonl"),
+        events=[
+            _ev_sid(EventKind.AUTHORED_ASSISTANT, "proposal in session one", "s1"),
+            _ev_sid(EventKind.AUTHORED_USER, "user turn in session two", "s2"),
+        ],
+    )
+    (cand,) = select_candidates(t)
+    assert cand.antecedent is None  # the s1 proposal must not resolve an s2 turn
+
+
+def test_select_candidates_truncates_long_antecedent():
+    from cairn.ingest.pipeline import _ANTECEDENT_CHARS, select_candidates
+
+    long_proposal = "x" * (_ANTECEDENT_CHARS + 500)
+    t = Transcript(
+        session_id="s",
+        cwd="/Users/x/p",
+        git_branch="main",
+        path=__import__("pathlib").Path("/tmp/s.jsonl"),
+        events=[
+            _ev(EventKind.AUTHORED_ASSISTANT, long_proposal),
+            _ev(EventKind.AUTHORED_USER, "go with it"),
+        ],
+    )
+    (cand,) = select_candidates(t)
+    assert len(cand.antecedent) == _ANTECEDENT_CHARS  # HEAD-truncated
+    assert cand.antecedent == long_proposal[:_ANTECEDENT_CHARS]

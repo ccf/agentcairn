@@ -19,23 +19,43 @@ from cairn.ingest.judge import Judge, JudgedCache, Judgment, tier_at_least
 from cairn.ingest.models import Candidate, IngestReport, Transcript
 from cairn.ingest.redact import redact
 
+_ANTECEDENT_CHARS = 2000  # HEAD-truncate the assistant antecedent: the proposal's
+# option list is near the top, and this caps the extra judge-input tokens per turn.
+
 
 def select_candidates(transcript: Transcript) -> list[Candidate]:
     """One candidate per genuinely-authored user event. Everything else (tool
-    results, meta injections, summaries, assistant turns) is excluded by kind."""
-    return [
-        Candidate(
-            text=e.text,
-            session_id=e.session_id or transcript.session_id,
-            cwd=transcript.cwd,
-            git_branch=e.git_branch,
-            timestamp=e.timestamp,
-            source_path=e.source_path,
-            project=e.project,
+    results, meta injections, summaries, assistant turns) is excluded by kind.
+    Each user candidate also carries its `antecedent`: the nearest preceding
+    AUTHORED_ASSISTANT turn in the SAME session (HEAD-truncated), used downstream
+    only as resolution context for the LLM judge — never stored in the note."""
+    out: list[Candidate] = []
+    last_assistant: str | None = None
+    last_assistant_session: str | None = None
+    for e in transcript.events:
+        sid = e.session_id or transcript.session_id
+        if e.kind == EventKind.AUTHORED_ASSISTANT:
+            last_assistant = e.text
+            last_assistant_session = sid
+            continue
+        if e.kind != EventKind.AUTHORED_USER:
+            continue  # tool results / meta / etc. do not clear the antecedent
+        antecedent = last_assistant if last_assistant_session == sid else None
+        if antecedent is not None:
+            antecedent = antecedent[:_ANTECEDENT_CHARS]
+        out.append(
+            Candidate(
+                text=e.text,
+                session_id=sid,
+                cwd=transcript.cwd,
+                git_branch=e.git_branch,
+                timestamp=e.timestamp,
+                source_path=e.source_path,
+                project=e.project,
+                antecedent=antecedent,
+            )
         )
-        for e in transcript.events
-        if e.kind == EventKind.AUTHORED_USER
-    ]
+    return out
 
 
 def _judge_tier_name(judge: Judge | None) -> str:
