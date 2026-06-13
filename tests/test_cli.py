@@ -1067,11 +1067,8 @@ def test_config_init_scaffolds_template(tmp_path, monkeypatch):
     assert "exists" in r2.output.lower()
 
 
-def test_duckdb_neighbor_index_unions_index_and_batch(tmp_path):
-    """nearest() returns the higher-cosine of (DuckDB index, this-sweep batch),
-    None below the gate; add() registers this-sweep writes."""
-    from cairn.cli import _DuckDBNeighborIndex
-    from cairn.ingest.consolidate import _CONSOLIDATE_GATE
+def test_distilled_neighbor_index_loads_live_and_excludes_superseded(tmp_path):
+    from cairn.cli import _DistilledNeighborIndex
 
     class FakeEmbedder:
         dim = 3
@@ -1079,72 +1076,55 @@ def test_duckdb_neighbor_index_unions_index_and_batch(tmp_path):
         def embed(self, texts):
             out = []
             for t in texts:
-                if "ram" in t.lower():
+                tl = t.lower()
+                if "ram" in tl:
                     out.append([1.0, 0.0, 0.0])
-                elif "signoz" in t.lower():
+                elif "signoz" in tl:
                     out.append([0.0, 1.0, 0.0])
                 else:
                     out.append([0.0, 0.0, 1.0])
             return out
 
-    nidx = _DuckDBNeighborIndex(con=None, dim=3, embedder=FakeEmbedder())  # no index -> batch only
-    assert nidx.nearest("ram usage") is None  # batch empty
-    nidx.add("ram-2gb", "ram 2gb", "t0")
-    hit = nidx.nearest("ram 4gb")
-    assert hit is not None and hit[0].permalink == "ram-2gb" and hit[1] >= _CONSOLIDATE_GATE
-    assert nidx.nearest("signoz endpoint") is None  # orthogonal -> below gate -> None
-
-
-def test_duckdb_neighbor_index_arm_and_iso_timestamp():
-    """The DuckDB index arm: single JOIN query -> Neighbor with real path and
-    ISO-8601 timestamp (mtime float normalized), superseded notes excluded."""
-    from cairn.cli import _DuckDBNeighborIndex
-
-    class FakeEmbedder:
-        dim = 3
-
-        def embed(self, texts):
-            return [[1.0, 0.0, 0.0] for _ in texts]  # everything aligns on axis 0
-
-    class FakeCon:
-        def execute(self, sql, params=None):
-            class _R:
-                def fetchone(self_inner):
-                    # (permalink, path, chunk text, mtime float, sim)
-                    return (
-                        "idx-note",
-                        "memories/idx-note.md",
-                        "indexed memory text",
-                        1700000000.0,
-                        0.99,
-                    )
-
-            return _R()
-
-    nidx = _DuckDBNeighborIndex(con=FakeCon(), dim=3, embedder=FakeEmbedder())
-    hit = nidx.nearest("anything")
+    mem = tmp_path / "memories"
+    mem.mkdir()
+    (mem / "ram-live.md").write_text(
+        "---\ntitle: RAM\ntype: memory\npermalink: ram-live\n"
+        "created: '2026-06-01T00:00:00'\n---\n\n- [context] scale RAM to 2GB #ingested\n",
+        encoding="utf-8",
+    )
+    (mem / "ram-old.md").write_text(
+        "---\ntitle: RAM old\ntype: memory\npermalink: ram-old\n"
+        "superseded_by: ram-live\n---\n\n- [context] scale RAM to 1GB #ingested\n",
+        encoding="utf-8",
+    )
+    (mem / "no-context.md").write_text(
+        "---\ntitle: hand\ntype: memory\npermalink: hand\n---\n\nhand-authored body\n",
+        encoding="utf-8",
+    )
+    nidx = _DistilledNeighborIndex(vault_root=tmp_path, subdir="memories", embedder=FakeEmbedder())
+    hit = nidx.nearest("scale RAM to 4GB")
     assert hit is not None
     neighbor, cos = hit
-    assert neighbor.permalink == "idx-note"
-    assert neighbor.path == "memories/idx-note.md"
-    assert neighbor.text == "indexed memory text"
-    assert cos == 0.99
-    assert neighbor.timestamp is not None and "T" in neighbor.timestamp  # ISO-8601
-    assert not neighbor.timestamp.replace(".", "").isdigit()  # not a raw epoch float string
+    assert neighbor.permalink == "ram-live"  # live note, not the superseded one
+    assert neighbor.timestamp == "2026-06-01T00:00:00"  # created frontmatter
+    assert neighbor.path and neighbor.path.endswith("ram-live.md")
+    assert nidx.nearest("totally unrelated topic xyz") is None  # orthogonal -> below gate
 
 
-def test_neighbor_index_excludes_superseded_batch_entry():
-    """Batch entries flagged via note_superseded() are skipped in nearest()."""
-    from cairn.cli import _DuckDBNeighborIndex
+def test_distilled_neighbor_index_batch_and_note_superseded(tmp_path):
+    from cairn.cli import _DistilledNeighborIndex
 
     class FakeEmbedder:
-        dim = 3
+        dim = 2
 
         def embed(self, texts):
-            return [[1.0, 0.0, 0.0] for _ in texts]
+            return [[1.0, 0.0] if "ram" in t.lower() else [0.0, 1.0] for t in texts]
 
-    nidx = _DuckDBNeighborIndex(con=None, dim=3, embedder=FakeEmbedder())
-    nidx.add("a", "ram 2gb", "t0")
-    nidx.note_superseded("a")
-    result = nidx.nearest("ram 4gb")
-    assert result is None  # the only batch entry is flagged superseded
+    (tmp_path / "memories").mkdir()
+    nidx = _DistilledNeighborIndex(vault_root=tmp_path, subdir="memories", embedder=FakeEmbedder())
+    assert nidx.nearest("ram 4gb") is None  # empty vault
+    nidx.add("ram-2gb", "scale ram to 2gb", "t0", str(tmp_path / "memories" / "ram-2gb.md"))
+    hit = nidx.nearest("scale ram to 4gb")
+    assert hit is not None and hit[0].permalink == "ram-2gb"
+    nidx.note_superseded("ram-2gb")
+    assert nidx.nearest("scale ram to 4gb") is None  # flagged -> skipped

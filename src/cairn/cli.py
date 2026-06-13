@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import dataclasses
-import datetime
 import hashlib
 import json
 import math
@@ -18,9 +17,14 @@ from cairn.config import cairn_env, resolve_rerank
 from cairn.embed import get_embedder
 from cairn.index import get_meta, open_index, reconcile
 from cairn.ingest import find_transcripts, parse_transcript
-from cairn.ingest.consolidate import _CONSOLIDATE_GATE, Neighbor, resolve_consolidator
+from cairn.ingest.consolidate import (
+    _CONSOLIDATE_GATE,
+    Neighbor,
+    extract_context,
+    resolve_consolidator,
+)
 from cairn.ingest.dedup import DedupLedger
-from cairn.ingest.judge import JudgedCache, resolve_judge
+from cairn.ingest.judge import _EMBED_BATCH, JudgedCache, resolve_judge
 from cairn.ingest.pipeline import ingest_transcripts
 from cairn.search import open_search, search
 from cairn.vault import parse_note
@@ -33,18 +37,37 @@ def _cosine(a: list[float], b: list[float]) -> float:
     return 0.0 if na == 0 or nb == 0 else dot / (na * nb)
 
 
-class _DuckDBNeighborIndex:
-    """NeighborIndex over the DuckDB index (prior notes) unioned with an in-memory
-    list of this-sweep's writes. Embeds query text with the sweep's embedder.
-    Returns the closest memory only when its cosine >= _CONSOLIDATE_GATE."""
+class _DistilledNeighborIndex:
+    """NeighborIndex over the DISTILLED `[context]` text of live vault notes (loaded
+    and embedded at construction), unioned with this-sweep's writes. No DuckDB: the
+    recall chunk embeddings include the `[verbatim]` turn and cluster by conversational
+    genre (useless for dedup); distilled-vs-distilled separates better (0.10.1)."""
 
-    def __init__(self, *, con, dim: int, embedder) -> None:
-        self._con = con
-        self._dim = dim
+    def __init__(self, *, vault_root: Path, subdir: str, embedder) -> None:
         self._embedder = embedder
-        # perm, vec, text, ts, path
+        # (permalink, vec, distilled_text, created_ts, path)
         self._batch: list[tuple[str, list[float], str, str | None, str | None]] = []
         self._superseded: set[str] = set()
+        loaded: list[tuple[str, str, str | None, str]] = []  # perm, ctx, created, path
+        for p in sorted((vault_root / subdir).glob("*.md")):
+            try:
+                note = parse_note(p.read_text(encoding="utf-8"))
+            except Exception:
+                continue  # a malformed note must not abort the sweep
+            if note.frontmatter.get("superseded_by"):
+                continue  # already demoted — never match against it
+            ctx = extract_context(note.body)
+            if not ctx:
+                continue
+            perm = note.permalink or note.frontmatter.get("permalink") or p.stem
+            loaded.append((perm, ctx, note.frontmatter.get("created"), str(p.resolve())))
+        self._live: list[tuple[str, list[float], str, str | None, str]] = []
+        for i in range(0, len(loaded), _EMBED_BATCH):  # batch -> no OOM on big vaults
+            batch = loaded[i : i + _EMBED_BATCH]
+            for (perm, ctx, created, path), vec in zip(
+                batch, embedder.embed([b[1] for b in batch]), strict=True
+            ):
+                self._live.append((perm, vec, ctx, created, path))
 
     def _embed(self, text: str) -> list[float]:
         return self._embedder.embed([text])[0]
@@ -52,35 +75,12 @@ class _DuckDBNeighborIndex:
     def nearest(self, text: str):
         vec = self._embed(text)
         best = None  # (Neighbor, cosine)
-        for perm, bvec, btext, bts, bpath in self._batch:
+        for perm, nvec, ntext, nts, npath in (*self._live, *self._batch):
             if perm in self._superseded:
                 continue
-            cos = _cosine(vec, bvec)
+            cos = _cosine(vec, nvec)
             if best is None or cos > best[1]:
-                best = (Neighbor(permalink=perm, text=btext, timestamp=bts, path=bpath), cos)
-        if self._con is not None:
-            row = self._con.execute(
-                f"SELECT n.permalink, n.path, c.text, n.mtime, "
-                f"array_cosine_similarity(e.vec, ?::FLOAT[{self._dim}]) AS sim "
-                f"FROM chunk_embeddings e "
-                f"JOIN chunks c ON c.chunk_id = e.chunk_id "
-                f"JOIN notes n ON n.permalink = c.note_permalink "
-                f"WHERE n.superseded_by IS NULL "
-                f"ORDER BY sim DESC LIMIT 1",
-                [vec],
-            ).fetchone()
-            if row is not None:
-                perm, npath, ctext, mtime, sim = row
-                if best is None or sim > best[1]:
-                    ts_iso = (
-                        datetime.datetime.fromtimestamp(mtime, tz=datetime.UTC).isoformat()
-                        if mtime is not None
-                        else None
-                    )
-                    best = (
-                        Neighbor(permalink=perm, text=ctext or "", timestamp=ts_iso, path=npath),
-                        sim,
-                    )
+                best = (Neighbor(permalink=perm, text=ntext, timestamp=nts, path=npath), cos)
         if best is None or best[1] < _CONSOLIDATE_GATE:
             return None
         return best
@@ -577,32 +577,24 @@ def sweep(
     emb = get_embedder(embedder)
     idx = index or _default_index()
     idx.parent.mkdir(parents=True, exist_ok=True)
-    # Build consolidation deps before ingest. Open a read handle to the existing
-    # index for neighbor queries; close it before reconcile opens its write handle
-    # (DuckDB permits only one writer per file at a time).
+    # Build consolidation deps before ingest. _DistilledNeighborIndex reads the
+    # vault directly (no DuckDB read handle needed), so no open/close dance here.
     consolidator = resolve_consolidator()
-    neighbor_index = None
-    nbr_con = None
-    if consolidator is not None and idx.exists():
-        nbr_con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
-        neighbor_index = _DuckDBNeighborIndex(con=nbr_con, dim=emb.dim, embedder=emb)
-    elif consolidator is not None:
-        neighbor_index = _DuckDBNeighborIndex(con=None, dim=emb.dim, embedder=emb)
-    try:
-        rep = ingest_transcripts(
-            transcripts,
-            vault_root=vault,
-            ledger=led,
-            threshold=threshold,
-            judge=resolve_judge(embedder=emb),
-            judged_cache=JudgedCache(led_path.parent / f"{vault_key}.judged.jsonl"),
-            consolidator=consolidator,
-            neighbor_index=neighbor_index,
-        )
-    finally:
-        # Release the neighbor read handle before reconcile opens its write handle.
-        if nbr_con is not None:
-            nbr_con.close()
+    neighbor_index = (
+        _DistilledNeighborIndex(vault_root=vault, subdir="memories", embedder=emb)
+        if consolidator is not None
+        else None
+    )
+    rep = ingest_transcripts(
+        transcripts,
+        vault_root=vault,
+        ledger=led,
+        threshold=threshold,
+        judge=resolve_judge(embedder=emb),
+        judged_cache=JudgedCache(led_path.parent / f"{vault_key}.judged.jsonl"),
+        consolidator=consolidator,
+        neighbor_index=neighbor_index,
+    )
     con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
     try:
         stats = reconcile(con, str(vault), emb)
