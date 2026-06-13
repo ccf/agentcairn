@@ -92,6 +92,12 @@ KNOBS: tuple[Knob, ...] = (
     Knob(
         "anthropic_api_key", "ANTHROPIC_API_KEY", "", "API key for the LLM judge tier.", secret=True
     ),
+    Knob(
+        "consolidate",
+        "CAIRN_CONSOLIDATE",
+        "true",
+        "Semantic dedup + supersession during ingest (LLM judge tier only).",
+    ),
 )
 _KNOWN_KEYS = {k.key for k in KNOBS}
 
@@ -187,6 +193,21 @@ def resolve_rerank(explicit: bool | None = None, env: Mapping[str, str] | None =
     if env is None:
         env = cairn_env()
     raw = env.get("CAIRN_RERANK")
+    if raw is None:
+        return True
+    try:
+        return parse_bool(raw)
+    except ValueError:
+        return True
+
+
+def resolve_consolidate(env: Mapping[str, str] | None = None) -> bool:
+    """Resolve the consolidation on/off setting: CAIRN_CONSOLIDATE env → True.
+    An unparseable CAIRN_CONSOLIDATE falls back to the default (True) rather than raising,
+    so a typo never breaks an ingest."""
+    if env is None:
+        env = cairn_env()
+    raw = env.get("CAIRN_CONSOLIDATE")
     if raw is None:
         return True
     try:

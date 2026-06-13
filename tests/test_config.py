@@ -144,3 +144,10 @@ def test_default_judge_timeout_covers_a_full_batch():
 def test_config_file_values_exposes_file_layer(tmp_path):
     _write(tmp_path, 'judge = "anthropic"\n')
     assert cfg.config_file_values()["CAIRN_JUDGE"] == "anthropic"
+
+
+def test_consolidate_knob_default_on_and_disablable():
+    assert cfg.resolve_consolidate({}) is True  # default on
+    assert cfg.resolve_consolidate({"CAIRN_CONSOLIDATE": "false"}) is False
+    assert cfg.resolve_consolidate({"CAIRN_CONSOLIDATE": "0"}) is False
+    assert cfg.resolve_consolidate({"CAIRN_CONSOLIDATE": "true"}) is True
