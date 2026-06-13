@@ -159,6 +159,7 @@ def parse_transcript(path: Path) -> Transcript:
                 project=project_from_cwd(line_cwd or cwd),
                 git_branch=obj.get("gitBranch") or git_branch,
                 source_path=path,
+                harness="claude-code",
             )
         )
     return Transcript(

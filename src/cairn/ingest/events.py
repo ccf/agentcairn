@@ -37,6 +37,7 @@ class NormalizedEvent:
     project: str | None  # origin project identity, derived from cwd
     git_branch: str | None
     source_path: Path
+    harness: str  # which harness produced this event ("claude-code", "codex")
 
 
 def project_from_cwd(cwd: str | None) -> str | None:

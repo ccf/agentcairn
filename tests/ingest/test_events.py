@@ -31,12 +31,32 @@ def test_normalized_event_is_frozen_and_carries_provenance():
         project="agentcairn",
         git_branch="main",
         source_path=Path("/x.jsonl"),
+        harness="claude-code",
     )
     assert e.kind is EventKind.AUTHORED_USER
     assert e.project == "agentcairn"
     import dataclasses
 
     assert dataclasses.is_dataclass(e)
+
+
+def test_normalized_event_carries_harness():
+    from pathlib import Path
+
+    from cairn.ingest.events import EventKind, NormalizedEvent
+
+    e = NormalizedEvent(
+        kind=EventKind.AUTHORED_USER,
+        role="user",
+        text="hi",
+        timestamp=None,
+        session_id="s",
+        project="p",
+        git_branch=None,
+        source_path=Path("/tmp/x.jsonl"),
+        harness="claude-code",
+    )
+    assert e.harness == "claude-code"
 
 
 def test_real_noise_shapes_are_not_authored(tmp_path):

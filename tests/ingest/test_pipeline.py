@@ -23,6 +23,7 @@ def _ev(kind, text, ts="t0"):
         project="proj",
         git_branch="main",
         source_path=Path("/tmp/sess-1.jsonl"),
+        harness="claude-code",
     )
 
 
@@ -762,6 +763,7 @@ def _ev_sid(kind, text, sid, ts="t0"):
         project="p",
         git_branch="main",
         source_path=Path("/tmp/s.jsonl"),
+        harness="claude-code",
     )
 
 
