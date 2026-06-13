@@ -74,19 +74,21 @@ class CodexAdapter:
         return self.default_root().is_dir()
 
     def _session_cwd(self, path: Path) -> str | None:
-        """Read the session_meta cwd from a transcript's header (cheap: stops at
-        the first session_meta line). None if absent/unreadable."""
+        """Read the session_meta cwd from a transcript's header. Streams line by
+        line and stops at the first session_meta row (it is the first line of a
+        rollout), so it never loads the whole transcript. None if absent/unreadable."""
         try:
-            for line in path.read_text(errors="replace").splitlines():
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    obj = json.loads(line)
-                except (json.JSONDecodeError, ValueError):
-                    continue
-                if isinstance(obj, dict) and obj.get("type") == "session_meta":
-                    return _payload(obj).get("cwd")
+            with path.open(encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        obj = json.loads(line)
+                    except (json.JSONDecodeError, ValueError):
+                        continue
+                    if isinstance(obj, dict) and obj.get("type") == "session_meta":
+                        return _payload(obj).get("cwd")
         except OSError:
             return None
         return None
