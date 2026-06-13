@@ -203,7 +203,9 @@ def test_llm_judge_chunks_large_batches(monkeypatch):
     judge = jmod.LLMJudge(api_key="k", model="m", timeout=5.0)
     out = judge.judge([f"text number {n}" for n in range(90)])
     assert len(out) == 90
-    assert sizes == [40, 40, 10]  # chunked, never one giant truncation-prone call
+    bs = jmod._BATCH_SIZE
+    expected = [bs] * (90 // bs) + ([90 % bs] if 90 % bs else [])
+    assert sizes == expected  # chunked by _BATCH_SIZE, never one giant truncation-prone call
     assert judge.degraded == 0
 
 
@@ -222,11 +224,103 @@ def test_llm_judge_chunk_failure_degrades_only_that_chunk(monkeypatch):
     monkeypatch.setattr(jmod, "_anthropic_request", flaky)
     judge = jmod.LLMJudge(api_key="k", model="m", timeout=5.0)  # no fallback -> neutral
     out = judge.judge([f"text number {n}" for n in range(90)])
+    bs = jmod._BATCH_SIZE
     assert len(out) == 90
-    assert judge.degraded == 40  # ONLY the failed middle chunk
+    assert judge.degraded == bs  # ONLY the failed 2nd chunk (indices bs..2*bs)
     assert out[0].durability == 0.9  # chunk 1 judged
-    assert out[40].durability == 0.5  # chunk 2 neutral
-    assert out[80].durability == 0.9  # chunk 3 judged
+    assert out[bs].durability == 0.5  # chunk 2 neutral
+    assert out[2 * bs].durability == 0.9  # chunk 3 judged
+
+
+def test_llm_judge_tolerates_missing_index(monkeypatch):
+    """If the model returns valid JSON that OMITS an index (seen on large
+    antecedent-laden batches), only that item degrades — the rest of the chunk's
+    real verdicts survive, and the whole batch is not nuked (the old code raised
+    'missing judgment for index N', degrading all 40)."""
+    import json as _json
+
+    import cairn.ingest.judge as jmod
+
+    def fake_request(payload, api_key, timeout):
+        # respond for indices 0 and 2 only; OMIT index 1
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": _json.dumps(
+                        [
+                            {
+                                "i": 0,
+                                "durability": 0.9,
+                                "title": "T0",
+                                "distilled": "Decision zero.",
+                            },
+                            {
+                                "i": 2,
+                                "durability": 0.8,
+                                "title": "T2",
+                                "distilled": "Decision two.",
+                            },
+                        ]
+                    ),
+                }
+            ]
+        }
+
+    monkeypatch.setattr(jmod, "_anthropic_request", fake_request)
+    judge = jmod.LLMJudge(api_key="k", model="m", timeout=5.0)  # no fallback -> neutral
+    out = judge.judge(["turn zero", "turn one", "turn two"])
+    assert len(out) == 3  # every index accounted for, no raise
+    assert out[0].distilled == "Decision zero." and not out[0].degraded
+    assert out[2].distilled == "Decision two." and not out[2].degraded
+    assert out[1].degraded is True and out[1].distilled is None  # the omitted index
+    assert judge.degraded == 1  # ONLY the missing one, not all 3
+
+
+def test_llm_judge_missing_index_uses_fallback(monkeypatch):
+    """An omitted index is filled from the fallback judge (marked degraded), not
+    just neutral 0.5, when a fallback is available."""
+    import json as _json
+
+    import cairn.ingest.judge as jmod
+    from cairn.ingest.judge import EmbeddingJudge
+
+    def fake_request(payload, api_key, timeout):
+        return {  # respond for index 0 only; OMIT index 1
+            "content": [
+                {
+                    "type": "text",
+                    "text": _json.dumps(
+                        [{"i": 0, "durability": 0.9, "title": "T", "distilled": "D."}]
+                    ),
+                }
+            ]
+        }
+
+    monkeypatch.setattr(jmod, "_anthropic_request", fake_request)
+    judge = jmod.LLMJudge(
+        api_key="k", model="m", timeout=5.0, fallback=EmbeddingJudge(StubEmbedder())
+    )
+    out = judge.judge(["D: a durable decision", "D: another durable decision"])
+    assert len(out) == 2
+    assert out[0].distilled == "D." and not out[0].degraded
+    assert out[1].degraded is True  # filled from the embedding fallback
+    assert out[1].durability > 0.5  # the StubEmbedder rates "D:" texts durable
+    assert judge.degraded == 1
+
+
+def test_llm_judge_max_tokens_is_16k(monkeypatch):
+    import cairn.ingest.judge as jmod
+
+    seen = {}
+
+    def fake_request(payload, api_key, timeout):
+        seen["max_tokens"] = payload["max_tokens"]
+        return {"content": [{"type": "text", "text": '[{"i": 0, "durability": 0.1}]'}]}
+
+    monkeypatch.setattr(jmod, "_anthropic_request", fake_request)
+    jmod.LLMJudge(api_key="k", model="m", timeout=5.0).judge(["x"])
+    assert seen["max_tokens"] == 16384  # raised from 8192 to fit large antecedent batches
 
 
 def test_judged_cache_roundtrip(tmp_path):
@@ -366,12 +460,14 @@ def test_llm_chunk_survives_failing_fallback(monkeypatch):
 
     monkeypatch.setattr(jmod, "_anthropic_request", flaky_request)
     judge = jmod.LLMJudge(api_key="k", model="m", timeout=1.0, fallback=ExplodingFallback())
-    texts = [f"text {i}" for i in range(80)]  # two chunks of 40
+    bs = jmod._BATCH_SIZE
+    texts = [f"text {i}" for i in range(4 * bs)]  # four chunks
     out = judge.judge(texts)
-    assert len(out) == 80  # nothing lost
-    assert all(j.durability == 0.9 for j in out[:40])  # chunk 1 results preserved
-    assert all(j.durability == 0.5 for j in out[40:])  # chunk 2 neutral, not raised
-    assert judge.degraded == 40  # counted once, not twice
+    assert len(out) == 4 * bs  # nothing lost
+    assert all(j.durability == 0.9 for j in out[:bs])  # chunk 1 results preserved
+    assert all(j.durability == 0.5 for j in out[bs : 2 * bs])  # chunk 2 neutral, not raised
+    assert all(j.durability == 0.9 for j in out[2 * bs :])  # chunks 3-4 preserved
+    assert judge.degraded == bs  # counted once, not twice
 
 
 def test_judged_cache_records_tier(tmp_path):

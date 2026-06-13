@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.9.7] - 2026-06-13
+
+### Fixed
+- **A large judge batch no longer degrades wholesale when the model omits an item.** Antecedent resolution (0.9.6) roughly doubled per-batch input and lengthened each distillation, so a 40-item response sometimes dropped trailing items; the parser then raised `missing judgment for index N`, degrading the *entire* 40-item chunk to the embedding tier (a clean re-gate degraded 143 candidates). Three changes: (1) **tolerant parsing** — an omitted index now degrades only that one item (filled from the fallback judge, marked degraded so it re-judges next run), not the whole chunk; (2) **`_BATCH_SIZE` 40 → 20** so responses stay complete; (3) **`max_tokens` 8192 → 16384** for headroom on richer distillations. (A truncated/invalid JSON response still degrades the whole chunk, as before — that path is unrecoverable per-item.)
+
 ## [0.9.6] - 2026-06-13
 
 ### Fixed
@@ -130,6 +135,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
 [Unreleased]: https://github.com/ccf/agentcairn/compare/v0.9.6...HEAD
+[0.9.7]: https://github.com/ccf/agentcairn/compare/v0.9.6...v0.9.7
 [0.9.6]: https://github.com/ccf/agentcairn/compare/v0.9.5...v0.9.6
 [0.9.5]: https://github.com/ccf/agentcairn/compare/v0.9.4...v0.9.5
 [0.9.4]: https://github.com/ccf/agentcairn/compare/v0.9.3...v0.9.4

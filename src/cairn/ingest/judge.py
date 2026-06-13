@@ -112,7 +112,10 @@ class EmbeddingJudge:
 
 _ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 _MAX_DISTILL_RATIO = 4  # distilled longer than 4x verbatim -> discarded
-_BATCH_SIZE = 40  # texts per Messages call: large batches risk output truncation
+_BATCH_SIZE = 20  # texts per Messages call. Kept small because antecedent
+# resolution (0.9.6) roughly doubles input size and lengthens each distillation,
+# so a 40-item response sometimes omitted trailing items — fewer items per call
+# keeps the JSON array complete (paired with tolerant parsing + 16k max_tokens).
 _TIMEOUT_PER_MSG_S = 2.0  # the request timeout SCALES with the chunk size: a full
 # 40-message batch takes ~30s on Sonnet, so a fixed small timeout (e.g. the old 10s
 # default) would time out every batch and degrade to embedding silently. The
@@ -220,7 +223,7 @@ class LLMJudge:
         numbered = "\n".join(lines)
         payload = {
             "model": self._model,
-            "max_tokens": 8192,
+            "max_tokens": 16384,
             "system": _PROMPT,
             "messages": [{"role": "user", "content": numbered}],
         }
@@ -232,13 +235,17 @@ class LLMJudge:
         raw = raw.strip()
         if raw.startswith("```"):
             raw = raw.strip("`").removeprefix("json").strip()
-        items = json.loads(raw)
+        items = json.loads(raw)  # malformed/truncated JSON raises -> whole chunk degrades
         by_i = {int(it["i"]): it for it in items}
-        out: list[Judgment] = []
+        out: list[Judgment | None] = [None] * len(texts)
+        missing: list[int] = []
         for i, text in enumerate(texts):
             it = by_i.get(i)
             if it is None:
-                raise ValueError(f"missing judgment for index {i}")
+                # The model returned valid JSON but omitted this index (happens on
+                # large batches). Degrade ONLY this item, not the whole chunk.
+                missing.append(i)
+                continue
             durability = max(0.0, min(1.0, float(it["durability"])))
             title = it.get("title") or None
             distilled = it.get("distilled") or None
@@ -252,8 +259,24 @@ class LLMJudge:
                 distilled = None
             if title and len(title) > 120:
                 title = None
-            out.append(Judgment(durability=durability, title=title, distilled=distilled))
-        return out
+            out[i] = Judgment(durability=durability, title=title, distilled=distilled)
+        if missing:
+            # Fill omitted indices from the fallback judge (or neutral), marked
+            # degraded so they gate by the fallback rule and re-judge next run —
+            # one missing item must not nuke the whole batch's good verdicts.
+            self.degraded += len(missing)
+            fb_texts = [texts[i] for i in missing]
+            fb: list[Judgment] | None = None
+            if self._fallback is not None:
+                try:
+                    fb = self._fallback.judge(fb_texts)
+                except Exception:
+                    fb = None
+            if fb is None:
+                fb = [Judgment(durability=0.5) for _ in fb_texts]
+            for k, i in enumerate(missing):
+                out[i] = replace(fb[k], degraded=True)
+        return [j for j in out if j is not None]
 
 
 # Bump when a change to the judge (prompt, model defaults, output handling, or a
