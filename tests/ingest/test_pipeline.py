@@ -855,6 +855,7 @@ def test_pipeline_passes_antecedent_as_judge_context_and_writes_resolved(tmp_pat
     from cairn.ingest.pipeline import ingest_transcripts
 
     seen = {}
+    _resolved = "Approach A — the orderbook representation — is the locked direction."
 
     def fake_request(payload, api_key, timeout):
         seen["body"] = payload["messages"][0]["content"]
@@ -868,7 +869,7 @@ def test_pipeline_passes_antecedent_as_judge_context_and_writes_resolved(tmp_pat
                                 "i": 0,
                                 "durability": 0.8,
                                 "title": "Lock approach A: orderbook representation",
-                                "distilled": "orderbook representation",
+                                "distilled": _resolved,
                             }
                         ]
                     ),

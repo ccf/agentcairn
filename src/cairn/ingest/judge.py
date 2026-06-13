@@ -242,7 +242,13 @@ class LLMJudge:
             durability = max(0.0, min(1.0, float(it["durability"])))
             title = it.get("title") or None
             distilled = it.get("distilled") or None
-            if distilled and len(distilled) > _MAX_DISTILL_RATIO * max(len(text), 1):
+            # The distillation summarizes the user turn AND (when present) the
+            # antecedent it resolves against, so bound its length on the larger of
+            # the two — a terse turn like "lock A" legitimately yields a longer,
+            # self-contained fact once its referent is resolved.
+            ctx = contexts[i] if contexts is not None else None
+            base_len = max(len(text), len(ctx) if ctx else 0)
+            if distilled and len(distilled) > _MAX_DISTILL_RATIO * max(base_len, 1):
                 distilled = None
             if title and len(title) > 120:
                 title = None
