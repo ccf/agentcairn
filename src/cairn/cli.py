@@ -61,7 +61,7 @@ class _DistilledNeighborIndex:
                 continue
             perm = note.permalink or note.frontmatter.get("permalink") or p.stem
             loaded.append((perm, ctx, note.frontmatter.get("created"), str(p.resolve())))
-        self._live: list[tuple[str, list[float], str, str | None, str]] = []
+        self._live: list[tuple[str, list[float], str, str | None, str | None]] = []
         for i in range(0, len(loaded), _EMBED_BATCH):  # batch -> no OOM on big vaults
             batch = loaded[i : i + _EMBED_BATCH]
             for (perm, ctx, created, path), vec in zip(
@@ -580,6 +580,8 @@ def sweep(
     # Build consolidation deps before ingest. _DistilledNeighborIndex reads the
     # vault directly (no DuckDB read handle needed), so no open/close dance here.
     consolidator = resolve_consolidator()
+    # subdir must match the subdir ingest_transcripts writes notes to (both default
+    # to "memories") — else the index would scan a different dir than the pipeline writes.
     neighbor_index = (
         _DistilledNeighborIndex(vault_root=vault, subdir="memories", embedder=emb)
         if consolidator is not None
