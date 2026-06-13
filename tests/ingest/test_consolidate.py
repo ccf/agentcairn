@@ -94,3 +94,9 @@ def test_extract_context():
     assert extract_context("some hand-authored body without the marker") is None
     # tolerate a missing #ingested suffix
     assert extract_context("- [context] bare fact\n") == "bare fact"
+
+
+def test_gate_calibrated_for_distilled_signal():
+    from cairn.ingest.consolidate import _CONSOLIDATE_GATE
+
+    assert _CONSOLIDATE_GATE == 0.75  # distilled-signal calibration (0.10.1)

@@ -15,9 +15,13 @@ from typing import Protocol
 
 from cairn.ingest.judge import _anthropic_request
 
-_CONSOLIDATE_GATE = 0.88  # cosine below this -> no classify call (write normally).
-# Validated on the real corpus (scripts/eval_consolidate.py); conservative on
-# purpose — a higher gate means fewer chances to drop a distinct memory.
+_CONSOLIDATE_GATE = 0.75  # cosine below this -> no classify call. Calibrated (0.10.1)
+# on the DISTILLED [context] signal: genuine "same fact, different sentence" dups
+# (e.g. the SigNoz endpoint notes ~0.76, Fly RAM scaling ~0.67-0.76) sit near the
+# distilled top-1 median (~0.75), indistinguishable by cosine alone from topically
+# related distinct notes — so this is a COARSE pre-filter and the LLM adjudicates
+# every above-gate pair (fail-safe DISTINCT). A full from-scratch re-gate classifies
+# ~half the candidates (rare); incremental sweeps cost ~one classify per new candidate.
 
 _CONTEXT_RE = re.compile(r"^- \[context\] (.+)$", re.MULTILINE)
 
