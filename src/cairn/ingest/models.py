@@ -58,6 +58,8 @@ class IngestReport:
     event_kinds: dict[str, int] = field(default_factory=dict)  # all event kinds seen
     judge_tier: str = "none"  # "llm" | "embedding" | "none"
     judge_degraded: int = 0  # candidates that fell back a tier
+    semantic_deduped: int = 0  # candidates skipped as semantic duplicates
+    superseded: int = 0  # existing notes marked superseded_by a newer candidate
     written: list[Path] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -71,5 +73,7 @@ class IngestReport:
             "event_kinds": self.event_kinds,
             "judge_tier": self.judge_tier,
             "judge_degraded": self.judge_degraded,
+            "semantic_deduped": self.semantic_deduped,
+            "superseded": self.superseded,
             "written": [str(p) for p in self.written],
         }
