@@ -996,6 +996,26 @@ def test_antecedent_secret_straddling_truncation_boundary_is_redacted(tmp_path):
     assert len(ctx) <= _ANTECEDENT_CHARS  # still truncated, but AFTER redaction
 
 
+def test_select_candidates_interleaved_sessions_keep_their_own_antecedent():
+    """With interleaved sessions, a later session's assistant turn must not steal
+    an earlier session's antecedent — tracking is per session (Bugbot #64)."""
+    from cairn.ingest.pipeline import select_candidates
+
+    t = Transcript(
+        session_id="s1",
+        cwd="/Users/x/p",
+        git_branch="main",
+        path=__import__("pathlib").Path("/tmp/s.jsonl"),
+        events=[
+            _ev_sid(EventKind.AUTHORED_ASSISTANT, "proposal in session ONE", "s1"),
+            _ev_sid(EventKind.AUTHORED_ASSISTANT, "proposal in session TWO", "s2"),
+            _ev_sid(EventKind.AUTHORED_USER, "lock A", "s1"),
+        ],
+    )
+    (cand,) = select_candidates(t)
+    assert cand.antecedent == "proposal in session ONE"  # not s2's, not None
+
+
 def test_judged_cache_key_is_antecedent_aware(tmp_path, monkeypatch):
     """A gated verdict cached for a user turn against one antecedent must NOT
     suppress the same turn when it later appears with a DIFFERENT, resolvable
