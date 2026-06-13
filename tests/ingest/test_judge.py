@@ -424,3 +424,12 @@ def test_tier_at_least():
     assert tier_at_least("embedding", "embedding")
     assert not tier_at_least("embedding", "llm")  # embedding entry NOT usable on an llm run
     assert tier_at_least("llm", "llm")
+
+
+def test_embedding_judge_accepts_and_ignores_contexts():
+    judge = EmbeddingJudge(StubEmbedder())
+    texts = ["D: we decided to always rebase-merge", "E: check CI on PR #76"]
+    without = judge.judge(texts)
+    with_ctx = judge.judge(texts, contexts=["some prior assistant proposal", None])
+    # the embedding tier produces no distillation, so the antecedent is irrelevant
+    assert [j.durability for j in with_ctx] == [j.durability for j in without]
