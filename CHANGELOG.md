@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.9.8] - 2026-06-13
+
+### Fixed
+- **The LLM judge now retries a failed chunk before degrading, and tolerates trailing text in the response.** Dogfooding 0.9.7 showed that — contrary to the missing-item theory behind 0.9.7 — the real batch failures are *transient timeouts* and *malformed JSON* from the model (e.g. a valid array followed by trailing prose, or an occasional bad delimiter), which `json.loads` rejected wholesale, degrading the entire chunk to the embedding tier. Two changes: (1) a failed chunk is now **retried up to `_MAX_RETRIES` (2) times with linear backoff** — the model is non-deterministic, so a re-roll usually returns valid JSON, and a retry also rides out an occasional slow/timed-out call; (2) the response is parsed with `json.JSONDecoder().raw_decode()`, which **ignores trailing text** after the JSON array ("Extra data"). Truly unrecoverable responses still degrade after retries are exhausted, and the loud degradation warning (0.9.4) still reports them.
+
 ## [0.9.7] - 2026-06-13
 
 ### Fixed
@@ -135,6 +140,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
 [Unreleased]: https://github.com/ccf/agentcairn/compare/v0.9.6...HEAD
+[0.9.8]: https://github.com/ccf/agentcairn/compare/v0.9.7...v0.9.8
 [0.9.7]: https://github.com/ccf/agentcairn/compare/v0.9.6...v0.9.7
 [0.9.6]: https://github.com/ccf/agentcairn/compare/v0.9.5...v0.9.6
 [0.9.5]: https://github.com/ccf/agentcairn/compare/v0.9.4...v0.9.5
