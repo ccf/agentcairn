@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-06-13
+
+### Added
+- **Multi-harness transcript ingestion — Codex sessions are now ingested alongside Claude Code.** A new `HarnessAdapter` seam (`cairn.ingest.harness`) owns each harness's transcript location, container format, and structural classification; `cairn sweep`/`cairn ingest` **auto-detect every harness present on disk** (Claude Code + Codex) and ingest them in one pass, narrowable with `--harness` or `CAIRN_HARNESSES` (`--transcripts-dir` now requires a single explicit `--harness`). The Codex adapter maps `~/.codex/sessions/.../rollout-*.jsonl` with the same positive-identification, fail-closed discipline as Claude Code: only affirmatively-recognized authored user prose becomes a candidate, and a `role=user` row that is actually an injected block (`# AGENTS.md`, `<INSTRUCTIONS>`, `<environment_context>`, …) is demoted via a tag-backstop and never written. `NormalizedEvent` now carries its originating `harness` (provenance plumbing). The redaction → judge → consolidation → reindex pipeline is unchanged; Gemini and Cursor are designed-for but deferred to later cycles.
+
 ## [0.10.1] - 2026-06-13
 
 ### Fixed
