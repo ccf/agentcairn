@@ -63,9 +63,13 @@ class Neighbor:
     timestamp: str | None
 
 class NeighborIndex(Protocol):
-    def nearest(self, vec: list[float]) -> tuple[Neighbor, float] | None:
+    def nearest(self, text: str) -> tuple[Neighbor, float] | None:
         """Return (closest existing memory, cosine similarity), or None if the
-        store is empty. Spans prior-sweep notes AND this-sweep's writes."""
+        store is empty. The index embeds `text` internally; the pipeline passes
+        plain text, not pre-computed vectors. Spans prior-sweep notes AND
+        this-sweep's writes."""
+    def add(self, permalink: str, text: str, timestamp: str | None) -> None:
+        """Register a newly-written memory in the index (embeds internally)."""
 
 class Consolidator(Protocol):
     def classify(
@@ -109,18 +113,17 @@ earlier". For each kept, distilled memory:
 
 1. If `consolidator is None` or `neighbor_index is None` or `report.judge_tier != "llm"`
    → write normally (skip consolidation).
-2. Embed the memory's text (batch: embed all kept candidates once before the loop,
-   via the injected embedder, to avoid per-item model calls).
-3. `hit = neighbor_index.nearest(vec)`. If `hit is None` or `cosine < _CONSOLIDATE_GATE`
-   → write normally.
-4. `verdict = consolidator.classify(new_text=…, new_ts=…, neighbor=hit.neighbor)`.
+2. `hit = neighbor_index.nearest(M.text)`. The index embeds the text internally
+   (the pipeline passes plain text, not vectors). If `hit is None` or
+   `cosine < _CONSOLIDATE_GATE` → write normally.
+3. `verdict = consolidator.classify(new_text=…, new_ts=…, neighbor=hit.neighbor)`.
    - `DUPLICATE` → do **not** write; `ledger.add(content_hash(cand.text))`;
      `report.semantic_deduped += 1`; continue.
    - `SUPERSEDES` → write the new note; set the **old** note's `superseded_by`
      frontmatter to the new note's permalink (edit the old `.md` in place);
      `report.superseded += 1`. Register the new note in the in-memory batch index.
    - `DISTINCT` → write normally.
-5. Every written memory is registered in the in-memory batch index (so later
+4. Every written memory is registered in the in-memory batch index (so later
    same-sweep candidates can match it).
 
 Writing a note already returns its path/permalink; `superseded_by` is written by
@@ -143,14 +146,13 @@ applies the ×0.5 recall demotion.
 
 ```
 distilled memory M (text, ts)
-  -> embed(M.text) = v
-  -> neighbor_index.nearest(v) = (N, cos)
+  -> neighbor_index.nearest(M.text) = (N, cos)   # index embeds internally
        cos < gate ............................. write M (DISTINCT path)
        cos >= gate -> consolidator.classify(M, N):
            DISTINCT  ............................ write M
            DUPLICATE ............................ skip M, ledger M.hash
            SUPERSEDES ........................... write M, set N.superseded_by = M.permalink
-  -> register M in batch index (if written)
+  -> register M in batch index (if written)       # index embeds internally
 ```
 
 ## Threshold validation (`_CONSOLIDATE_GATE`)
@@ -164,6 +166,10 @@ cleanly, choose the gate that admits the dups (the LLM then adjudicates) while
 keeping the above-gate volume small. Record the chosen value + the separation in
 the spec/PR. Conservative bias: a higher gate means fewer classify calls and
 fewer chances to drop a distinct memory.
+
+Note: `scripts/eval_consolidate.py` embeds the full note text, whereas production
+embeds the distilled memory text (and the index stores chunk text incl. `[verbatim]`);
+the eval is an approximate proxy for the gate, not an exact match.
 
 ## Edge cases
 
