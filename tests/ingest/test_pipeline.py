@@ -904,3 +904,40 @@ def test_pipeline_passes_antecedent_as_judge_context_and_writes_resolved(tmp_pat
     blob = "\n".join(p.read_text() for p in vault.rglob("*.md"))
     assert "orderbook representation" in blob  # resolved distillation is self-contained
     assert "- [verbatim] lock A" in blob  # verbatim is still the user's literal turn
+
+
+def test_phase_a_redacts_antecedent_before_judge(tmp_path):
+    """An antecedent containing a secret must be redacted before the judge sees
+    it, and the redaction must be counted in report.redactions."""
+    from cairn.ingest.judge import Judgment
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    seen_contexts = []
+
+    class SpyJudge:
+        degraded = 0
+
+        def judge(self, texts, *, contexts=None):
+            seen_contexts.extend(contexts or [None] * len(texts))
+            return [Judgment(durability=0.0) for _ in texts]  # gate out; we only inspect input
+
+    secret = "sk-ant-api03-" + "A" * 40 + "-deadbeefcafe1234567890AB_cd-ef"
+    t = Transcript(
+        session_id="s",
+        cwd="/Users/x/p",
+        git_branch="main",
+        path=tmp_path / "s.jsonl",
+        events=[
+            _ev(EventKind.AUTHORED_ASSISTANT, f"Use this key: {secret} for option A."),
+            _ev(EventKind.AUTHORED_USER, "lock A"),
+        ],
+    )
+    vault = tmp_path / "v"
+    vault.mkdir()
+    rep = ingest_transcripts(
+        [t], vault_root=vault, ledger=DedupLedger(tmp_path / "l.sha256"), judge=SpyJudge()
+    )
+    assert seen_contexts, "judge received no contexts"
+    assert secret not in (seen_contexts[0] or "")  # raw secret never reaches the judge
+    assert "[REDACTED:" in (seen_contexts[0] or "")
+    assert rep.redactions >= 1  # antecedent redaction counted

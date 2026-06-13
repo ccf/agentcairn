@@ -106,6 +106,10 @@ def ingest_transcripts(
             red = redact(cand.text)
             report.redactions += red.count
             cand = replace(cand, text=red.text)
+            if cand.antecedent is not None:
+                ared = redact(cand.antecedent)
+                report.redactions += ared.count
+                cand = replace(cand, antecedent=ared.text)
             h = content_hash(cand.text)
             if ledger.seen(h) or h in seen_this_run:
                 report.deduped += 1
