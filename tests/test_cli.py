@@ -1216,3 +1216,104 @@ def test_transcripts_dir_requires_single_harness(tmp_path, monkeypatch):
     )
     assert res.exit_code != 0
     assert "exactly one --harness" in res.output
+
+
+def test_sweep_auto_detects_both_harnesses(tmp_path, monkeypatch):
+    """cairn sweep with NO --harness ingests Claude Code AND Codex transcripts in one
+    auto-detect run — the headline seam of feature #36.
+
+    Strategy: monkeypatch the two module-level root constants that back
+    default_root()/is_present()/find() for each adapter, then lay down one
+    keeper-grade user turn for each harness and assert that a full sweep
+    (no --harness, no --transcripts-dir) writes at least one note from each.
+
+    Determinism: the importance scorer is a pure keyword heuristic (no model).
+    Both sample turns use "We decided to always …" prose that scores 0.61 —
+    reliably above the 0.5 default threshold with CAIRN_JUDGE=none (embedding
+    judge disabled).  No randomness; result is fully deterministic.
+    """
+    import cairn.ingest.harness.claude_code as cc_mod
+    import cairn.ingest.harness.codex as cx_mod
+
+    # ---- Claude Code fixture ------------------------------------------------
+    claude_root = tmp_path / "claude" / "projects"
+    enc_cwd = "-Users-x-proj"
+    (claude_root / enc_cwd).mkdir(parents=True)
+    cc_turn = json.dumps(
+        {
+            "type": "user",
+            "sessionId": "sess-cc",
+            "cwd": "/Users/x/proj",
+            "gitBranch": "main",
+            "timestamp": "2026-06-08T10:00:00Z",
+            "message": {
+                "role": "user",
+                "content": "We decided to always escape the ATTACH path before interpolating it.",
+            },
+        }
+    )
+    (claude_root / enc_cwd / "sess-cc.jsonl").write_text(cc_turn + "\n")
+
+    # ---- Codex fixture -------------------------------------------------------
+    codex_root = tmp_path / "codex" / "sessions"
+    day_dir = codex_root / "2026" / "03" / "08"
+    day_dir.mkdir(parents=True)
+    codex_session_meta = json.dumps(
+        {
+            "type": "session_meta",
+            "payload": {"id": "sess-codex-36", "cwd": "/Users/x/insights"},
+            "timestamp": "2026-03-08T09:00:00Z",
+        }
+    )
+    codex_user_turn = json.dumps(
+        {
+            "type": "response_item",
+            "payload": {
+                "type": "message",
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": "We decided to always rebase-merge the codex branch before ship.",
+                    }
+                ],
+            },
+            "timestamp": "2026-03-08T09:35:29Z",
+        }
+    )
+    (day_dir / "rollout-x.jsonl").write_text(codex_session_meta + "\n" + codex_user_turn + "\n")
+
+    # ---- Monkeypatch both adapter roots -------------------------------------
+    monkeypatch.setattr(cc_mod, "_CLAUDE_ROOT", claude_root)
+    monkeypatch.setattr(cx_mod, "_CODEX_ROOT", codex_root)
+
+    # ---- Run auto-detect sweep (no --harness, no --transcripts-dir) ---------
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    idx = tmp_path / "i.duckdb"
+    result = runner.invoke(
+        app,
+        [
+            "sweep",
+            "--vault",
+            str(vault),
+            "--embedder",
+            "fake",
+            "--index",
+            str(idx),
+            "--ledger",
+            str(tmp_path / "led.sha256"),
+        ],
+        env={"CAIRN_JUDGE": "none"},  # hermetic: no fastembed judge
+    )
+    assert result.exit_code == 0, result.output
+
+    # ---- Assert notes from BOTH harnesses were written ----------------------
+    notes = list(vault.rglob("*.md"))
+    assert notes, "sweep wrote no notes at all"
+
+    all_content = "\n".join(n.read_text() for n in notes)
+    assert "ATTACH path" in all_content, "no Claude Code note found (expected 'ATTACH path' phrase)"
+    assert "rebase-merge the codex branch" in all_content, (
+        "no Codex note found (expected 'rebase-merge the codex branch' phrase)"
+    )
