@@ -1128,3 +1128,53 @@ def test_distilled_neighbor_index_batch_and_note_superseded(tmp_path):
     assert hit is not None and hit[0].permalink == "ram-2gb"
     nidx.note_superseded("ram-2gb")
     assert nidx.nearest("scale ram to 4gb") is None  # flagged -> skipped
+
+
+def test_distilled_neighbor_index_batches_beyond_embed_batch(tmp_path):
+    """Construction batches embedding in _EMBED_BATCH chunks; >64 notes all load."""
+    from cairn.cli import _DistilledNeighborIndex
+    from cairn.ingest.judge import _EMBED_BATCH
+
+    mem = tmp_path / "memories"
+    mem.mkdir()
+    n = _EMBED_BATCH + 1  # force a second batch
+    for i in range(n):
+        body = (
+            f"---\npermalink: note-{i}\ntype: memory\n---\n\n"
+            f"- [context] distinct fact number {i} #ingested\n"
+        )
+        (mem / f"note-{i}.md").write_text(body, encoding="utf-8")
+
+    class FakeEmbedder:
+        dim = 2
+
+        def embed(self, texts):
+            return [[1.0, 0.0] for _ in texts]  # all identical -> any query matches one
+
+    nidx = _DistilledNeighborIndex(vault_root=tmp_path, subdir="memories", embedder=FakeEmbedder())
+    assert len(nidx._live) == n  # every note across both batches loaded
+    hit = nidx.nearest("anything")
+    assert hit is not None and hit[1] >= 0.99  # identical vectors -> cosine ~1
+
+
+def test_distilled_neighbor_index_skips_malformed_note(tmp_path):
+    """A note that parse_note chokes on is skipped at load, not fatal."""
+    from cairn.cli import _DistilledNeighborIndex
+
+    mem = tmp_path / "memories"
+    mem.mkdir()
+    (mem / "good.md").write_text(
+        "---\npermalink: good\ntype: memory\n---\n\n- [context] a good fact #ingested\n",
+        encoding="utf-8",
+    )
+    (mem / "bad.md").write_bytes(b"\x00\xff not valid utf-8 or frontmatter \x00")
+
+    class FakeEmbedder:
+        dim = 2
+
+        def embed(self, texts):
+            return [[1.0, 0.0] for _ in texts]
+
+    nidx = _DistilledNeighborIndex(vault_root=tmp_path, subdir="memories", embedder=FakeEmbedder())
+    perms = {row[0] for row in nidx._live}
+    assert "good" in perms and "bad" not in perms  # malformed skipped, construction succeeded
