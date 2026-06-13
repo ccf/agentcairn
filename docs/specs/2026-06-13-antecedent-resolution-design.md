@@ -91,10 +91,18 @@ if cand.antecedent is not None:
     cand = replace(cand, antecedent=ared.text[:_ANTECEDENT_CHARS])  # then truncate
 ```
 
-The antecedent does **not** participate in the dedup hash (`content_hash` stays
-over the candidate text only — two identical user turns after different proposals
-are still the same turn for dedup purposes; resolution is a distillation concern,
-not an identity concern). Antecedent redaction counts toward `report.redactions`.
+**Identity — two keys (Bugbot #64).** The **dedup ledger** stays keyed on the
+candidate text alone (`content_hash(cand.text)`): changing the dedup identity
+would re-hash every previously-written note on upgrade and duplicate the vault for
+users who don't do a full re-gate. But the **judged cache** key folds in the
+redacted antecedent (`_judge_cache_key` = `content_hash(text + "\x00" +
+antecedent)`), because the LLM verdict (its `distilled`) depends on the antecedent
+— the same turn after a *different* proposal is a different verdict, and a gated
+verdict for one antecedent must not suppress re-resolution under another. Antecedent
+redaction counts toward `report.redactions`. (Known minor limitation: within a
+single sweep, two identical-text turns with different antecedents still collapse on
+the text-only dedup key — the second is deduped before judging. Low frequency;
+accepted to avoid duplicate-note churn on upgrade.)
 
 ### D. Judge interface — optional parallel `contexts` (`judge.py`)
 
