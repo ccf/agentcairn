@@ -136,8 +136,6 @@ would without it. Never manufacture a decision from a contentless acknowledgemen
 ("yes", "do it", "ok").
 Return ONLY a JSON array: [{"i": <index>, "durability": <float>, "title": <str|null>, \
 "distilled": <str|null>}, ...] with one entry per input, in order.
-
-Messages:
 """
 
 
