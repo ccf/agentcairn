@@ -752,6 +752,24 @@ def test_install_codex_print_reports_stale_mcp_migration(tmp_path, monkeypatch):
     assert cfg.read_text().startswith("[mcp_servers.agentcairn]")
 
 
+def test_install_antigravity_print_shows_agy_command(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    r = runner.invoke(app, ["install", "antigravity", "--print"])
+    assert r.exit_code == 0, r.output
+    assert "agy plugin install ccf/agentcairn" in r.output
+
+
+def test_install_antigravity_print_reports_migration(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cfg = tmp_path / ".gemini" / "config" / "mcp_config.json"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text('{"mcpServers": {"agentcairn": {"command": "uvx"}}}')
+    r = runner.invoke(app, ["install", "antigravity", "--print"])
+    assert r.exit_code == 0, r.output
+    assert "mcpServers.agentcairn" in r.output
+    assert "agentcairn" in cfg.read_text()  # --print writes nothing
+
+
 def test_ingest_reports_per_kind_skips(tmp_path, monkeypatch):
     import json as _j
 

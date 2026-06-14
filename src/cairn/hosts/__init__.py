@@ -72,7 +72,16 @@ HOSTS: list[Host] = [
         "~/.gemini/settings.json",
         detect_template="~/.gemini/settings.json",
     ),
-    Host("antigravity", "Antigravity", "json", "~/.gemini/config/mcp_config.json"),
+    Host(
+        "antigravity",
+        "Antigravity",
+        "plugin",  # format unused for plugin hosts; benign placeholder
+        "~/.gemini/config/mcp_config.json",  # used only by the stale-MCP migration
+        kind="plugin",
+        cli="agy",
+        marketplace_add=None,  # `agy plugin install` is a single step
+        plugin_add=("plugin", "install", "{source}"),
+    ),
     Host(
         "codex",
         "Codex CLI",

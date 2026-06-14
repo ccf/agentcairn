@@ -89,3 +89,43 @@ def test_migrate_codex_noop_when_absent(tmp_path):
 
 def test_migrate_codex_missing_file_is_noop(tmp_path):
     assert migrate_codex_mcp_block(tmp_path / "nope.toml", dry=False) is None
+
+
+def test_install_plugin_antigravity_single_command():
+    out = install_plugin(get_host("antigravity"), source="ccf/agentcairn", dry=True)
+    assert out == "agy plugin install ccf/agentcairn"
+
+
+def test_migrate_antigravity_removes_entry_preserving_rest(tmp_path):
+    import json as _j
+
+    from cairn.hosts.plugins import migrate_antigravity_mcp_block
+
+    p = tmp_path / "mcp_config.json"
+    p.write_text(
+        _j.dumps(
+            {
+                "theme": "dark",
+                "mcpServers": {"other": {"command": "x"}, "agentcairn": {"command": "uvx"}},
+            }
+        )
+    )
+    note = migrate_antigravity_mcp_block(p, dry=False)
+    assert note is not None
+    data = _j.loads(p.read_text())
+    assert "agentcairn" not in data["mcpServers"]
+    assert data["mcpServers"]["other"] == {"command": "x"}
+    assert data["theme"] == "dark"
+    assert p.with_name("mcp_config.json.bak").exists()
+
+
+def test_migrate_antigravity_noop_and_missing(tmp_path):
+    import json as _j
+
+    from cairn.hosts.plugins import migrate_antigravity_mcp_block
+
+    assert migrate_antigravity_mcp_block(tmp_path / "nope.json", dry=False) is None
+    p = tmp_path / "mcp_config.json"
+    p.write_text(_j.dumps({"mcpServers": {"other": {"command": "x"}}}))
+    assert migrate_antigravity_mcp_block(p, dry=False) is None
+    assert not p.with_name("mcp_config.json.bak").exists()

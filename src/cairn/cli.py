@@ -405,7 +405,11 @@ def install(
     (Claude Code, Codex), or the MCP server config for MCP hosts (Cursor, …)."""
     from cairn.hosts import HOSTS, detected_hosts, get_host
     from cairn.hosts.entry import mcp_entry
-    from cairn.hosts.plugins import install_plugin, migrate_codex_mcp_block
+    from cairn.hosts.plugins import (
+        install_plugin,
+        migrate_antigravity_mcp_block,
+        migrate_codex_mcp_block,
+    )
     from cairn.hosts.writers import write_host
 
     settings = cairn_env()
@@ -453,11 +457,16 @@ def install(
                 header = f"# {h.label} (plugin via `{h.cli}`)" if print_only else f"✓ {h.label}:"
                 typer.echo(header)
                 typer.echo(out)
-                # Strip a stale [mcp_servers.agentcairn] only AFTER a successful install
+                # Strip a stale agentcairn MCP entry only AFTER a successful install
                 # (install_plugin raises on failure), so an aborted install leaves the
                 # user's existing MCP wiring intact rather than half-removed.
-                if h.id == "codex":
-                    note = migrate_codex_mcp_block(h.config_path(), dry=print_only)
+                migrators = {
+                    "codex": migrate_codex_mcp_block,
+                    "antigravity": migrate_antigravity_mcp_block,
+                }
+                migrate = migrators.get(h.id)
+                if migrate is not None:
+                    note = migrate(h.config_path(), dry=print_only)
                     if note:
                         typer.echo(f"  {note}")
             else:

@@ -25,25 +25,33 @@ def test_get_host_known_and_unknown():
     assert get_host("windsurf") is None  # dropped — renamed to Devin Desktop
 
 
-def test_antigravity_only_does_not_falsely_detect_gemini(tmp_path, monkeypatch):
+def test_gemini_detection_and_antigravity_via_cli(tmp_path, monkeypatch):
+    import cairn.hosts as hosts
+
     monkeypatch.setenv("HOME", str(tmp_path))
-    # Antigravity-only: ~/.gemini/config exists, but no settings.json.
+    monkeypatch.setattr(hosts.shutil, "which", lambda c: None)
     (tmp_path / ".gemini" / "config").mkdir(parents=True)
-    ids = {h.id for h in detected_hosts()}
-    assert "antigravity" in ids
-    assert "gemini" not in ids  # Gemini CLI keys off settings.json, not the shared ~/.gemini dir
-    # Now a real Gemini CLI install (settings.json present) is detected.
+    ids = {h.id for h in hosts.detected_hosts()}
+    assert "gemini" not in ids
+    assert "antigravity" not in ids  # plugin host needs the agy CLI on PATH
+    monkeypatch.setattr(hosts.shutil, "which", lambda c: "/usr/bin/agy" if c == "agy" else None)
+    assert "antigravity" in {h.id for h in hosts.detected_hosts()}
     (tmp_path / ".gemini" / "settings.json").write_text("{}")
-    assert "gemini" in {h.id for h in detected_hosts()}
+    assert "gemini" in {h.id for h in hosts.detected_hosts()}
 
 
-def test_antigravity_and_vscode_registered():
-    ag = get_host("antigravity")
-    assert ag is not None and ag.format == "json"
-    assert ag.config_path().name == "mcp_config.json"
+def test_vscode_registered():
     vs = get_host("vscode")
     assert vs is not None and vs.format == "json"
     assert vs.root_key == "servers"  # VS Code uses "servers", not "mcpServers"
+
+
+def test_antigravity_is_plugin_host():
+    h = get_host("antigravity")
+    assert h.kind == "plugin"
+    assert h.cli == "agy"
+    assert h.plugin_add == ("plugin", "install", "{source}")
+    assert h.marketplace_add is None
 
 
 def test_detected_hosts_uses_home(tmp_path, monkeypatch):

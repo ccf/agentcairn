@@ -5,6 +5,7 @@ raw MCP config block so the bundled plugin MCP isn't double-registered."""
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -69,3 +70,24 @@ def migrate_codex_mcp_block(path: Path, *, dry: bool = False) -> str | None:
     del servers["agentcairn"]
     atomic_write(path, tomlkit.dumps(doc))
     return f"removed stale [mcp_servers.agentcairn] from {path}"
+
+
+def migrate_antigravity_mcp_block(path: Path, *, dry: bool = False) -> str | None:
+    """Remove a stale mcpServers.agentcairn entry from a JSON mcp_config.json so the
+    bundled plugin MCP isn't double-registered. Backup-first; preserves everything
+    else. Returns a note if it removed the entry, else None (no-op)."""
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8") or "{}")
+    except json.JSONDecodeError as e:
+        raise ValueError(f"{path} is not valid JSON ({e}); fix it or use --print") from e
+    servers = data.get("mcpServers") if isinstance(data, dict) else None
+    if not isinstance(servers, dict) or "agentcairn" not in servers:
+        return None
+    if dry:
+        return f"would remove mcpServers.agentcairn from {path}"
+    backup(path)
+    del servers["agentcairn"]
+    atomic_write(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    return f"removed stale mcpServers.agentcairn from {path}"
