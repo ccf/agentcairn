@@ -44,13 +44,17 @@ plugin/
 
 #### `.mcp.codex.json` (NEW)
 
-Bare map; no env block — the MCP server already defaults `CAIRN_VAULT`→`~/agentcairn` and `CAIRN_INDEX`→`~/.cache/agentcairn/index.duckdb` when unset (`cairn.mcp.server`). Codex power users tune via `~/.codex/config.toml [plugins."agentcairn".mcp_servers.agentcairn]`.
+Bare map (no `mcpServers` wrapper). It **must set `CAIRN_VAULT`** to the literal default `~/agentcairn`: the MCP server resolves `vault` from `CAIRN_VAULT` → else `None`, and `remember` raises if vault is unset (`cairn.mcp.server:resolve_config`; only the *index* has a built-in default). The server expands a leading `~` in `CAIRN_VAULT` (so the literal `~/agentcairn` works regardless of the launching cwd). `CAIRN_INDEX` is set too for parity with the Claude `.mcp.json`, though it would default. Codex doesn't interpolate `${user_config.*}`, so these are literals; power users override via `~/.codex/config.toml [plugins."agentcairn".mcp_servers.agentcairn]`.
 
 ```json
 {
   "agentcairn": {
     "command": "uvx",
-    "args": ["agentcairn"]
+    "args": ["agentcairn"],
+    "env": {
+      "CAIRN_VAULT": "~/agentcairn",
+      "CAIRN_INDEX": "~/.cache/agentcairn/index.duckdb"
+    }
   }
 }
 ```
@@ -153,7 +157,7 @@ MCP hosts (unchanged):
 
 **`src/cairn/cli.py` `install`** — branch on `host.kind`:
 - MCP host → current path (`mcp_entry` + `write_host`). Unchanged.
-- Plugin host → for `codex`, first call `migrate_codex_mcp_block` (report if it removed a block); then `install_plugin(host, source=source, dry=print_only)`. `--print` shows the migration note + the `codex plugin …` commands; no `--vault`/`--index` are written (the plugin's MCP uses server defaults — note this in the output if the user passed them).
+- Plugin host → for `codex`, first call `migrate_codex_mcp_block` (report if it removed a block); then `install_plugin(host, source=source, dry=print_only)`. `--print` shows the migration note + the `codex plugin …` commands; no `--vault`/`--index` are written (the plugin's bundled MCP config sets the vault/index — note this in the output if the user passed them).
 - The no-arg detect/preview lists both kinds (plugin hosts shown as "→ plugin via `<cli>`").
 - Add `--source` option (default `ccf/agentcairn`).
 - Help text updated: `Host id: claude-code / codex (plugins) · cursor / claude-desktop / vscode / gemini / antigravity (mcp).`
