@@ -115,7 +115,7 @@ export const agents = {
   rows: [
     { host: "Claude Code", support: "Plugin", setup: "cairn install claude-code", ambient: "full" },
     { host: "Codex", support: "Plugin", setup: "cairn install codex", ambient: "partial" },
-    { host: "Cursor", support: "MCP server", setup: "cairn install cursor", ambient: "none" },
+    { host: "Cursor", support: "MCP server + ingest", setup: "cairn install cursor", ambient: "partial" },
     { host: "Claude Desktop", support: "MCP server", setup: "cairn install claude-desktop", ambient: "none" },
     { host: "VS Code (Copilot)", support: "MCP server", setup: "cairn install vscode", ambient: "none" },
     { host: "Gemini CLI", support: "MCP server", setup: "cairn install gemini", ambient: "none" },
@@ -135,7 +135,10 @@ export const agents = {
     "runs out-of-band via `cairn sweep`, with live recall-at-start being verified. Antigravity has " +
     "no recognized plugin hooks — capture runs out-of-band via `cairn sweep` (◐). `agy plugin " +
     "install` takes a local directory (not a git repo), so install with `cairn install antigravity " +
-    "--source <plugin dir>`; it also removes any stale mcp_config.json entry. Gemini CLI ingest " +
+    "--source <plugin dir>`; it also removes any stale mcp_config.json entry. Cursor has no " +
+    "plugin hooks either — `cairn sweep` ingests sessions out-of-band from Cursor's global " +
+    "`state.vscdb` SQLite store (`cursorDiskKV` user bubbles); Cursor remains an MCP host for " +
+    "output (`cairn install cursor`), not a plugin host. Gemini CLI ingest " +
     "is not supported — Google is sunsetting it (2026-06-18) in favour of Antigravity; " +
     "`cairn install gemini` (MCP wiring) still works for Gemini-based MCP hosts.",
 };
