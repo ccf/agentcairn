@@ -133,8 +133,9 @@ export const agents = {
     "servers key), written non-destructively, idempotent, backup-first. Ambient recall-at-start + " +
     "capture-at-end is fully wired on Claude Code; on Codex the hooks ship and capture also " +
     "runs out-of-band via `cairn sweep`, with live recall-at-start being verified. Antigravity has " +
-    "no recognized plugin hooks — capture runs out-of-band via `cairn sweep` (◐); " +
-    "`cairn install antigravity` also removes any stale mcp_config.json entry. Gemini CLI ingest " +
+    "no recognized plugin hooks — capture runs out-of-band via `cairn sweep` (◐). `agy plugin " +
+    "install` takes a local directory (not a git repo), so install with `cairn install antigravity " +
+    "--source <plugin dir>`; it also removes any stale mcp_config.json entry. Gemini CLI ingest " +
     "is not supported — Google is sunsetting it (2026-06-18) in favour of Antigravity; " +
     "`cairn install gemini` (MCP wiring) still works for Gemini-based MCP hosts.",
 };

@@ -109,7 +109,7 @@ agentcairn works at two levels. **Plugin hosts** (Claude Code, Codex, and Antigr
 | Any other MCP host | 🔌 MCP server | `uvx agentcairn` (paste the `cairn install … --print` snippet) | — |
 
 [^codex-hooks]: The Codex plugin installs and its bundled MCP server (recall/search/`remember`) is verified live in Codex. The ambient session hooks (recall-at-start, capture-at-end) ship in the plugin and use Codex's documented hooks schema, but their on-Codex behaviour isn't yet confirmed end-to-end; capture also happens out-of-band via `cairn sweep` regardless.
-[^antigravity-sweep]: The Antigravity plugin bundles the MCP server + memory skill; `cairn install antigravity` installs it via `agy plugin install` and removes any stale `mcpServers.agentcairn` entry from `~/.gemini/config/mcp_config.json`. Antigravity has no recognized plugin hooks, so ambient capture is out-of-band via `cairn sweep` (path: `~/.gemini/antigravity-cli/brain/<uuid>/.system_generated/logs/transcript.jsonl`).
+[^antigravity-sweep]: The Antigravity plugin bundles the MCP server + memory skill; `cairn install antigravity --source <dir>` installs it via `agy plugin install` and removes any stale `mcpServers.agentcairn` entry from `~/.gemini/config/mcp_config.json`. Note: `agy plugin install` takes a **local directory** or a registered marketplace (not a git repo), so point `--source` at a cloned checkout's `plugin/` dir for now. Antigravity has no recognized plugin hooks, so ambient capture is out-of-band via `cairn sweep` (path: `~/.gemini/antigravity-cli/brain/<uuid>/.system_generated/logs/transcript.jsonl`).
 [^gemini-ingest]: Gemini CLI (consumer) transcript ingestion is **not supported** — Google is sunsetting the Gemini CLI (consumer cutoff 2026-06-18) in favour of Antigravity CLI, which agentcairn ingests instead. `cairn install gemini` (MCP server wiring) remains valid for any Gemini-based host that speaks MCP.
 
 `cairn install` routes by host kind automatically:
@@ -117,7 +117,7 @@ agentcairn works at two levels. **Plugin hosts** (Claude Code, Codex, and Antigr
 ```bash
 cairn install                 # detect installed hosts + preview (writes nothing)
 cairn install codex           # install the Codex plugin (shells to `codex plugin …`; strips any stale MCP block from ~/.codex/config.toml)
-cairn install antigravity     # install the Antigravity plugin (shells to `agy plugin install`; removes stale mcp_config.json entry)
+cairn install antigravity --source ./plugin  # install the Antigravity plugin from a local checkout (see note)
 cairn install cursor          # write MCP config for Cursor
 cairn install --all           # configure every detected host
 cairn install codex --source /path/to/agentcairn  # use a local checkout instead of the marketplace
