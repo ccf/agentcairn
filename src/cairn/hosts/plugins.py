@@ -42,9 +42,11 @@ def install_plugin(host: Host, *, source: str, dry: bool = False) -> str:
     results: list[str] = []
     for argv in cmds:
         r = subprocess.run(argv, check=False, capture_output=True, text=True)
-        tail = (r.stderr or r.stdout or "").strip().splitlines()
-        msg = tail[-1] if tail else ""
-        results.append(f"$ {' '.join(argv)}  →  {'ok' if r.returncode == 0 else msg}")
+        if r.returncode != 0:
+            tail = (r.stderr or r.stdout or "").strip().splitlines()
+            detail = tail[-1] if tail else f"exit {r.returncode}"
+            raise ValueError(f"`{' '.join(argv)}` failed: {detail}")
+        results.append(f"$ {' '.join(argv)}  →  ok")
     return "\n".join(results)
 
 
