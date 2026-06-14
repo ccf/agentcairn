@@ -5,6 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-06-14
+
+### Added
+- **Antigravity CLI is now an ingested harness.** agentcairn captures Antigravity sessions out-of-band from `~/.gemini/antigravity-cli/brain/<uuid>/.system_generated/logs/transcript.jsonl` (plaintext JSONL, written per conversation in both headless and interactive modes); `cairn sweep` auto-detects it alongside Claude Code and Codex. Classification is positive-identification and fail-closed: only a `USER_INPUT` step with `source == "USER_EXPLICIT"` contributes a candidate, and only the inner `<USER_REQUEST>` block is extracted — the injected `<ADDITIONAL_METADATA>`/`<USER_SETTINGS_CHANGE>` framing can't leak into the vault by construction. cwd/project is resolved best-effort from `cache/last_conversations.json`.
+
+### Changed
+- **Gemini CLI is no longer a target for transcript ingestion.** Google is sunsetting the Gemini CLI (consumer cutoff 2026-06-18) in favour of the Antigravity CLI (`agy`), which agentcairn ingests instead. `cairn install gemini` (MCP server wiring) remains valid for Gemini-based MCP hosts; only Gemini CLI *transcript ingestion* is unsupported (it was never shipped).
+
 ## [0.12.0] - 2026-06-14
 
 ### Added
