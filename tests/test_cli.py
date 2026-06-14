@@ -707,7 +707,7 @@ def test_install_codex_print_shows_plugin_commands(tmp_path, monkeypatch):
     r = runner.invoke(app, ["install", "codex", "--print"])
     assert r.exit_code == 0, r.output
     assert "codex plugin marketplace add ccf/agentcairn" in r.output
-    assert "codex plugin add agentcairn" in r.output
+    assert "codex plugin add agentcairn@agentcairn" in r.output
 
 
 def test_install_claude_code_print_and_source_override(tmp_path, monkeypatch):

@@ -81,7 +81,7 @@ HOSTS: list[Host] = [
         kind="plugin",
         cli="codex",
         marketplace_add=("plugin", "marketplace", "add", "{source}"),
-        plugin_add=("plugin", "add", "agentcairn"),
+        plugin_add=("plugin", "add", "agentcairn@agentcairn"),
     ),
     Host(
         "claude-code",

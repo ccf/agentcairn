@@ -20,7 +20,7 @@ Most agent-memory systems make a database or cloud store the source of truth and
 
 ## Install
 
-The easiest way to use agentcairn is the **plugin** for [Claude Code](https://claude.com/claude-code) or [Codex](https://github.com/openai/codex) — one install wires up the MCP server, ambient memory (recall at session start, capture at session end), a memory skill, and slash commands:
+The easiest way to use agentcairn is the **plugin** for [Claude Code](https://claude.com/claude-code) or [Codex](https://github.com/openai/codex) — one install wires up the MCP server, ambient memory (recall at session start, capture at session end), a memory skill, and slash commands (Claude Code):
 
 ```bash
 # Claude Code
@@ -29,7 +29,7 @@ claude plugin install agentcairn@agentcairn
 
 # Codex (from the Codex plugin marketplace)
 codex plugin marketplace add ccf/agentcairn
-codex plugin add agentcairn
+codex plugin add agentcairn@agentcairn
 ```
 
 On install you pick a vault path (default `~/agentcairn`); it's **auto-created** on the first session — no Obsidian setup required. From then on agentcairn surfaces relevant memory at the start of each session, distills each session into your vault, and gives you `/agentcairn:recall`, `/remember`, `/memory`, `/savings`, and `/ingest`. Nothing to pip-install — the plugin runs the published package via `uvx`.
