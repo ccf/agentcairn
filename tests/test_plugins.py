@@ -11,7 +11,7 @@ from cairn.hosts.plugins import install_plugin, migrate_codex_mcp_block
 def test_install_plugin_dry_emits_commands():
     out = install_plugin(get_host("codex"), source="ccf/agentcairn", dry=True)
     assert "codex plugin marketplace add ccf/agentcairn" in out
-    assert "codex plugin add agentcairn" in out
+    assert "codex plugin add agentcairn@agentcairn" in out
 
 
 def test_install_plugin_claude_dry_uses_install_at_marketplace():
@@ -46,7 +46,7 @@ def test_install_plugin_runs_commands_in_order(monkeypatch):
     monkeypatch.setattr(pl.subprocess, "run", _run)
     install_plugin(get_host("codex"), source="ccf/agentcairn", dry=False)
     assert calls[0] == ["codex", "plugin", "marketplace", "add", "ccf/agentcairn"]
-    assert calls[1] == ["codex", "plugin", "add", "agentcairn"]
+    assert calls[1] == ["codex", "plugin", "add", "agentcairn@agentcairn"]
 
 
 def test_install_plugin_raises_on_nonzero(monkeypatch):

@@ -163,7 +163,7 @@ def test_codex_is_plugin_host():
     h = get_host("codex")
     assert h.kind == "plugin"
     assert h.cli == "codex"
-    assert h.plugin_add == ("plugin", "add", "agentcairn")
+    assert h.plugin_add == ("plugin", "add", "agentcairn@agentcairn")
 
 
 def test_claude_code_is_plugin_host():
