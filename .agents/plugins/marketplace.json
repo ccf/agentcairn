@@ -1,0 +1,11 @@
+{
+  "name": "agentcairn",
+  "interface": { "displayName": "agentcairn" },
+  "plugins": [
+    {
+      "name": "agentcairn",
+      "source": { "source": "local", "path": "./plugin" },
+      "category": "Developer Tools"
+    }
+  ]
+}
