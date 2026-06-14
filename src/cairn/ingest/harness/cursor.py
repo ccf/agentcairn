@@ -19,9 +19,13 @@ from cairn.ingest.sanitize import sanitize_text
 
 # Select only user bubbles (type==1) with non-empty text, pushing the filter into
 # SQL via json_extract so the large assistant/tool blobs are never materialized.
+# json_valid(value) MUST precede json_extract: SQLite evaluates WHERE terms
+# left-to-right on a table scan, so it short-circuits malformed values before
+# json_extract can raise (one corrupt bubble would otherwise abort all ingestion).
 _USER_BUBBLE_SQL = (
     "SELECT key, value FROM cursorDiskKV "
     "WHERE key LIKE 'bubbleId:%' "
+    "AND json_valid(value) "
     "AND json_extract(value, '$.type') = 1 "
     "AND length(json_extract(value, '$.text')) > 0"
 )

@@ -538,3 +538,43 @@ def test_cursor_iter_raw_missing_table_is_graceful(tmp_path):
 
 def test_cursor_registered():
     assert get_adapter("cursor").name == "cursor"
+
+
+def test_cursor_iter_raw_skips_malformed_value(tmp_path):
+    # A non-JSON value must not crash the whole DB's ingestion — good rows around it survive.
+    import sqlite3
+
+    from cairn.ingest.harness.cursor import CursorAdapter
+
+    db = tmp_path / "state.vscdb"
+    _make_cursor_db(
+        db,
+        [
+            ("bubbleId:c:b1", {"type": 1, "text": "first real prompt"}),
+            ("bubbleId:c:b3", {"type": 1, "text": "second real prompt"}),
+        ],
+    )
+    con = sqlite3.connect(str(db))
+    con.execute(
+        "INSERT INTO cursorDiskKV (key, value) VALUES (?, ?)",
+        ("bubbleId:c:b2", "{ not json"),
+    )
+    con.commit()
+    con.close()
+    texts = [b.get("text") for b in CursorAdapter().iter_raw(db)]
+    assert texts == ["first real prompt", "second real prompt"]  # malformed row silently skipped
+
+
+def test_cursor_iter_raw_is_read_only(tmp_path):
+    # iter_raw must never mutate the source DB (opened immutable=1): no -wal/-journal, same bytes.
+    import hashlib
+
+    from cairn.ingest.harness.cursor import CursorAdapter
+
+    db = tmp_path / "state.vscdb"
+    _make_cursor_db(db, [("bubbleId:c:b1", {"type": 1, "text": "hello"})])
+    before = hashlib.sha256(db.read_bytes()).hexdigest()
+    list(CursorAdapter().iter_raw(db))  # full drain
+    assert hashlib.sha256(db.read_bytes()).hexdigest() == before  # unchanged
+    assert not (tmp_path / "state.vscdb-wal").exists()
+    assert not (tmp_path / "state.vscdb-journal").exists()
