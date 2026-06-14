@@ -118,7 +118,7 @@ export const agents = {
     { host: "Claude Desktop", support: "MCP server", setup: "cairn install claude-desktop", ambient: "none" },
     { host: "VS Code (Copilot)", support: "MCP server", setup: "cairn install vscode", ambient: "none" },
     { host: "Gemini CLI", support: "MCP server", setup: "cairn install gemini", ambient: "none" },
-    { host: "Antigravity", support: "MCP server", setup: "cairn install antigravity", ambient: "none" },
+    { host: "Antigravity", support: "MCP server + ingest", setup: "cairn install antigravity", ambient: "partial" },
   ],
   install: [
     "cairn install                 # detect installed agents + preview (writes nothing)",
@@ -131,7 +131,10 @@ export const agents = {
     "bundled in the plugin. MCP hosts take a JSON mcpServers entry (VS Code uses its servers " +
     "key), written non-destructively, idempotent, backup-first. Ambient recall-at-start + " +
     "capture-at-end is fully wired on Claude Code; on Codex the hooks ship and capture also " +
-    "runs out-of-band via `cairn sweep`, with live recall-at-start being verified.",
+    "runs out-of-band via `cairn sweep`, with live recall-at-start being verified. `cairn sweep` " +
+    "also captures Antigravity CLI transcripts out-of-band (◐). Gemini CLI ingest is not supported " +
+    "— Google is sunsetting it (2026-06-18) in favour of Antigravity; `cairn install gemini` (MCP " +
+    "wiring) still works for Gemini-based MCP hosts.",
 };
 export const trust = [
   { k: "Redaction before write", v: "regex + entropy + URL-credential" },
