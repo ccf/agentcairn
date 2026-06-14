@@ -56,6 +56,12 @@ def _uuid_of(path: Path) -> str:
     return path.parent.parent.parent.name
 
 
+def _brain_root(path: Path) -> Path:
+    """The brain/ root for brain/<uuid>/.system_generated/logs/transcript.jsonl.
+    Uses a .parent chain (never IndexErrors on a short path, unlike parents[3])."""
+    return path.parent.parent.parent.parent
+
+
 class AntigravityAdapter:
     name = "antigravity"
 
@@ -106,7 +112,7 @@ class AntigravityAdapter:
         if ctx.session_id is None:
             # Resolve session + cwd once per file (uuid from the path; cwd best-effort).
             ctx.session_id = _uuid_of(ctx.path)
-            ctx.cwd = _conversation_cwd(ctx.path.parents[3]).get(ctx.session_id)
+            ctx.cwd = _conversation_cwd(_brain_root(ctx.path)).get(ctx.session_id)
         t = raw.get("type")
         if t == "USER_INPUT":
             text = _user_request(raw.get("content"))

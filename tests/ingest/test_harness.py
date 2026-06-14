@@ -414,3 +414,25 @@ def test_antigravity_find_globs_and_project_filter(tmp_path):
 
 def test_antigravity_registered():
     assert get_adapter("antigravity").name == "antigravity"
+
+
+def test_antigravity_shallow_path_does_not_crash(tmp_path):
+    # parse_transcript accepts arbitrary Paths; a shallow path must degrade, not IndexError.
+    from cairn.ingest.locate import parse_transcript
+
+    f = tmp_path / "transcript.jsonl"
+    f.write_text(_agy_line("USER_INPUT", "USER_EXPLICIT", _AGY_USER) + "\n")
+    tr = parse_transcript(TranscriptRef(path=f, harness="antigravity"))
+    authored = [e for e in tr.events if e.kind == EventKind.AUTHORED_USER]
+    assert authored and authored[0].project is None  # no cwd resolvable, but no crash
+
+
+def test_antigravity_find_missing_root_and_bad_cache(tmp_path):
+    from cairn.ingest.harness.antigravity import AntigravityAdapter, _conversation_cwd
+
+    a = AntigravityAdapter()
+    assert a.find(root=tmp_path / "nope", project=None) == []  # missing root → []
+    # malformed last_conversations.json → empty map, no crash
+    (tmp_path / "cache").mkdir()
+    (tmp_path / "cache" / "last_conversations.json").write_text("{ not json")
+    assert _conversation_cwd(tmp_path / "brain") == {}
