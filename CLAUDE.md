@@ -8,6 +8,8 @@
 judge, antecedent resolution, and memory consolidation). Releases follow the cut-a-release ritual
 (CHANGELOG → tag → Trusted-Publishing → GitHub Release).
 
+**Plugins:** agentcairn ships a **Claude Code plugin** and a **Codex plugin** — both reuse the same `using-agentcairn-memory` skill, session hooks, and bundled MCP server. The Codex plugin is discoverable via the Codex plugin marketplace. `cairn install` routes by host kind: for plugin hosts (`claude-code`, `codex`) it installs the plugin by shelling to the host's own CLI; for MCP hosts (`cursor`, `claude-desktop`, `vscode`, `gemini`, `antigravity`) it writes the MCP server config. Only Claude Code and Codex have plugins — Gemini, Cursor, and the other MCP hosts do not.
+
 **Capture pipeline (ingest):** transcripts from Claude Code and Codex are ingested automatically
 (auto-detected via a `HarnessAdapter` seam; `cairn sweep` picks up whichever harnesses are present).
 Then: redact → structural candidate selection (authored user turns only) →

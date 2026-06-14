@@ -20,16 +20,21 @@ Most agent-memory systems make a database or cloud store the source of truth and
 
 ## Install
 
-The easiest way to use agentcairn is the **[Claude Code](https://claude.com/claude-code) plugin** — one install wires up the MCP server, ambient memory (recall at session start, capture at session end), a memory skill, and slash commands:
+The easiest way to use agentcairn is the **plugin** for [Claude Code](https://claude.com/claude-code) or [Codex](https://github.com/openai/codex) — one install wires up the MCP server, ambient memory (recall at session start, capture at session end), a memory skill, and slash commands:
 
 ```bash
+# Claude Code
 claude plugin marketplace add ccf/agentcairn
 claude plugin install agentcairn@agentcairn
+
+# Codex (from the Codex plugin marketplace)
+codex plugin marketplace add ccf/agentcairn
+codex plugin add agentcairn
 ```
 
 On install you pick a vault path (default `~/agentcairn`); it's **auto-created** on the first session — no Obsidian setup required. From then on agentcairn surfaces relevant memory at the start of each session, distills each session into your vault, and gives you `/agentcairn:recall`, `/remember`, `/memory`, `/savings`, and `/ingest`. Nothing to pip-install — the plugin runs the published package via `uvx`.
 
-> Not on Claude Code? agentcairn is also a standalone MCP server + CLI for any host — see [Using it directly](#using-it-directly).
+> Not on Claude Code or Codex? agentcairn is also a standalone MCP server + CLI for any host — see [Using it directly](#using-it-directly).
 
 ## How it works
 
@@ -90,27 +95,30 @@ anthropic_api_key = "sk-ant-..."
 
 ## Agents supported
 
-agentcairn works at two levels. **Claude Code** gets a first-class plugin — the full ambient loop (recall at session start, capture at session end), a memory skill, and slash commands. **Every other MCP host** gets the same recall/search/`remember` tools via the portable MCP server; `cairn install` wires it in non-destructively (your other servers are preserved, the original is backed up to `<config>.bak`). The vault stays a single global `~/agentcairn`, so memory is shared across every host.
+agentcairn works at two levels. **Plugin hosts** (Claude Code and Codex) get a first-class plugin — the full ambient loop (recall at session start, capture at session end), a memory skill, slash commands, and a bundled MCP server; `cairn install <host>` installs the plugin by calling the host's own CLI. **MCP hosts** (everything else) get the same recall/search/`remember` tools via the portable MCP server; `cairn install <host>` writes the MCP server config non-destructively (your other servers are preserved, the original is backed up to `<config>.bak`). The vault stays a single global `~/agentcairn`, so memory is shared across every host.
 
 | Host | Support | Set up with | Ambient capture |
 |---|---|---|---|
-| **Claude Code** | 🟢 First-class plugin | `claude plugin install agentcairn@agentcairn` | ✅ recall-at-start + capture-at-end |
+| **Claude Code** | 🟢 Plugin | `cairn install claude-code` | ✅ recall-at-start + capture-at-end |
+| **Codex** | 🟢 Plugin | `cairn install codex` | ✅ recall-at-start + capture-at-end |
 | Cursor | 🔌 MCP server | `cairn install cursor` | — |
 | Claude Desktop | 🔌 MCP server | `cairn install claude-desktop` | — |
 | VS Code (Copilot) | 🔌 MCP server | `cairn install vscode` | — |
 | Gemini CLI | 🔌 MCP server | `cairn install gemini` | — |
 | Antigravity | 🔌 MCP server | `cairn install antigravity` | — |
-| Codex CLI | 🔌 MCP server | `cairn install codex` | — |
 | Any other MCP host | 🔌 MCP server | `uvx agentcairn` (paste the `cairn install … --print` snippet) | — |
+
+`cairn install` routes by host kind automatically:
 
 ```bash
 cairn install                 # detect installed hosts + preview (writes nothing)
-cairn install cursor          # configure one host
+cairn install codex           # install the Codex plugin (shells to `codex plugin …`; strips any stale MCP block from ~/.codex/config.toml)
+cairn install cursor          # write MCP config for Cursor
 cairn install --all           # configure every detected host
-cairn install codex --print   # just print the snippet, change nothing
+cairn install codex --source /path/to/agentcairn  # use a local checkout instead of the marketplace
 ```
 
-Most hosts take a JSON `mcpServers` entry (VS Code uses its `servers` key); Codex takes a TOML `[mcp_servers.agentcairn]` table (comments and other tables preserved). Ambient memory (auto recall-at-start, capture-at-end) is Claude-Code-only today — cross-host capture is tracked in [#36](https://github.com/ccf/agentcairn/issues/36).
+MCP hosts take a JSON `mcpServers` entry (VS Code uses its `servers` key). Plugin hosts (Claude Code, Codex) install the plugin via the host CLI — the MCP server is bundled in the plugin and does not need a separate config entry. If you previously used `cairn install codex` to write a TOML MCP block to `~/.codex/config.toml`, re-running `cairn install codex` removes that stale entry automatically.
 
 ## Benchmarks measured
 
