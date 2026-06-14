@@ -3,5 +3,5 @@ import Section from "./Section.astro";
 import { cli } from "../lib/content";
 ---
 <Section id="quickstart" eyebrow="Quickstart">
-  <pre class="prose-measure font-mono text-[13px] leading-[1.7] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 overflow-x-auto">{cli.join("\n")}</pre>
+  <pre class="prose-measure font-mono text-[13px] leading-[1.7] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 overflow-x-auto" tabindex="0">{cli.join("\n")}</pre>
 </Section>

@@ -15,7 +15,7 @@ import { agents } from "../lib/content";
           .replace(/>/g, "&gt;")}</code>`,
     )}
   />
-  <div class="prose-measure mt-6 overflow-x-auto">
+  <div class="prose-measure mt-6 overflow-x-auto" tabindex="0" role="region" aria-label="Supported agents">
     <table class="w-full border-collapse font-mono text-[13px]">
       <thead><tr class="text-[var(--color-ink-muted)] text-left border-b border-[var(--color-border)]">
         <th class="py-2 font-normal">host</th>
@@ -35,6 +35,6 @@ import { agents } from "../lib/content";
       </tbody>
     </table>
   </div>
-  <pre class="prose-measure font-mono text-[13px] leading-[1.7] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 overflow-x-auto mt-6">{agents.install.join("\n")}</pre>
+  <pre class="prose-measure font-mono text-[13px] leading-[1.7] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 overflow-x-auto mt-6" tabindex="0">{agents.install.join("\n")}</pre>
   <p class="prose-measure font-serif text-[14px] text-[var(--color-ink-faint)] mt-3">{agents.note}</p>
 </Section>
