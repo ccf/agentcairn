@@ -91,11 +91,12 @@ class CursorAdapter:
         text = sanitize_text(raw.get("text") or "").strip()
         if not text:
             return None
+        ts = raw.get("createdAt")
         return NormalizedEvent(
             kind=kind,
             role="user",
             text=text,
-            timestamp=raw.get("createdAt"),
+            timestamp=ts if isinstance(ts, str) else None,  # non-str createdAt → None (safe sort)
             session_id=raw.get("_composer_id") or ctx.path.stem,
             project=project_from_cwd(raw.get("workspaceProjectDir")),
             git_branch=None,  # Cursor bubbles carry no git branch

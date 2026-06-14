@@ -578,3 +578,14 @@ def test_cursor_iter_raw_is_read_only(tmp_path):
     assert hashlib.sha256(db.read_bytes()).hexdigest() == before  # unchanged
     assert not (tmp_path / "state.vscdb-wal").exists()
     assert not (tmp_path / "state.vscdb-journal").exists()
+
+
+def test_cursor_non_string_createdat_coerced(tmp_path):
+    # A numeric createdAt must not crash and must coerce to None (timestamp is str|None).
+    from cairn.ingest.locate import parse_transcript
+
+    db = tmp_path / "state.vscdb"
+    _make_cursor_db(db, [("bubbleId:c:b1", {"type": 1, "text": "hi", "createdAt": 1734567890})])
+    tr = parse_transcript(TranscriptRef(path=db, harness="cursor"))
+    authored = [e for e in tr.events if e.kind == EventKind.AUTHORED_USER]
+    assert authored and authored[0].timestamp is None
