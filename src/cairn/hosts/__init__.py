@@ -13,7 +13,7 @@ from pathlib import Path
 class Host:
     id: str
     label: str
-    format: str  # "json" (an mcpServers/servers JSON config) | "codex-toml"
+    format: str  # "json" (mcpServers/servers JSON config); plugin hosts use kind="plugin"
     path_template: str  # may start with ~ ; expanded by config_path()
     root_key: str = (
         "mcpServers"  # JSON top-level key holding the servers map (VS Code uses "servers")

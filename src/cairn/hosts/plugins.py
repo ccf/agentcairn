@@ -12,7 +12,7 @@ from pathlib import Path
 import tomlkit
 
 from cairn.hosts import Host
-from cairn.hosts.writers import _atomic_write, _backup
+from cairn.hosts._io import atomic_write, backup
 
 
 def _commands(host: Host, source: str) -> list[list[str]]:
@@ -65,7 +65,7 @@ def migrate_codex_mcp_block(path: Path, *, dry: bool = False) -> str | None:
         return None
     if dry:
         return f"would remove [mcp_servers.agentcairn] from {path}"
-    _backup(path)
+    backup(path)
     del servers["agentcairn"]
-    _atomic_write(path, tomlkit.dumps(doc))
+    atomic_write(path, tomlkit.dumps(doc))
     return f"removed stale [mcp_servers.agentcairn] from {path}"

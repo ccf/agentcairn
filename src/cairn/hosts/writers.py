@@ -5,26 +5,10 @@ backup-first. With dry=True, render the would-be file content and write nothing.
 from __future__ import annotations
 
 import json
-import os
-import shutil
 from pathlib import Path
 
-import tomlkit
-
 from cairn.hosts import Host
-
-
-def _backup(path: Path) -> None:
-    if path.exists():
-        shutil.copy2(path, path.with_name(path.name + ".bak"))
-
-
-def _atomic_write(path: Path, text: str) -> None:
-    """Write text to a temp file in the same dir, then atomically rename into place,
-    so a crash/disk-full mid-write can never corrupt the existing config."""
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    os.replace(tmp, path)
+from cairn.hosts._io import atomic_write, backup
 
 
 def write_json_mcp(
@@ -36,7 +20,7 @@ def write_json_mcp(
     data: dict = {}
     if path.exists():
         if not dry:
-            _backup(path)  # snapshot before we risk raising on a malformed config
+            backup(path)  # snapshot before we risk raising on a malformed config
         try:
             data = json.loads(path.read_text(encoding="utf-8") or "{}")
         except json.JSONDecodeError as e:
@@ -51,7 +35,7 @@ def write_json_mcp(
     if dry:
         return rendered
     path.parent.mkdir(parents=True, exist_ok=True)
-    _atomic_write(path, rendered)
+    atomic_write(path, rendered)
     return f"wrote agentcairn → {path}"
 
 
@@ -59,37 +43,4 @@ def write_host(host: Host, entry: dict, *, dry: bool = False) -> str:
     """Dispatch to the right writer for the host's config format."""
     if host.format == "json":
         return write_json_mcp(host.config_path(), entry, root_key=host.root_key, dry=dry)
-    if host.format == "codex-toml":
-        return write_codex_toml(host.config_path(), entry, dry=dry)
     raise ValueError(f"unknown host format: {host.format!r}")
-
-
-def write_codex_toml(path: Path, entry: dict, *, dry: bool = False) -> str:
-    """Set [mcp_servers.agentcairn] (+ .env) in a Codex TOML config, preserving all
-    other tables and comments (tomlkit round-trips)."""
-    doc = tomlkit.document()
-    if path.exists():
-        if not dry:
-            _backup(path)  # snapshot before we risk raising on a malformed config
-        try:
-            doc = tomlkit.parse(path.read_text(encoding="utf-8"))
-        except Exception as e:  # tomlkit raises ParseError/ValueError variants
-            raise ValueError(f"{path} is not valid TOML ({e}); fix it or use --print") from e
-    servers = doc.get("mcp_servers")
-    if servers is None:
-        servers = tomlkit.table(is_super_table=True)
-        doc["mcp_servers"] = servers
-    ac = tomlkit.table()
-    ac["command"] = entry["command"]
-    ac["args"] = entry["args"]
-    env = tomlkit.table()
-    for k, v in entry["env"].items():
-        env[k] = v
-    ac["env"] = env
-    servers["agentcairn"] = ac
-    rendered = tomlkit.dumps(doc)
-    if dry:
-        return rendered
-    path.parent.mkdir(parents=True, exist_ok=True)
-    _atomic_write(path, rendered)
-    return f"wrote [mcp_servers.agentcairn] → {path}"
