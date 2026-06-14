@@ -383,22 +383,31 @@ def warm() -> None:
 @app.command()
 def install(
     host: str = typer.Argument(
-        None, help="Host id: cursor / claude-desktop / windsurf / gemini / codex."
+        None,
+        help="Host id: claude-code / codex (plugins) · cursor / claude-desktop / "
+        "vscode / gemini / antigravity (mcp).",
     ),
     all_hosts: bool = typer.Option(False, "--all", help="Configure every detected host."),
-    print_only: bool = typer.Option(False, "--print", help="Print the config; write nothing."),
-    vault: Path = typer.Option(None, "--vault", help="Vault path (default ~/agentcairn)."),
+    print_only: bool = typer.Option(
+        False, "--print", help="Print the config/commands; write nothing."
+    ),
+    vault: Path = typer.Option(
+        None, "--vault", help="Vault path (mcp hosts; default ~/agentcairn)."
+    ),
     index: Path = typer.Option(
-        None, "--index", help="Index path (default ~/.cache/agentcairn/index.duckdb)."
+        None, "--index", help="Index path (mcp hosts; default ~/.cache/agentcairn/index.duckdb)."
+    ),
+    source: str = typer.Option(
+        "ccf/agentcairn", "--source", help="Plugin marketplace source (plugin hosts)."
     ),
 ) -> None:
-    """Wire the agentcairn MCP server into another MCP host (Cursor, Codex, …)."""
+    """Install agentcairn into another agent: the plugin for plugin hosts
+    (Claude Code, Codex), or the MCP server config for MCP hosts (Cursor, …)."""
     from cairn.hosts import HOSTS, detected_hosts, get_host
     from cairn.hosts.entry import mcp_entry
+    from cairn.hosts.plugins import install_plugin, migrate_codex_mcp_block
     from cairn.hosts.writers import write_host
 
-    # Defaults consult the env/file layer so a configured CAIRN_VAULT/CAIRN_INDEX
-    # is what gets wired into the host (flags still win).
     settings = cairn_env()
     default_vault = Path(settings.get("CAIRN_VAULT") or (Path.home() / "agentcairn"))
     default_index = Path(
@@ -406,23 +415,23 @@ def install(
     )
     v = str((vault or default_vault).expanduser().resolve())
     idx = str((index or default_index).expanduser().resolve())
-    entry = mcp_entry(v, idx)
     ids = ", ".join(h.id for h in HOSTS)
 
     if host is None and not all_hosts:  # detect + preview, write nothing
         present = detected_hosts()
         if not present:
-            typer.echo(f"No supported MCP hosts detected. Supported: {ids}")
+            typer.echo(f"No supported agents detected. Supported: {ids}")
             return
-        typer.echo("Detected hosts — run `cairn install <id>` (or `--all`):")
+        typer.echo("Detected — run `cairn install <id>` (or `--all`):")
         for h in present:
-            typer.echo(f"  {h.id:15} {h.label}  → {h.config_path()}")
+            where = f"plugin via `{h.cli}`" if h.kind == "plugin" else str(h.config_path())
+            typer.echo(f"  {h.id:15} {h.label}  → {where}")
         return
 
     if all_hosts:
         targets = detected_hosts()
         if not targets:
-            typer.echo(f"No supported MCP hosts detected. Supported: {ids}")
+            typer.echo(f"No supported agents detected. Supported: {ids}")
             return
     else:
         h = get_host(host)
@@ -434,12 +443,28 @@ def install(
     failures = 0
     for h in targets:
         try:
-            out = write_host(h, entry, dry=print_only)
-            if print_only:
-                typer.echo(f"# {h.label} ({h.config_path()})")
+            if h.kind == "plugin":
+                if (vault or index) and not print_only:
+                    typer.echo(
+                        f"  note: --vault/--index don't apply to {h.label} "
+                        "(set in the plugin's config)"
+                    )
+                if h.id == "codex":
+                    note = migrate_codex_mcp_block(h.config_path(), dry=print_only)
+                    if note:
+                        typer.echo(f"  {note}")
+                out = install_plugin(h, source=source, dry=print_only)
+                header = f"# {h.label} (plugin via `{h.cli}`)" if print_only else f"✓ {h.label}:"
+                typer.echo(header)
                 typer.echo(out)
             else:
-                typer.echo(f"✓ {h.label}: {out}")
+                entry = mcp_entry(v, idx)
+                out = write_host(h, entry, dry=print_only)
+                if print_only:
+                    typer.echo(f"# {h.label} ({h.config_path()})")
+                    typer.echo(out)
+                else:
+                    typer.echo(f"✓ {h.label}: {out}")
         except Exception as e:  # best-effort per host; continue under --all
             failures += 1
             typer.echo(f"✗ {h.label}: {e}")

@@ -20,7 +20,7 @@ def test_mcp_entry_shape():
 
 def test_get_host_known_and_unknown():
     assert get_host("cursor").format == "json"
-    assert get_host("codex").format == "codex-toml"
+    assert get_host("codex").kind == "plugin"
     assert get_host("nope") is None
     assert get_host("windsurf") is None  # dropped — renamed to Devin Desktop
 
@@ -47,7 +47,10 @@ def test_antigravity_and_vscode_registered():
 
 
 def test_detected_hosts_uses_home(tmp_path, monkeypatch):
+    import cairn.hosts as hosts
+
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(hosts.shutil, "which", lambda _c: None)  # no CLIs on PATH
     # Nothing present yet → none detected.
     assert detected_hosts() == []
     # Create Cursor's config dir → it's detected.
@@ -220,3 +223,31 @@ def test_dry_run_creates_no_backup(tmp_path):
     write_json_mcp(tmp_path / "mcp.json", _ENTRY, dry=True)
     write_codex_toml(p, _ENTRY, dry=True)
     assert not p.with_name("config.toml.bak").exists()  # dry must not back up
+
+
+def test_codex_is_plugin_host():
+    h = get_host("codex")
+    assert h.kind == "plugin"
+    assert h.cli == "codex"
+    assert h.plugin_add == ("plugin", "add", "agentcairn")
+
+
+def test_claude_code_is_plugin_host():
+    h = get_host("claude-code")
+    assert h.kind == "plugin"
+    assert h.cli == "claude"
+    assert h.plugin_add == ("plugin", "install", "agentcairn@agentcairn")
+
+
+def test_mcp_hosts_keep_kind_mcp():
+    assert get_host("cursor").kind == "mcp"
+    assert get_host("vscode").kind == "mcp"
+
+
+def test_plugin_host_detected_via_cli_on_path(monkeypatch):
+    import cairn.hosts as hosts
+
+    monkeypatch.setattr(hosts.shutil, "which", lambda c: "/usr/bin/" + c if c == "codex" else None)
+    ids = {h.id for h in hosts.detected_hosts()}
+    assert "codex" in ids  # codex CLI present
+    assert "claude-code" not in ids  # claude CLI absent

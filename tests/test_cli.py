@@ -681,22 +681,52 @@ def test_install_defaults_honor_config_file(tmp_path, monkeypatch):
 
 
 def test_install_all_with_none_detected_reports_and_exits_0(tmp_path, monkeypatch):
+    import cairn.hosts as _hosts
+
     monkeypatch.setenv("HOME", str(tmp_path))  # empty HOME → no host dirs present
+    monkeypatch.setattr(_hosts.shutil, "which", lambda c: None)  # no plugin CLIs on PATH
     r = runner.invoke(app, ["install", "--all"])
     assert r.exit_code == 0, r.output
-    assert "no supported mcp hosts detected" in r.output.lower()
+    assert "no supported agents detected" in r.output.lower()
 
 
 def test_install_all_print_labels_each_host(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
     (tmp_path / ".cursor").mkdir()
-    (tmp_path / ".codex").mkdir()
+    (tmp_path / ".gemini").mkdir()
+    (tmp_path / ".gemini" / "settings.json").write_text("{}")
     r = runner.invoke(app, ["install", "--all", "--print"])
     assert r.exit_code == 0, r.output
-    # each detected host's snippet is preceded by a labeled comment header
     assert "# Cursor" in r.output
-    assert "# Codex CLI" in r.output
-    assert not (tmp_path / ".cursor" / "mcp.json").exists()  # --print writes nothing
+    assert "# Gemini CLI" in r.output
+    assert not (tmp_path / ".cursor" / "mcp.json").exists()
+
+
+def test_install_codex_print_shows_plugin_commands(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    r = runner.invoke(app, ["install", "codex", "--print"])
+    assert r.exit_code == 0, r.output
+    assert "codex plugin marketplace add ccf/agentcairn" in r.output
+    assert "codex plugin add agentcairn" in r.output
+
+
+def test_install_claude_code_print_and_source_override(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    r = runner.invoke(app, ["install", "claude-code", "--print", "--source", "/local/checkout"])
+    assert r.exit_code == 0, r.output
+    assert "claude plugin marketplace add /local/checkout" in r.output
+    assert "claude plugin install agentcairn@agentcairn" in r.output
+
+
+def test_install_codex_print_reports_stale_mcp_migration(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cfg = tmp_path / ".codex" / "config.toml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text('[mcp_servers.agentcairn]\ncommand = "uvx"\nargs = ["agentcairn"]\n')
+    r = runner.invoke(app, ["install", "codex", "--print"])
+    assert r.exit_code == 0, r.output
+    assert "mcp_servers.agentcairn" in r.output
+    assert cfg.read_text().startswith("[mcp_servers.agentcairn]")
 
 
 def test_ingest_reports_per_kind_skips(tmp_path, monkeypatch):
