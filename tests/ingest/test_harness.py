@@ -436,3 +436,105 @@ def test_antigravity_find_missing_root_and_bad_cache(tmp_path):
     (tmp_path / "cache").mkdir()
     (tmp_path / "cache" / "last_conversations.json").write_text("{ not json")
     assert _conversation_cwd(tmp_path / "brain") == {}
+
+
+def _make_cursor_db(path, rows):
+    """Build a fixture Cursor state.vscdb: a cursorDiskKV(key, value) table whose
+    values are JSON bubbles. `rows` is a list of (key, dict)."""
+    import json as _j
+    import sqlite3
+
+    con = sqlite3.connect(str(path))
+    con.execute("CREATE TABLE cursorDiskKV (key TEXT PRIMARY KEY, value TEXT)")
+    con.executemany(
+        "INSERT INTO cursorDiskKV (key, value) VALUES (?, ?)",
+        [(k, _j.dumps(v)) for k, v in rows],
+    )
+    con.commit()
+    con.close()
+
+
+def test_cursor_classify():
+    from cairn.ingest.harness.cursor import CursorAdapter
+
+    a = CursorAdapter()
+    assert a.name == "cursor"
+    assert a.classify({"type": 1, "text": "combine the repos"}) == EventKind.AUTHORED_USER
+    assert a.classify({"type": 1, "text": "/Users/x/f.py please review"}) == EventKind.AUTHORED_USER
+    assert a.classify({"type": 1, "text": "   "}) == EventKind.UNKNOWN
+    assert a.classify({"type": 1}) == EventKind.UNKNOWN
+    assert a.classify({"type": 2, "text": "assistant reply"}) == EventKind.UNKNOWN
+
+
+def test_cursor_parses_user_bubbles(tmp_path):
+    from cairn.ingest.locate import parse_transcript
+
+    db = tmp_path / "state.vscdb"
+    _make_cursor_db(
+        db,
+        [
+            (
+                "bubbleId:comp-1:b1",
+                {
+                    "type": 1,
+                    "text": "Combine the repos into one",
+                    "workspaceProjectDir": "/Users/x/proj",
+                    "createdAt": "2025-12-20T23:29:17.798Z",
+                },
+            ),
+            ("bubbleId:comp-1:b2", {"type": 2, "text": "Here is a plan"}),
+            (
+                "bubbleId:comp-1:b3",
+                {
+                    "type": 1,
+                    "text": "/Users/x/f.py please review",
+                    "workspaceProjectDir": "/Users/x/proj",
+                },
+            ),
+            (
+                "bubbleId:comp-1:b4",
+                {"type": 1, "text": "   ", "workspaceProjectDir": "/Users/x/proj"},
+            ),
+        ],
+    )
+    tr = parse_transcript(TranscriptRef(path=db, harness="cursor"))
+    authored = [e for e in tr.events if e.kind == EventKind.AUTHORED_USER]
+    assert [e.text for e in authored] == [
+        "Combine the repos into one",
+        "/Users/x/f.py please review",
+    ]
+    assert all(e.harness == "cursor" for e in authored)
+    assert authored[0].session_id == "comp-1"
+    assert authored[0].project == "proj"
+    assert authored[0].timestamp == "2025-12-20T23:29:17.798Z"
+
+
+def test_cursor_find_present_and_absent(tmp_path):
+    from cairn.ingest.harness.cursor import CursorAdapter
+
+    a = CursorAdapter()
+    assert a.find(root=tmp_path, project=None) == []
+    gs = tmp_path / "globalStorage"
+    gs.mkdir()
+    db = gs / "state.vscdb"
+    _make_cursor_db(db, [("bubbleId:c:b", {"type": 1, "text": "hi"})])
+    assert a.find(root=tmp_path, project=None) == [db]
+    assert a.find(root=tmp_path, project="/Users/x/anything") == [db]
+
+
+def test_cursor_iter_raw_missing_table_is_graceful(tmp_path):
+    import sqlite3
+
+    from cairn.ingest.harness.cursor import CursorAdapter
+
+    db = tmp_path / "state.vscdb"
+    con = sqlite3.connect(str(db))
+    con.execute("CREATE TABLE other (k TEXT)")
+    con.commit()
+    con.close()
+    a = CursorAdapter()
+    assert list(a.iter_raw(db)) == []
+
+
+def test_cursor_registered():
+    assert get_adapter("cursor").name == "cursor"
