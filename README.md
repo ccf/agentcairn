@@ -95,7 +95,7 @@ anthropic_api_key = "sk-ant-..."
 
 ## Agents supported
 
-agentcairn works at two levels. **Plugin hosts** (Claude Code and Codex) get a first-class plugin — a bundled MCP server (recall/search/`remember`), a memory skill, slash commands, and ambient session hooks (recall-at-start, capture-at-end; fully wired on Claude Code, rolling out on Codex); `cairn install <host>` installs the plugin by calling the host's own CLI. **MCP hosts** (everything else) get the same recall/search/`remember` tools via the portable MCP server; `cairn install <host>` writes the MCP server config non-destructively (your other servers are preserved, the original is backed up to `<config>.bak`). The vault stays a single global `~/agentcairn`, so memory is shared across every host.
+agentcairn works at two levels. **Plugin hosts** (Claude Code, Codex, and Antigravity) get a first-class plugin — a bundled MCP server (recall/search/`remember`), a memory skill, and (on Claude Code and Codex) ambient session hooks; `cairn install <host>` installs the plugin by calling the host's own CLI. **MCP hosts** (everything else) get the same recall/search/`remember` tools via the portable MCP server; `cairn install <host>` writes the MCP server config non-destructively (your other servers are preserved, the original is backed up to `<config>.bak`). The vault stays a single global `~/agentcairn`, so memory is shared across every host.
 
 | Host | Support | Set up with | Ambient capture |
 |---|---|---|---|
@@ -105,11 +105,11 @@ agentcairn works at two levels. **Plugin hosts** (Claude Code and Codex) get a f
 | Claude Desktop | 🔌 MCP server | `cairn install claude-desktop` | — |
 | VS Code (Copilot) | 🔌 MCP server | `cairn install vscode` | — |
 | Gemini CLI [^gemini-ingest] | 🔌 MCP server | `cairn install gemini` | — |
-| Antigravity | 🔌 MCP server + ingest | `cairn install antigravity` | ◐ `cairn sweep` auto-detects transcripts [^antigravity-sweep] |
+| **Antigravity** | 🟢 Plugin + ingest | `cairn install antigravity` | ◐ `cairn sweep` auto-detects transcripts [^antigravity-sweep] |
 | Any other MCP host | 🔌 MCP server | `uvx agentcairn` (paste the `cairn install … --print` snippet) | — |
 
 [^codex-hooks]: The Codex plugin installs and its bundled MCP server (recall/search/`remember`) is verified live in Codex. The ambient session hooks (recall-at-start, capture-at-end) ship in the plugin and use Codex's documented hooks schema, but their on-Codex behaviour isn't yet confirmed end-to-end; capture also happens out-of-band via `cairn sweep` regardless.
-[^antigravity-sweep]: Antigravity CLI transcripts are ingested out-of-band via `cairn sweep` (path: `~/.gemini/antigravity-cli/brain/<uuid>/.system_generated/logs/transcript.jsonl`). No plugin or live hooks — sweep-only, same as any unhooked harness.
+[^antigravity-sweep]: The Antigravity plugin bundles the MCP server + memory skill; `cairn install antigravity` installs it via `agy plugin install` and removes any stale `mcpServers.agentcairn` entry from `~/.gemini/config/mcp_config.json`. Antigravity has no recognized plugin hooks, so ambient capture is out-of-band via `cairn sweep` (path: `~/.gemini/antigravity-cli/brain/<uuid>/.system_generated/logs/transcript.jsonl`).
 [^gemini-ingest]: Gemini CLI (consumer) transcript ingestion is **not supported** — Google is sunsetting the Gemini CLI (consumer cutoff 2026-06-18) in favour of Antigravity CLI, which agentcairn ingests instead. `cairn install gemini` (MCP server wiring) remains valid for any Gemini-based host that speaks MCP.
 
 `cairn install` routes by host kind automatically:
@@ -117,12 +117,13 @@ agentcairn works at two levels. **Plugin hosts** (Claude Code and Codex) get a f
 ```bash
 cairn install                 # detect installed hosts + preview (writes nothing)
 cairn install codex           # install the Codex plugin (shells to `codex plugin …`; strips any stale MCP block from ~/.codex/config.toml)
+cairn install antigravity     # install the Antigravity plugin (shells to `agy plugin install`; removes stale mcp_config.json entry)
 cairn install cursor          # write MCP config for Cursor
 cairn install --all           # configure every detected host
 cairn install codex --source /path/to/agentcairn  # use a local checkout instead of the marketplace
 ```
 
-MCP hosts take a JSON `mcpServers` entry (VS Code uses its `servers` key). Plugin hosts (Claude Code, Codex) install the plugin via the host CLI — the MCP server is bundled in the plugin and does not need a separate config entry. If you previously used `cairn install codex` to write a TOML MCP block to `~/.codex/config.toml`, re-running `cairn install codex` removes that stale entry automatically.
+MCP hosts take a JSON `mcpServers` entry (VS Code uses its `servers` key). Plugin hosts (Claude Code, Codex, Antigravity) install the plugin via the host CLI — the MCP server is bundled in the plugin and does not need a separate config entry. If you previously used `cairn install antigravity` to write an MCP entry to `~/.gemini/config/mcp_config.json`, re-running `cairn install antigravity` removes that stale entry automatically.
 
 ## Benchmarks measured
 

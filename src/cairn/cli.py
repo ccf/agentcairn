@@ -384,8 +384,8 @@ def warm() -> None:
 def install(
     host: str = typer.Argument(
         None,
-        help="Host id: claude-code / codex (plugins) · cursor / claude-desktop / "
-        "vscode / gemini / antigravity (mcp).",
+        help="Host id: claude-code / codex / antigravity (plugins) · cursor / claude-desktop / "
+        "vscode / gemini (mcp).",
     ),
     all_hosts: bool = typer.Option(False, "--all", help="Configure every detected host."),
     print_only: bool = typer.Option(
@@ -402,7 +402,7 @@ def install(
     ),
 ) -> None:
     """Install agentcairn into another agent: the plugin for plugin hosts
-    (Claude Code, Codex), or the MCP server config for MCP hosts (Cursor, …)."""
+    (Claude Code, Codex, Antigravity), or the MCP server config for MCP hosts (Cursor, …)."""
     from cairn.hosts import HOSTS, detected_hosts, get_host
     from cairn.hosts.entry import mcp_entry
     from cairn.hosts.plugins import (
