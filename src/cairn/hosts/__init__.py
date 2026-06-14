@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,6 +22,10 @@ class Host:
     # parent dir; override when that parent is shared with another host (e.g. Gemini CLI
     # and Antigravity both live under ~/.gemini, so Gemini CLI keys off its actual file).
     detect_template: str | None = None
+    kind: str = "mcp"  # "mcp" (write a config file) | "plugin" (install via host CLI)
+    cli: str | None = None  # plugin hosts: the host's CLI binary (e.g. "codex", "claude")
+    marketplace_add: tuple[str, ...] | None = None  # argv after the cli; "{source}" is substituted
+    plugin_add: tuple[str, ...] | None = None  # argv after the cli to install the plugin
 
     def config_path(self) -> Path:
         return Path(self.path_template).expanduser()
@@ -29,6 +34,13 @@ class Host:
         if self.detect_template is not None:
             return Path(self.detect_template).expanduser()
         return self.config_path().parent
+
+    def detect(self) -> bool:
+        """Is this host present? MCP hosts: their detect path exists. Plugin
+        hosts: their CLI is on PATH."""
+        if self.kind == "plugin":
+            return self.cli is not None and shutil.which(self.cli) is not None
+        return self.detect_path().exists()
 
 
 def _claude_desktop_path() -> str:
@@ -61,7 +73,26 @@ HOSTS: list[Host] = [
         detect_template="~/.gemini/settings.json",
     ),
     Host("antigravity", "Antigravity", "json", "~/.gemini/config/mcp_config.json"),
-    Host("codex", "Codex CLI", "codex-toml", "~/.codex/config.toml"),
+    Host(
+        "codex",
+        "Codex CLI",
+        "plugin",  # format is unused for plugin hosts; keep a benign value
+        "~/.codex/config.toml",  # used only by the stale-MCP migration
+        kind="plugin",
+        cli="codex",
+        marketplace_add=("plugin", "marketplace", "add", "{source}"),
+        plugin_add=("plugin", "add", "agentcairn"),
+    ),
+    Host(
+        "claude-code",
+        "Claude Code",
+        "plugin",
+        "~/.claude",  # detect() ignores this for plugin hosts; CLI presence wins
+        kind="plugin",
+        cli="claude",
+        marketplace_add=("plugin", "marketplace", "add", "{source}"),
+        plugin_add=("plugin", "install", "agentcairn@agentcairn"),
+    ),
 ]
 
 _BY_ID = {h.id: h for h in HOSTS}
@@ -72,5 +103,5 @@ def get_host(host_id: str) -> Host | None:
 
 
 def detected_hosts() -> list[Host]:
-    """Hosts whose detect path exists (the tool appears installed)."""
-    return [h for h in HOSTS if h.detect_path().exists()]
+    """Hosts that appear present (MCP: config dir exists; plugin: CLI on PATH)."""
+    return [h for h in HOSTS if h.detect()]
