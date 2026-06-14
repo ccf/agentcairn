@@ -10,8 +10,8 @@ judge, antecedent resolution, and memory consolidation). Releases follow the cut
 
 **Plugins:** agentcairn ships a **Claude Code plugin** and a **Codex plugin** — both reuse the same `using-agentcairn-memory` skill, session hooks, and bundled MCP server. The Codex plugin is discoverable via the Codex plugin marketplace. `cairn install` routes by host kind: for plugin hosts (`claude-code`, `codex`) it installs the plugin by shelling to the host's own CLI; for MCP hosts (`cursor`, `claude-desktop`, `vscode`, `gemini`, `antigravity`) it writes the MCP server config. Only Claude Code and Codex have plugins — Gemini, Cursor, and the other MCP hosts do not.
 
-**Capture pipeline (ingest):** transcripts from Claude Code and Codex are ingested automatically
-(auto-detected via a `HarnessAdapter` seam; `cairn sweep` picks up whichever harnesses are present).
+**Capture pipeline (ingest):** transcripts from Claude Code, Codex, and Antigravity CLI (`~/.gemini/antigravity-cli/brain/<uuid>/.system_generated/logs/transcript.jsonl`) are ingested automatically
+(auto-detected via a `HarnessAdapter` seam; `cairn sweep` picks up whichever harnesses are present). Gemini CLI transcript ingestion is not supported (Google is sunsetting Gemini CLI in favour of Antigravity CLI).
 Then: redact → structural candidate selection (authored user turns only) →
 judge (embedding/LLM tier; durability + optional distillation) → gate → distill → **consolidate**
 (semantic dedup + supersession, LLM-tier, fail-safe) → write. Redaction-before-write is mandatory;

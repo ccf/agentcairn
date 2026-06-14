@@ -58,7 +58,7 @@ flowchart LR
     class I cache
 ```
 
-- **Capture** reads your agent harness's session transcripts (append-only, already on disk) *out-of-band* — robust by design, with no fragile live hooks — then redacts → dedups → judges (semantic durability; optional LLM distillation via `CAIRN_JUDGE=anthropic`) → gates → distills into the vault, non-lossily. `cairn sweep` auto-detects every present harness (Claude Code and Codex are both supported, behind a `HarnessAdapter` seam) so you get unified memory across both without any extra configuration. On the LLM tier it also **consolidates**: a new memory that duplicates an existing one is skipped, and a newer version of an evolving fact marks the older note `superseded_by` (kept + demoted in recall, never deleted) — fail-safe, so a wrong call never drops a distinct memory (`CAIRN_CONSOLIDATE=0` to disable). Plus an agent-driven `remember` tool for curated, high-value memories.
+- **Capture** reads your agent harness's session transcripts (append-only, already on disk) *out-of-band* — robust by design, with no fragile live hooks — then redacts → dedups → judges (semantic durability; optional LLM distillation via `CAIRN_JUDGE=anthropic`) → gates → distills into the vault, non-lossily. `cairn sweep` auto-detects every present harness (Claude Code, Codex, and Antigravity CLI are all supported, behind a `HarnessAdapter` seam) so you get unified memory across all three without any extra configuration. On the LLM tier it also **consolidates**: a new memory that duplicates an existing one is skipped, and a newer version of an evolving fact marks the older note `superseded_by` (kept + demoted in recall, never deleted) — fail-safe, so a wrong call never drops a distinct memory (`CAIRN_CONSOLIDATE=0` to disable). Plus an agent-driven `remember` tool for curated, high-value memories.
 - **Retrieval** fuses BM25 + semantic vectors with Reciprocal Rank Fusion, applies an optional graph-boost, and **degrades gracefully** down to keyword-only when no embedding model is available — so recall is *never* silently dead. An optional cross-encoder reranker adds precision.
 - **Hybrid intelligence:** offline local embeddings (FastEmbed / `nomic-embed-text-v1.5` by default) out of the box — strong on its own *and* in the hybrid fusion (with `nomic`, vector-only edges out BM25 even on short turns; see the benchmark). Set `CAIRN_EMBED_MODEL` to pick another FastEmbed model, or run `CAIRN_EMBEDDER=ollama` / a cloud tier to go further.
 - **Temporal memory:** notes may carry `valid_from`/`valid_until`/`superseded_by` frontmatter. Recall is validity-aware — it soft-demotes superseded and expired facts (the *current* fact wins) without ever hiding them (non-lossy), and annotates each result's status (`current`/`superseded`/`expired`/`not_yet_valid`) plus an `as_of` anchor so the agent can reason over time. Inert for notes with no validity fields.
@@ -104,11 +104,13 @@ agentcairn works at two levels. **Plugin hosts** (Claude Code and Codex) get a f
 | Cursor | 🔌 MCP server | `cairn install cursor` | — |
 | Claude Desktop | 🔌 MCP server | `cairn install claude-desktop` | — |
 | VS Code (Copilot) | 🔌 MCP server | `cairn install vscode` | — |
-| Gemini CLI | 🔌 MCP server | `cairn install gemini` | — |
-| Antigravity | 🔌 MCP server | `cairn install antigravity` | — |
+| Gemini CLI [^gemini-ingest] | 🔌 MCP server | `cairn install gemini` | — |
+| Antigravity | 🔌 MCP server + ingest | `cairn install antigravity` | ◐ `cairn sweep` auto-detects transcripts [^antigravity-sweep] |
 | Any other MCP host | 🔌 MCP server | `uvx agentcairn` (paste the `cairn install … --print` snippet) | — |
 
 [^codex-hooks]: The Codex plugin installs and its bundled MCP server (recall/search/`remember`) is verified live in Codex. The ambient session hooks (recall-at-start, capture-at-end) ship in the plugin and use Codex's documented hooks schema, but their on-Codex behaviour isn't yet confirmed end-to-end; capture also happens out-of-band via `cairn sweep` regardless.
+[^antigravity-sweep]: Antigravity CLI transcripts are ingested out-of-band via `cairn sweep` (path: `~/.gemini/antigravity-cli/brain/<uuid>/.system_generated/logs/transcript.jsonl`). No plugin or live hooks — sweep-only, same as any unhooked harness.
+[^gemini-ingest]: Gemini CLI (consumer) transcript ingestion is **not supported** — Google is sunsetting the Gemini CLI (consumer cutoff 2026-06-18) in favour of Antigravity CLI, which agentcairn ingests instead. `cairn install gemini` (MCP server wiring) remains valid for any Gemini-based host that speaks MCP.
 
 `cairn install` routes by host kind automatically:
 
