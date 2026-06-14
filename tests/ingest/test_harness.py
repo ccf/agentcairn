@@ -589,3 +589,43 @@ def test_cursor_non_string_createdat_coerced(tmp_path):
     tr = parse_transcript(TranscriptRef(path=db, harness="cursor"))
     authored = [e for e in tr.events if e.kind == EventKind.AUTHORED_USER]
     assert authored and authored[0].timestamp is None
+
+
+def test_cursor_non_string_fields_do_not_crash(tmp_path):
+    # numeric text and non-string workspaceProjectDir must degrade, not crash.
+    from cairn.ingest.harness.cursor import CursorAdapter
+
+    a = CursorAdapter()
+    # numeric text → not authored, no crash
+    assert a.classify({"type": 1, "text": 12345}) == EventKind.UNKNOWN
+    assert (
+        a.to_event(
+            {"type": 1, "text": 12345},
+            EventKind.AUTHORED_USER,
+            ParseCtx(path=tmp_path / "state.vscdb"),
+        )
+        is None
+    )
+    # non-string workspaceProjectDir → project None, no crash
+    ev = a.to_event(
+        {
+            "type": 1,
+            "text": "real prompt",
+            "workspaceProjectDir": {"weird": "obj"},
+            "_composer_id": "c1",
+        },
+        EventKind.AUTHORED_USER,
+        ParseCtx(path=tmp_path / "state.vscdb"),
+    )
+    assert ev is not None and ev.project is None and ev.text == "real prompt"
+
+
+def test_cursor_iter_raw_path_with_space_and_percent(tmp_path):
+    # the immutable URI must handle spaces and %/#/? in the path (pathname2url).
+    from cairn.ingest.harness.cursor import CursorAdapter
+
+    d = tmp_path / "Application Support" / "pct%dir"
+    d.mkdir(parents=True)
+    db = d / "state.vscdb"
+    _make_cursor_db(db, [("bubbleId:c:b1", {"type": 1, "text": "hi from spaced path"})])
+    assert [b.get("text") for b in CursorAdapter().iter_raw(db)] == ["hi from spaced path"]
