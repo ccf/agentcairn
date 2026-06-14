@@ -691,7 +691,10 @@ def test_install_all_with_none_detected_reports_and_exits_0(tmp_path, monkeypatc
 
 
 def test_install_all_print_labels_each_host(tmp_path, monkeypatch):
+    import cairn.hosts as _hosts
+
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(_hosts.shutil, "which", lambda c: None)  # no plugin CLIs (MCP-only test)
     (tmp_path / ".cursor").mkdir()
     (tmp_path / ".gemini").mkdir()
     (tmp_path / ".gemini" / "settings.json").write_text("{}")
@@ -754,9 +757,9 @@ def test_install_codex_print_reports_stale_mcp_migration(tmp_path, monkeypatch):
 
 def test_install_antigravity_print_shows_agy_command(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
-    r = runner.invoke(app, ["install", "antigravity", "--print"])
+    r = runner.invoke(app, ["install", "antigravity", "--print", "--source", "/x/plugin"])
     assert r.exit_code == 0, r.output
-    assert "agy plugin install ccf/agentcairn" in r.output
+    assert "agy plugin install /x/plugin" in r.output
 
 
 def test_install_antigravity_print_reports_migration(tmp_path, monkeypatch):
@@ -764,10 +767,24 @@ def test_install_antigravity_print_reports_migration(tmp_path, monkeypatch):
     cfg = tmp_path / ".gemini" / "config" / "mcp_config.json"
     cfg.parent.mkdir(parents=True)
     cfg.write_text('{"mcpServers": {"agentcairn": {"command": "uvx"}}}')
-    r = runner.invoke(app, ["install", "antigravity", "--print"])
+    r = runner.invoke(app, ["install", "antigravity", "--print", "--source", "/x/plugin"])
     assert r.exit_code == 0, r.output
     assert "mcpServers.agentcairn" in r.output
     assert "agentcairn" in cfg.read_text()  # --print writes nothing
+
+
+def test_install_antigravity_requires_source(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    r = runner.invoke(app, ["install", "antigravity", "--print"])
+    assert r.exit_code != 0
+    assert "needs --source" in r.output
+
+
+def test_install_codex_still_defaults_source(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    r = runner.invoke(app, ["install", "codex", "--print"])
+    assert r.exit_code == 0, r.output
+    assert "codex plugin add agentcairn@agentcairn" in r.output  # default source still works
 
 
 def test_ingest_reports_per_kind_skips(tmp_path, monkeypatch):

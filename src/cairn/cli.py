@@ -398,7 +398,7 @@ def install(
         None, "--index", help="Index path (mcp hosts; default ~/.cache/agentcairn/index.duckdb)."
     ),
     source: str = typer.Option(
-        "ccf/agentcairn",
+        None,
         "--source",
         help="Plugin source for plugin hosts (default the marketplace; Antigravity's "
         "`agy plugin install` needs a local dir, so pass --source <path>/plugin).",
@@ -456,7 +456,16 @@ def install(
                         f"  note: --vault/--index don't apply to {h.label} "
                         "(set in the plugin's config)"
                     )
-                out = install_plugin(h, source=source, dry=print_only)
+                # Codex/Claude accept the git marketplace ref as a default; Antigravity's
+                # `agy plugin install` cannot fetch a git repo, so it requires --source.
+                plugin_source = source or (None if h.id == "antigravity" else "ccf/agentcairn")
+                if plugin_source is None:
+                    raise ValueError(
+                        f"{h.label} needs --source <dir>: `agy plugin install` takes a local "
+                        "directory (or a registered marketplace), not a git repo. Clone the "
+                        "repo and run `cairn install antigravity --source <path>/plugin`."
+                    )
+                out = install_plugin(h, source=plugin_source, dry=print_only)
                 header = f"# {h.label} (plugin via `{h.cli}`)" if print_only else f"✓ {h.label}:"
                 typer.echo(header)
                 typer.echo(out)
