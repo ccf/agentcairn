@@ -1,0 +1,22 @@
+{
+  "name": "agentcairn",
+  "version": "0.1.0",
+  "description": "Local-first agent memory for Codex — recall, remember, and ambient capture into a Markdown vault you own.",
+  "author": { "name": "Charles C. Figueiredo", "email": "ccf@ccf.io" },
+  "homepage": "https://agentcairn.dev",
+  "repository": "https://github.com/ccf/agentcairn",
+  "license": "Apache-2.0",
+  "keywords": ["memory", "mcp", "obsidian", "agent", "local-first"],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.codex.json",
+  "hooks": "./hooks/hooks.codex.json",
+  "interface": {
+    "displayName": "agentcairn",
+    "shortDescription": "Local-first agent memory: recall, remember, ambient capture.",
+    "longDescription": "agentcairn gives Codex a persistent, local-first memory: an Obsidian-compatible Markdown vault you own, with hybrid recall, a remember tool, and out-of-band capture of your sessions. No external database, no daemon.",
+    "developerName": "Charles C. Figueiredo",
+    "category": "Developer Tools",
+    "capabilities": ["Interactive", "Write"],
+    "websiteURL": "https://agentcairn.dev"
+  }
+}
