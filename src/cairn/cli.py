@@ -444,19 +444,22 @@ def install(
     for h in targets:
         try:
             if h.kind == "plugin":
-                if (vault or index) and not print_only:
+                if vault or index:
                     typer.echo(
                         f"  note: --vault/--index don't apply to {h.label} "
                         "(set in the plugin's config)"
                     )
-                if h.id == "codex":
-                    note = migrate_codex_mcp_block(h.config_path(), dry=print_only)
-                    if note:
-                        typer.echo(f"  {note}")
                 out = install_plugin(h, source=source, dry=print_only)
                 header = f"# {h.label} (plugin via `{h.cli}`)" if print_only else f"✓ {h.label}:"
                 typer.echo(header)
                 typer.echo(out)
+                # Strip a stale [mcp_servers.agentcairn] only AFTER a successful install
+                # (install_plugin raises on failure), so an aborted install leaves the
+                # user's existing MCP wiring intact rather than half-removed.
+                if h.id == "codex":
+                    note = migrate_codex_mcp_block(h.config_path(), dry=print_only)
+                    if note:
+                        typer.echo(f"  {note}")
             else:
                 entry = mcp_entry(v, idx)
                 out = write_host(h, entry, dry=print_only)
