@@ -1,0 +1,10 @@
+{
+  "name": "agentcairn",
+  "version": "0.1.0",
+  "description": "Local-first agent memory for Antigravity — recall, remember, and ambient capture into a Markdown vault you own.",
+  "author": { "name": "Charles C. Figueiredo", "email": "ccf@ccf.io" },
+  "homepage": "https://agentcairn.dev",
+  "repository": "https://github.com/ccf/agentcairn",
+  "license": "Apache-2.0",
+  "keywords": ["memory", "mcp", "obsidian", "agent", "local-first"]
+}
