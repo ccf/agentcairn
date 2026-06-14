@@ -76,11 +76,13 @@ def present_harnesses(selected: list[str] | None = None) -> list[HarnessAdapter]
 
 
 def _bootstrap_registry() -> None:
+    from cairn.ingest.harness.antigravity import AntigravityAdapter
     from cairn.ingest.harness.claude_code import ClaudeCodeAdapter
     from cairn.ingest.harness.codex import CodexAdapter
 
     _register(ClaudeCodeAdapter())
     _register(CodexAdapter())
+    _register(AntigravityAdapter())
 
 
 _bootstrap_registry()
