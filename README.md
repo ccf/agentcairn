@@ -95,18 +95,20 @@ anthropic_api_key = "sk-ant-..."
 
 ## Agents supported
 
-agentcairn works at two levels. **Plugin hosts** (Claude Code and Codex) get a first-class plugin — the full ambient loop (recall at session start, capture at session end), a memory skill, slash commands, and a bundled MCP server; `cairn install <host>` installs the plugin by calling the host's own CLI. **MCP hosts** (everything else) get the same recall/search/`remember` tools via the portable MCP server; `cairn install <host>` writes the MCP server config non-destructively (your other servers are preserved, the original is backed up to `<config>.bak`). The vault stays a single global `~/agentcairn`, so memory is shared across every host.
+agentcairn works at two levels. **Plugin hosts** (Claude Code and Codex) get a first-class plugin — a bundled MCP server (recall/search/`remember`), a memory skill, slash commands, and ambient session hooks (recall-at-start, capture-at-end; fully wired on Claude Code, rolling out on Codex); `cairn install <host>` installs the plugin by calling the host's own CLI. **MCP hosts** (everything else) get the same recall/search/`remember` tools via the portable MCP server; `cairn install <host>` writes the MCP server config non-destructively (your other servers are preserved, the original is backed up to `<config>.bak`). The vault stays a single global `~/agentcairn`, so memory is shared across every host.
 
 | Host | Support | Set up with | Ambient capture |
 |---|---|---|---|
 | **Claude Code** | 🟢 Plugin | `cairn install claude-code` | ✅ recall-at-start + capture-at-end |
-| **Codex** | 🟢 Plugin | `cairn install codex` | ✅ recall-at-start + capture-at-end |
+| **Codex** | 🟢 Plugin | `cairn install codex` | ◐ recall/`remember` live; ambient hooks bundled (verifying) [^codex-hooks] |
 | Cursor | 🔌 MCP server | `cairn install cursor` | — |
 | Claude Desktop | 🔌 MCP server | `cairn install claude-desktop` | — |
 | VS Code (Copilot) | 🔌 MCP server | `cairn install vscode` | — |
 | Gemini CLI | 🔌 MCP server | `cairn install gemini` | — |
 | Antigravity | 🔌 MCP server | `cairn install antigravity` | — |
 | Any other MCP host | 🔌 MCP server | `uvx agentcairn` (paste the `cairn install … --print` snippet) | — |
+
+[^codex-hooks]: The Codex plugin installs and its bundled MCP server (recall/search/`remember`) is verified live in Codex. The ambient session hooks (recall-at-start, capture-at-end) ship in the plugin and use Codex's documented hooks schema, but their on-Codex behaviour isn't yet confirmed end-to-end; capture also happens out-of-band via `cairn sweep` regardless.
 
 `cairn install` routes by host kind automatically:
 
