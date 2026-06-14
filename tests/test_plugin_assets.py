@@ -48,3 +48,18 @@ def test_codex_marketplace_lists_plugin_with_local_source():
     assert plug["name"] == "agentcairn"
     assert plug["source"] == {"source": "local", "path": "./plugin"}
     assert (ROOT / "plugin").is_dir()
+
+
+def test_antigravity_manifest_valid():
+    m = _load(PLUGIN / "plugin.json")
+    assert m["name"] == "agentcairn"
+    assert "version" in m and "description" in m
+    assert (PLUGIN / "skills").is_dir()
+
+
+def test_antigravity_mcp_config_is_wrapper_with_vault_env():
+    mcp = _load(PLUGIN / "mcp_config.json")
+    ac = mcp["mcpServers"]["agentcairn"]
+    assert ac["command"] == "uvx" and ac["args"] == ["agentcairn"]
+    assert ac["env"]["CAIRN_VAULT"] == "~/agentcairn"
+    assert ac["env"]["CAIRN_INDEX"] == "~/.cache/agentcairn/index.duckdb"
