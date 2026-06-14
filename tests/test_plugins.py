@@ -49,6 +49,21 @@ def test_install_plugin_runs_commands_in_order(monkeypatch):
     assert calls[1] == ["codex", "plugin", "add", "agentcairn"]
 
 
+def test_install_plugin_raises_on_nonzero(monkeypatch):
+    import cairn.hosts.plugins as pl
+
+    monkeypatch.setattr(pl.shutil, "which", lambda c: "/usr/bin/codex")
+
+    class _R:
+        returncode = 1
+        stdout = ""
+        stderr = "boom: marketplace unreachable"
+
+    monkeypatch.setattr(pl.subprocess, "run", lambda argv, **kw: _R())
+    with pytest.raises(ValueError, match="boom"):
+        install_plugin(get_host("codex"), source="ccf/agentcairn", dry=False)
+
+
 def test_migrate_codex_removes_block_preserving_rest(tmp_path):
     p = tmp_path / "config.toml"
     p.write_text(
