@@ -398,7 +398,10 @@ def install(
         None, "--index", help="Index path (mcp hosts; default ~/.cache/agentcairn/index.duckdb)."
     ),
     source: str = typer.Option(
-        "ccf/agentcairn", "--source", help="Plugin marketplace source (plugin hosts)."
+        "ccf/agentcairn",
+        "--source",
+        help="Plugin source for plugin hosts (default the marketplace; Antigravity's "
+        "`agy plugin install` needs a local dir, so pass --source <path>/plugin).",
     ),
 ) -> None:
     """Install agentcairn into another agent: the plugin for plugin hosts
