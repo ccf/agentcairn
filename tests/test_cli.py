@@ -718,6 +718,29 @@ def test_install_claude_code_print_and_source_override(tmp_path, monkeypatch):
     assert "claude plugin install agentcairn@agentcairn" in r.output
 
 
+def test_install_codex_failed_install_preserves_stale_mcp_block(tmp_path, monkeypatch):
+    # If the plugin install fails (codex CLI absent), the stale MCP block must NOT
+    # be removed — migration runs only after a successful install.
+    import cairn.hosts.plugins as _pl
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(_pl.shutil, "which", lambda c: None)  # codex CLI absent
+    cfg = tmp_path / ".codex" / "config.toml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text('[mcp_servers.agentcairn]\ncommand = "uvx"\nargs = ["agentcairn"]\n')
+    r = runner.invoke(app, ["install", "codex"])  # real run (not --print)
+    assert r.exit_code != 0  # install failed
+    assert "[mcp_servers.agentcairn]" in cfg.read_text()  # stale block preserved
+    assert not cfg.with_name("config.toml.bak").exists()  # migration never ran
+
+
+def test_install_plugin_vault_notice_shows_under_print(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    r = runner.invoke(app, ["install", "codex", "--print", "--vault", str(tmp_path / "v")])
+    assert r.exit_code == 0, r.output
+    assert "don't apply" in r.output  # notice shown even under --print
+
+
 def test_install_codex_print_reports_stale_mcp_migration(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
     cfg = tmp_path / ".codex" / "config.toml"
