@@ -270,3 +270,147 @@ def test_codex_adapter_non_string_cwd_does_not_crash(tmp_path):
     authored = [e for e in tr.events if e.kind == EventKind.AUTHORED_USER]
     assert [e.text for e in authored] == ["Ship the thing"]
     assert authored[0].project is None
+
+
+def _agy_line(type_, source, content=None, created_at="2026-06-14T14:19:09Z"):
+    import json
+
+    o = {
+        "step_index": 0,
+        "source": source,
+        "type": type_,
+        "status": "DONE",
+        "created_at": created_at,
+    }
+    if content is not None:
+        o["content"] = content
+    return json.dumps(o)
+
+
+_AGY_USER = (
+    "<USER_REQUEST>\n"
+    "Remember: I always squash-merge agentcairn release branches.\n"
+    "</USER_REQUEST>\n"
+    "<ADDITIONAL_METADATA>\n"
+    "The current local time is: 2026-06-14T10:19:09-04:00.\n"
+    "</ADDITIONAL_METADATA>\n"
+    "<USER_SETTINGS_CHANGE>\n"
+    "The user changed setting `Model Selection` to Gemini 3.5 Flash.\n"
+    "</USER_SETTINGS_CHANGE>"
+)
+
+
+def test_antigravity_user_request_extracts_only_request_block():
+    from cairn.ingest.harness.antigravity import _user_request
+
+    out = _user_request(_AGY_USER)
+    assert out == "Remember: I always squash-merge agentcairn release branches."
+    assert "ADDITIONAL_METADATA" not in out
+    assert "Model Selection" not in out
+    assert "local time" not in out
+    assert _user_request("no request here") == ""
+    assert _user_request(None) == ""
+
+
+def test_antigravity_classify_each_kind():
+    from cairn.ingest.harness.antigravity import AntigravityAdapter
+
+    a = AntigravityAdapter()
+    assert a.name == "antigravity"
+    assert (
+        a.classify({"type": "USER_INPUT", "source": "USER_EXPLICIT", "content": _AGY_USER})
+        == EventKind.AUTHORED_USER
+    )
+    assert (
+        a.classify(
+            {
+                "type": "USER_INPUT",
+                "source": "USER_EXPLICIT",
+                "content": "<USER_REQUEST>\n/model\n</USER_REQUEST>",
+            }
+        )
+        == EventKind.META_INJECTION
+    )
+    assert (
+        a.classify({"type": "USER_INPUT", "source": "SYSTEM", "content": _AGY_USER})
+        == EventKind.META_INJECTION
+    )
+    assert (
+        a.classify(
+            {
+                "type": "USER_INPUT",
+                "source": "USER_EXPLICIT",
+                "content": "<USER_REQUEST></USER_REQUEST>",
+            }
+        )
+        == EventKind.META_INJECTION
+    )
+    assert (
+        a.classify({"type": "PLANNER_RESPONSE", "source": "MODEL", "content": "done"})
+        == EventKind.AUTHORED_ASSISTANT
+    )
+    assert a.classify({"type": "CONVERSATION_HISTORY", "source": "SYSTEM"}) == EventKind.UNKNOWN
+    assert a.classify({"type": "WEIRD_FUTURE", "source": "x"}) == EventKind.UNKNOWN
+
+
+def test_antigravity_parses_transcript(tmp_path):
+    from cairn.ingest.locate import parse_transcript
+
+    logs = tmp_path / "brain" / "abc-uuid-123" / ".system_generated" / "logs"
+    logs.mkdir(parents=True)
+    f = logs / "transcript.jsonl"
+    f.write_text(
+        "\n".join(
+            [
+                _agy_line("USER_INPUT", "USER_EXPLICIT", _AGY_USER),
+                _agy_line("CONVERSATION_HISTORY", "SYSTEM"),
+                _agy_line("PLANNER_RESPONSE", "MODEL", "Acknowledged."),
+                _agy_line("USER_INPUT", "USER_EXPLICIT", "<USER_REQUEST>\n/help\n</USER_REQUEST>"),
+            ]
+        )
+        + "\n"
+    )
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    import json as _j
+
+    (cache / "last_conversations.json").write_text(_j.dumps({"/Users/x/proj": "abc-uuid-123"}))
+
+    tr = parse_transcript(TranscriptRef(path=f, harness="antigravity"))
+    authored = [e for e in tr.events if e.kind == EventKind.AUTHORED_USER]
+    assert [e.text for e in authored] == [
+        "Remember: I always squash-merge agentcairn release branches."
+    ]
+    assert all(e.harness == "antigravity" for e in tr.events)
+    assert authored[0].session_id == "abc-uuid-123"
+    assert authored[0].project == "proj"
+    assert all("ADDITIONAL_METADATA" not in e.text for e in tr.events)
+
+
+def test_antigravity_find_globs_and_project_filter(tmp_path):
+    import json as _j
+
+    from cairn.ingest.harness.antigravity import AntigravityAdapter
+
+    a = AntigravityAdapter()
+    for uuid in ("keep-uuid", "drop-uuid"):
+        d = tmp_path / "brain" / uuid / ".system_generated" / "logs"
+        d.mkdir(parents=True)
+        (d / "transcript.jsonl").write_text(
+            _agy_line("USER_INPUT", "USER_EXPLICIT", _AGY_USER) + "\n"
+        )
+    (tmp_path / "cache").mkdir()
+    (tmp_path / "cache" / "last_conversations.json").write_text(
+        _j.dumps({"/Users/x/keep": "keep-uuid", "/Users/x/other": "drop-uuid"})
+    )
+    root = tmp_path / "brain"
+    assert {p.parent.parent.parent.name for p in a.find(root=root, project=None)} == {
+        "keep-uuid",
+        "drop-uuid",
+    }
+    kept = a.find(root=root, project="/Users/x/keep")
+    assert [p.parent.parent.parent.name for p in kept] == ["keep-uuid"]
+
+
+def test_antigravity_registered():
+    assert get_adapter("antigravity").name == "antigravity"
