@@ -12,6 +12,7 @@ import sqlite3
 import sys
 from collections.abc import Iterator
 from pathlib import Path
+from urllib.request import pathname2url
 
 from cairn.ingest.events import EventKind, NormalizedEvent, project_from_cwd
 from cairn.ingest.harness import ParseCtx
@@ -41,6 +42,12 @@ def _cursor_user_root() -> Path:
     return home / ".config" / "Cursor" / "User"
 
 
+def _bubble_text(raw: dict) -> str:
+    """The bubble's authored text, sanitized — only when it is a string."""
+    text = raw.get("text")
+    return sanitize_text(text).strip() if isinstance(text, str) else ""
+
+
 class CursorAdapter:
     name = "cursor"
 
@@ -59,7 +66,9 @@ class CursorAdapter:
 
     def iter_raw(self, path: Path) -> Iterator[dict]:
         try:
-            con = sqlite3.connect(f"file:{path}?immutable=1", uri=True)  # read-only, no lock
+            con = sqlite3.connect(  # read-only, no lock; pathname2url for Windows/%/#/?
+                f"file:{pathname2url(str(path))}?immutable=1", uri=True
+            )
         except sqlite3.Error:
             return  # unreadable DB → no rows
         try:
@@ -81,24 +90,25 @@ class CursorAdapter:
             con.close()
 
     def classify(self, raw: dict) -> EventKind:
-        if raw.get("type") == 1 and sanitize_text(raw.get("text") or "").strip():
+        if raw.get("type") == 1 and _bubble_text(raw):
             return EventKind.AUTHORED_USER
         return EventKind.UNKNOWN
 
     def to_event(self, raw: dict, kind: EventKind, ctx: ParseCtx) -> NormalizedEvent | None:
         if raw.get("type") != 1:
             return None
-        text = sanitize_text(raw.get("text") or "").strip()
+        text = _bubble_text(raw)
         if not text:
             return None
         ts = raw.get("createdAt")
+        wd = raw.get("workspaceProjectDir")
         return NormalizedEvent(
             kind=kind,
             role="user",
             text=text,
             timestamp=ts if isinstance(ts, str) else None,  # non-str createdAt → None (safe sort)
             session_id=raw.get("_composer_id") or ctx.path.stem,
-            project=project_from_cwd(raw.get("workspaceProjectDir")),
+            project=project_from_cwd(wd if isinstance(wd, str) else None),  # non-str → None
             git_branch=None,  # Cursor bubbles carry no git branch
             source_path=ctx.path,
             harness=self.name,
