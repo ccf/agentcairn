@@ -181,6 +181,20 @@ def test_claude_code_is_plugin_host():
     assert h.plugin_add == ("plugin", "install", "agentcairn@agentcairn")
 
 
+def test_cursor_host_has_skill_dir():
+    from cairn.hosts import get_host
+
+    assert get_host("cursor").skill_dir == "~/.cursor/skills"
+
+
+def test_non_skill_hosts_have_no_skill_dir():
+    from cairn.hosts import HOSTS
+
+    for h in HOSTS:
+        if h.id != "cursor":
+            assert h.skill_dir is None, h.id
+
+
 def test_mcp_hosts_keep_kind_mcp():
     assert get_host("cursor").kind == "mcp"
     assert get_host("vscode").kind == "mcp"

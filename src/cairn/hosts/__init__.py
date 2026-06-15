@@ -26,6 +26,9 @@ class Host:
     cli: str | None = None  # plugin hosts: the host's CLI binary (e.g. "codex", "claude")
     marketplace_add: tuple[str, ...] | None = None  # argv after the cli; "{source}" is substituted
     plugin_add: tuple[str, ...] | None = None  # argv after the cli to install the plugin
+    # mcp hosts that also accept a SKILL.md (e.g. Cursor's ~/.cursor/skills); the
+    # install command writes the using-agentcairn-memory skill there too.
+    skill_dir: str | None = None
 
     def config_path(self) -> Path:
         return Path(self.path_template).expanduser()
@@ -60,7 +63,7 @@ def _vscode_path() -> str:
 
 
 HOSTS: list[Host] = [
-    Host("cursor", "Cursor", "json", "~/.cursor/mcp.json"),
+    Host("cursor", "Cursor", "json", "~/.cursor/mcp.json", skill_dir="~/.cursor/skills"),
     Host("claude-desktop", "Claude Desktop", "json", _claude_desktop_path()),
     Host("vscode", "VS Code", "json", _vscode_path(), root_key="servers"),
     # Gemini CLI shares ~/.gemini with Antigravity; key detection off its actual
