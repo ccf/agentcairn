@@ -4,11 +4,13 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
 import duckdb
 
+from cairn.ingest.events import project_from_cwd
 from cairn.search.rerank import rerank_candidates
 from cairn.temporal import db_now, from_db, validity_factor
 
@@ -48,6 +50,17 @@ def open_search(index_path: str) -> duckdb.DuckDBPyConnection:
 def _dim(con: duckdb.DuckDBPyConnection) -> int:
     row = con.execute("SELECT value FROM meta WHERE key = 'embedding_dim'").fetchone()
     return int(row[0]) if row else 0
+
+
+def resolve_current_project(explicit: str | None) -> str | None:
+    """Current project for provenance-aware recall: an explicit arg wins, else the
+    process cwd's repo name (final path segment), else None (no boost)."""
+    if explicit:
+        return explicit
+    try:
+        return project_from_cwd(os.getcwd())
+    except OSError:
+        return None
 
 
 @dataclass
