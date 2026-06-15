@@ -81,6 +81,7 @@ class Hit:
     valid_from: str | None = None
     valid_until: str | None = None
     superseded_by: str | None = None
+    project: str | None = None
 
 
 def vector_search(
@@ -136,7 +137,7 @@ def _hybrid_sql(dim: int, graph_boost: bool = True, validity_aware: bool = True)
             FROM fts FULL OUTER JOIN vec ON fts.chunk_id = vec.chunk_id
         )
         SELECT f.chunk_id, c.note_permalink, c.heading_path, left(c.text, 240) AS snippet,
-               n.valid_from, n.valid_until, n.superseded_by,
+               n.valid_from, n.valid_until, n.superseded_by, n.project,
                f.rrf_score{boost}{validity} AS score
         FROM fused f JOIN chunks c ON c.chunk_id = f.chunk_id
         JOIN notes n ON n.permalink = c.note_permalink
@@ -169,7 +170,7 @@ def _bm25_only_sql(graph_boost: bool = True, validity_aware: bool = True) -> str
             ORDER BY score DESC LIMIT ?
         )
         SELECT c.chunk_id, c.note_permalink, c.heading_path, left(c.text, 240) AS snippet,
-               n.valid_from, n.valid_until, n.superseded_by,
+               n.valid_from, n.valid_until, n.superseded_by, n.project,
                rrf(f.r){boost}{validity} AS score
         FROM fts f JOIN chunks c ON c.chunk_id = f.chunk_id
         JOIN notes n ON n.permalink = c.note_permalink
@@ -207,7 +208,8 @@ def bm25_only(
             "valid_from": from_db(r[4]).isoformat() if r[4] is not None else None,
             "valid_until": from_db(r[5]).isoformat() if r[5] is not None else None,
             "superseded_by": r[6],
-            "score": float(r[7]),
+            "project": r[7],
+            "score": float(r[8]),
         }
         for r in rows
     ]
@@ -246,7 +248,8 @@ def hybrid_search(
             "valid_from": from_db(r[4]).isoformat() if r[4] is not None else None,
             "valid_until": from_db(r[5]).isoformat() if r[5] is not None else None,
             "superseded_by": r[6],
-            "score": float(r[7]),
+            "project": r[7],
+            "score": float(r[8]),
         }
         for r in rows
     ]
@@ -342,6 +345,7 @@ def search(
                 "valid_from": c.get("valid_from"),
                 "valid_until": c.get("valid_until"),
                 "superseded_by": c.get("superseded_by"),
+                "project": c.get("project"),
                 "score": c["rerank_score"],  # use cross-encoder score, not RRF
             }
             for c in ranked
@@ -358,6 +362,7 @@ def search(
             valid_from=r.get("valid_from"),
             valid_until=r.get("valid_until"),
             superseded_by=r.get("superseded_by"),
+            project=r.get("project"),
         )
         for r in rows
     ]
@@ -388,7 +393,7 @@ def get_chunks(con: duckdb.DuckDBPyConnection, chunk_ids: list[str]) -> list[dic
 def get_note(con: duckdb.DuckDBPyConnection, permalink: str) -> dict | None:
     """Hydrate full note text and metadata by permalink."""
     row = con.execute(
-        "SELECT permalink, path, title, type, valid_from, valid_until, superseded_by "
+        "SELECT permalink, path, title, type, valid_from, valid_until, superseded_by, project "
         "FROM notes WHERE permalink = ?",
         [permalink],
     ).fetchone()
@@ -405,5 +410,6 @@ def get_note(con: duckdb.DuckDBPyConnection, permalink: str) -> dict | None:
         "valid_from": from_db(row[4]).isoformat() if row[4] is not None else None,
         "valid_until": from_db(row[5]).isoformat() if row[5] is not None else None,
         "superseded_by": row[6],
+        "project": row[7],
         "text": "\n\n".join(c[0] for c in chunks),
     }

@@ -25,6 +25,7 @@ def test_hybrid_search_returns_ranked_hits(tmp_path):
         "valid_from",
         "valid_until",
         "superseded_by",
+        "project",
     }
     scores = [x["score"] for x in hits]
     assert scores == sorted(scores, reverse=True)
@@ -419,6 +420,33 @@ def test_rerank_inert_without_validity_fields(tmp_path, monkeypatch):
         assert call_count[0] == 1, "rerank stub must have been called exactly once"
     finally:
         con.close()
+
+
+def test_hit_carries_project(tmp_path):
+    from cairn.embed import FakeEmbedder
+    from cairn.index import build_fts, index_vault, open_index
+    from cairn.search import open_search, search
+
+    v = tmp_path / "vault"
+    v.mkdir()
+    (v / "keys.md").write_text(
+        "---\ntitle: Keys\npermalink: keys\nproject: agentcairn\n---\n"
+        "Rotate the signing key regularly.\n"
+    )
+    idx = str(tmp_path / "i.duckdb")
+    emb = FakeEmbedder(dim=8)
+    con0 = open_index(idx, dim=emb.dim, model_id=emb.model_id)
+    index_vault(con0, str(v), emb)
+    build_fts(con0)
+    con0.close()
+
+    con = open_search(idx)
+    try:
+        hits = search(con, "signing key", embedder=FakeEmbedder(dim=8), k=5)
+    finally:
+        con.close()
+    assert hits, "expected at least one hit"
+    assert any(h.project == "agentcairn" for h in hits)
 
 
 def test_resolve_current_project_explicit_wins(monkeypatch):
