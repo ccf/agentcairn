@@ -233,3 +233,14 @@ def test_install_skill_dry_writes_nothing(tmp_path):
     note = install_skill(tmp_path, dry=True)
     assert not (tmp_path / "using-agentcairn-memory").exists()
     assert "would install" in note
+
+
+def test_install_skill_overwrites_existing(tmp_path):
+    from cairn.hosts.skills import cursor_skill_text, install_skill
+
+    dest = tmp_path / "using-agentcairn-memory" / "SKILL.md"
+    dest.parent.mkdir(parents=True)
+    dest.write_text("STALE", encoding="utf-8")
+    install_skill(tmp_path, dry=False)
+    assert dest.read_text(encoding="utf-8") == cursor_skill_text()
+    assert not (tmp_path / "using-agentcairn-memory" / "SKILL.md.bak").exists()

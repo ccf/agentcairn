@@ -657,6 +657,14 @@ def test_install_cursor_print_notes_skill_writes_nothing(tmp_path, monkeypatch):
     assert not (tmp_path / ".cursor" / "skills").exists()
 
 
+def test_install_non_skill_host_writes_no_skill(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    # vscode is an mcp host with skill_dir=None; installing it must not create a skill.
+    r = runner.invoke(app, ["install", "vscode", "--print"])
+    assert r.exit_code == 0, r.output
+    assert "would install skill" not in r.output
+
+
 def test_install_no_arg_previews(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
     (tmp_path / ".cursor").mkdir()
