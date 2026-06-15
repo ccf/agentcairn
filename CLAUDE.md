@@ -23,6 +23,7 @@ the judged cache is version-stamped (`_JUDGE_CACHE_VERSION`).
 - **Index is a disposable cache** — always rebuildable from Markdown (`cairn reindex`); never the source of truth.
 - **Default embedder:** FastEmbed `nomic-embed-text-v1.5` (768-d) — a 5-model sweep settled it (best quality-per-dim; beat the original `bge-small-en-v1.5` 384-d default). Pluggable interface (Ollama/cloud opt-in).
 - **Retrieval:** BM25 + vector + wikilink-graph-boost + recency/importance, fused with RRF (k=60); degradation ladder down to BM25-only ("never silently dead").
+- **Provenance-aware recall:** notes carry `project`/`harness` provenance in frontmatter + index; recall boosts the current project (resolved from an explicit arg or the process cwd) ×1.4 non-lossily, with `--scope project` to hard-filter to it.
 - **Concurrency:** MCP opens DuckDB **READ_ONLY**; one short-lived CLI process is the sole writer. The `.duckdb` lives on **local disk, NOT inside the synced vault folder**.
 - **Markdown contract:** basic-memory conventions (frontmatter `title/type/permalink/tags`; observations `- [category] text #tag (ctx)`; relations `- rel_type [[Target]]`; bare `[[link]]` ⇒ implicit `links_to`) + Dataview-compatible inline fields.
 
