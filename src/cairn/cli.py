@@ -413,6 +413,7 @@ def install(
         migrate_antigravity_mcp_block,
         migrate_codex_mcp_block,
     )
+    from cairn.hosts.skills import install_skill
     from cairn.hosts.writers import write_host
 
     settings = cairn_env()
@@ -489,6 +490,9 @@ def install(
                     typer.echo(out)
                 else:
                     typer.echo(f"✓ {h.label}: {out}")
+                if h.skill_dir is not None:
+                    note = install_skill(Path(h.skill_dir).expanduser(), dry=print_only)
+                    typer.echo(f"  {note}")
         except Exception as e:  # best-effort per host; continue under --all
             failures += 1
             typer.echo(f"✗ {h.label}: {e}")

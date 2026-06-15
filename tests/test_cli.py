@@ -638,6 +638,25 @@ def test_install_print_writes_nothing(tmp_path, monkeypatch):
     assert not (tmp_path / ".cursor" / "mcp.json").exists()
 
 
+def test_install_cursor_writes_skill(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / ".cursor").mkdir()
+    r = runner.invoke(app, ["install", "cursor", "--vault", str(tmp_path / "v")])
+    assert r.exit_code == 0, r.output
+    skill = tmp_path / ".cursor" / "skills" / "using-agentcairn-memory" / "SKILL.md"
+    assert skill.is_file()
+    assert "name: using-agentcairn-memory" in skill.read_text(encoding="utf-8")
+
+
+def test_install_cursor_print_notes_skill_writes_nothing(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / ".cursor").mkdir()
+    r = runner.invoke(app, ["install", "cursor", "--print"])
+    assert r.exit_code == 0, r.output
+    assert "would install skill" in r.output
+    assert not (tmp_path / ".cursor" / "skills").exists()
+
+
 def test_install_no_arg_previews(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
     (tmp_path / ".cursor").mkdir()
