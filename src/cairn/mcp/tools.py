@@ -15,7 +15,7 @@ from cairn.embed import get_embedder
 from cairn.ingest import write_derived_note
 from cairn.ingest.dedup import content_hash
 from cairn.ingest.redact import redact
-from cairn.search import get_note, open_search, search
+from cairn.search import get_note, open_search, resolve_current_project, search
 from cairn.temporal import validity_status
 from cairn.vault import Note
 
@@ -70,13 +70,27 @@ def search_tool(
     embedder: str = "fastembed",
     k: int = 10,
     rerank: bool = False,
+    project: str | None = None,
+    scope: str = "all",
 ) -> dict:
-    """Progressive-disclosure hybrid search: compact id + snippet index."""
+    """Progressive-disclosure hybrid search: compact id + snippet index.
+
+    Recall prefers the caller's current project (boosted, non-lossy): omit
+    `project` to use the working dir, pass a repo name to target another, or
+    `scope="project"` to hard-filter to that project."""
     fetch = max(k * _FETCH_FACTOR, 25)
+    current = resolve_current_project(project)
     con = _open(index_path)
     try:
         hits = search(
-            con, query, embedder=_embedder(embedder), k=fetch, rerank=rerank, pool=max(200, fetch)
+            con,
+            query,
+            embedder=_embedder(embedder),
+            k=fetch,
+            rerank=rerank,
+            pool=max(200, fetch),
+            project=current,
+            scope=scope,
         )
     finally:
         con.close()
@@ -102,6 +116,8 @@ def search_tool(
                 "snippet": h.snippet.strip()[:240],
                 "score": round(h.score, 4),
                 "validity": _validity_block(h.valid_from, h.valid_until, h.superseded_by, now),
+                "project": h.project,
+                "cross_project": bool(h.project and h.project != current),
             }
             for h in deduped
         ],
@@ -115,14 +131,28 @@ def recall_tool(
     embedder: str = "fastembed",
     k: int = 5,
     rerank: bool = False,
+    project: str | None = None,
+    scope: str = "all",
 ) -> dict:
-    """Search then hydrate the top-k notes' full text (one-shot content)."""
+    """Search then hydrate the top-k notes' full text (one-shot content).
+
+    Recall prefers the caller's current project (boosted, non-lossy): omit
+    `project` to use the working dir, pass a repo name to target another, or
+    `scope="project"` to hard-filter to that project."""
     fetch = max(k * _FETCH_FACTOR, 25)
+    current = resolve_current_project(project)
     con = _open(index_path)
     now = datetime.now(UTC)
     try:
         hits = search(
-            con, query, embedder=_embedder(embedder), k=fetch, rerank=rerank, pool=max(200, fetch)
+            con,
+            query,
+            embedder=_embedder(embedder),
+            k=fetch,
+            rerank=rerank,
+            pool=max(200, fetch),
+            project=current,
+            scope=scope,
         )
         seen: set[str] = set()
         notes: list[dict] = []
@@ -141,6 +171,8 @@ def recall_tool(
                     note.get("superseded_by"),
                     now,
                 )
+                note["project"] = note.get("project")
+                note["cross_project"] = bool(note.get("project") and note.get("project") != current)
                 notes.append(note)
         full = 0
         try:
