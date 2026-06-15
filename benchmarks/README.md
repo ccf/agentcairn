@@ -125,3 +125,39 @@ Read honestly:
   size (~25k tokens/query on LoCoMo, ~134k tokens/query on LongMemEval-S).
 - It measures *context size*, independent of retrieval quality (recall/nDCG tables above).
 - Samples, not full sets — rerun with a larger `--limit` for tighter intervals before quoting.
+
+## Retrieval latency (`cairn_bench.latency`)
+
+Does brute-force vector search (today's default) get slow enough to justify an HNSW index, and at
+what vault size? This benchmark builds synthetic indexes of increasing size and times the vector
+arm, a no-op query-vector *bind* baseline, and end-to-end hybrid retrieval. Manual/local tool —
+**not** a CI gate (latency is machine-dependent).
+
+```bash
+PYTHONPATH=benchmarks uv run python -m cairn_bench.latency          # defaults: 500…100k, 50 queries, dim 768
+PYTHONPATH=benchmarks uv run python -m cairn_bench.latency --sizes 1000,50000 --queries 100
+```
+
+Measured 2026-06-15 (Apple M-series, DuckDB 1.5.3, dim 768, 50 queries, p95 ms):
+
+| chunks | bind p95 | vec p95 | **scan p95** | hybrid p95 |
+|---|---|---|---|---|
+| 500 | 39.1 | 40.6 | **1.5** | 45.0 |
+| 1,000 | 39.6 | 40.5 | **0.9** | 44.7 |
+| 10,000 | 39.7 | 53.5 | **13.7** | 57.1 |
+| 50,000 | 39.1 | 116.8 | **77.7** | 122.6 |
+| 100,000 | 38.8 | 195.8 | **157.0** | 204.1 |
+
+`scan p95 = vec p95 − bind p95` is the size-dependent cosine cost — **the only part an HNSW index
+would reduce**. Read honestly:
+
+- **A fixed ~39 ms/query is just the query-vector bind**, not search. Binding a 768-float Python
+  list across the DuckDB boundary costs ~39 ms regardless of vault size, and the production recall
+  path pays the same (`embed_query` → `list[float]` → `con.execute(sql, [qvec])`). **HNSW does not
+  address this** — it's the dominant recall-latency term until the corpus is large, and a cheaper
+  first optimization than HNSW if recall latency ever matters at small scale.
+- **The cosine scan is cheap until ~tens of thousands of chunks:** <2 ms at ≤1k, ~14 ms at 10k,
+  ~78 ms at 50k, crossing the 100 ms budget only at ~100k chunks.
+- **Verdict: HNSW is not worth building yet.** A typical personal vault is hundreds–low-thousands
+  of chunks (scan ≪ 2 ms). Revisit HNSW only as vaults approach ~50k chunks; even then, shaving the
+  fixed bind cost is the higher-leverage first move.

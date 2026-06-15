@@ -30,7 +30,7 @@ the judged cache is version-stamped (`_JUDGE_CACHE_VERSION`).
 ## Hard parts / constraints (don't relearn the hard way)
 - `cairn.vault` (parse/write Markdown preserving frontmatter order, unresolved forward-refs, and link-rewrite-on-move) is the **hardest** component — build and test it first.
 - **Secret redaction before any write is mandatory** (we write plaintext to disk).
-- DuckDB VSS HNSW persistence is *experimental* → prefer **in-memory HNSW rebuilt at MCP spawn**. DuckDB-WASM has **no VSS** → a future Obsidian plugin gets BM25+graph only (no in-browser semantic search).
+- **Brute-force cosine is the right default; HNSW is not worth building yet.** Measured 2026-06-15 (`benchmarks/cairn_bench.latency`, see benchmarks/README.md §Retrieval latency): the size-dependent cosine *scan* is <2 ms at ≤1k chunks, ~14 ms at 10k, and only crosses a 100 ms budget at ~100k chunks — typical vaults are hundreds–low-thousands of chunks. A fixed ~39 ms/query is the query-vector Python-list→DuckDB bind (size-independent, HNSW-irrelevant), which dominates recall latency at small scale. Revisit HNSW only as vaults approach ~50k chunks. If HNSW is built: DuckDB VSS HNSW persistence is *experimental* → prefer **in-memory HNSW rebuilt at MCP spawn**. DuckDB-WASM has **no VSS** → a future Obsidian plugin gets BM25+graph only (no in-browser semantic search).
 - **No single headline benchmark number** — vendor LoCoMo/LongMemEval figures are self-reported and disputed; validate on LongMemEval-S + LoCoMo with committed scripts before any comparative claim.
 
 ## The wedge (keep it crisp)
@@ -53,5 +53,5 @@ Closest competitor is `rohitg00/agentmemory` (it already has hybrid+graph, local
 - **License: Apache-2.0.** Start each source file with `# SPDX-License-Identifier: Apache-2.0`; keep `NOTICE` intact and propagate it in distributions; set `license = "Apache-2.0"` in `pyproject.toml` when scaffolding.
 
 ## Open items
-- Validate large-vault HNSW rebuild / MCP cold-start latency (sets in-memory-vs-persisted threshold).
+- ~~Validate large-vault HNSW rebuild / MCP cold-start latency~~ — **done 2026-06-15**: brute-force scan stays sub-budget to ~50k chunks; HNSW deferred (see benchmarks/README.md §Retrieval latency).
 - Validate the local embedding baseline on a QA-style metric, not just R@5.
