@@ -64,6 +64,10 @@ class ExtractiveDistiller:
             "source": f"memory://session/{candidate.session_id}",
             "importance": round(imp, 3),
         }
+        if candidate.project:
+            frontmatter["project"] = candidate.project
+        if candidate.harness:
+            frontmatter["harness"] = candidate.harness
         verbatim = candidate.text.strip()
         if j and j.distilled:
             body = f"- [context] {j.distilled.strip()} #ingested\n- [verbatim] {verbatim}\n"
