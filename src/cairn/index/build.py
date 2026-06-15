@@ -82,8 +82,8 @@ def index_note(
     con.execute(
         "INSERT INTO notes "
         "(permalink, path, title, type, content_hash, mtime, "
-        " valid_from, valid_until, superseded_by) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        " valid_from, valid_until, superseded_by, project, harness) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
             permalink,
             str(path),
@@ -94,6 +94,8 @@ def index_note(
             to_db(_safe_temporal(fm.get("valid_from"))),
             to_db(_safe_temporal(fm.get("valid_until"))),
             (fm.get("superseded_by") or None),
+            (fm.get("project") or None),
+            (fm.get("harness") or None),
         ],
     )
     chunks = chunk_note(note)

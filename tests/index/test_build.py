@@ -56,6 +56,20 @@ def test_bm25_search_returns_empty_before_fts_built(tmp_path):
     assert bm25_search(con, "anything", 5) == []  # FTS not built yet
 
 
+def test_index_note_populates_project_and_harness(tmp_path):
+    note_path = tmp_path / "n.md"
+    note_path.write_text(
+        "---\ntitle: N\ntype: note\npermalink: n\n"
+        "project: agentcairn\nharness: codex\n---\n"
+        "- [context] something happened #ingested\n"
+    )
+    emb = FakeEmbedder(dim=8)
+    con = open_index(str(tmp_path / "i.duckdb"), dim=emb.dim, model_id=emb.model_id)
+    index_note(con, note_path, emb, vault_dir=str(tmp_path))
+    row = con.execute("SELECT project, harness FROM notes WHERE permalink='n'").fetchone()
+    assert row == ("agentcairn", "codex")
+
+
 def test_index_note_raises_on_embedder_count_mismatch(tmp_path):
     class Broken:
         model_id = "broken"

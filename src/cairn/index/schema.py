@@ -16,7 +16,8 @@ def open_index(path: str, *, dim: int, model_id: str) -> duckdb.DuckDBPyConnecti
         "CREATE TABLE IF NOT EXISTS notes ("
         "  permalink VARCHAR PRIMARY KEY, path VARCHAR, title VARCHAR, type VARCHAR,"
         "  content_hash VARCHAR, mtime DOUBLE,"
-        "  valid_from TIMESTAMP, valid_until TIMESTAMP, superseded_by VARCHAR)"
+        "  valid_from TIMESTAMP, valid_until TIMESTAMP, superseded_by VARCHAR,"
+        "  project VARCHAR, harness VARCHAR)"
     )
     # Additive migration: add validity columns to pre-bitemporal databases that
     # already have a 6-column notes table.  DuckDB supports IF NOT EXISTS here,
@@ -24,6 +25,8 @@ def open_index(path: str, *, dim: int, model_id: str) -> duckdb.DuckDBPyConnecti
     con.execute("ALTER TABLE notes ADD COLUMN IF NOT EXISTS valid_from TIMESTAMP")
     con.execute("ALTER TABLE notes ADD COLUMN IF NOT EXISTS valid_until TIMESTAMP")
     con.execute("ALTER TABLE notes ADD COLUMN IF NOT EXISTS superseded_by VARCHAR")
+    con.execute("ALTER TABLE notes ADD COLUMN IF NOT EXISTS project VARCHAR")
+    con.execute("ALTER TABLE notes ADD COLUMN IF NOT EXISTS harness VARCHAR")
     con.execute(
         "CREATE TABLE IF NOT EXISTS chunks ("
         "  chunk_id VARCHAR PRIMARY KEY, note_permalink VARCHAR,"
