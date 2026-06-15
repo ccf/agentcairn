@@ -101,7 +101,7 @@ agentcairn works at two levels. **Plugin hosts** (Claude Code, Codex, and Antigr
 |---|---|---|---|
 | **Claude Code** | 🟢 Plugin | `cairn install claude-code` | ✅ recall-at-start + capture-at-end |
 | **Codex** | 🟢 Plugin | `cairn install codex` | ◐ recall/`remember` live; ambient hooks bundled (verifying) [^codex-hooks] |
-| Cursor | 🔌 MCP server + ingest | `cairn install cursor` | ◐ `cairn sweep` auto-detects transcripts [^cursor-sweep] |
+| Cursor | 🔌 MCP server + skill + ingest | `cairn install cursor` | ◐ `cairn sweep` auto-detects transcripts [^cursor-sweep] |
 | Claude Desktop | 🔌 MCP server | `cairn install claude-desktop` | — |
 | VS Code (Copilot) | 🔌 MCP server | `cairn install vscode` | — |
 | Gemini CLI [^gemini-ingest] | 🔌 MCP server | `cairn install gemini` | — |
@@ -110,7 +110,7 @@ agentcairn works at two levels. **Plugin hosts** (Claude Code, Codex, and Antigr
 
 [^codex-hooks]: The Codex plugin installs and its bundled MCP server (recall/search/`remember`) is verified live in Codex. The ambient session hooks (recall-at-start, capture-at-end) ship in the plugin and use Codex's documented hooks schema, but their on-Codex behaviour isn't yet confirmed end-to-end; capture also happens out-of-band via `cairn sweep` regardless.
 [^antigravity-sweep]: The Antigravity plugin bundles the MCP server + memory skill; `cairn install antigravity --source <dir>` installs it via `agy plugin install` and removes any stale `mcpServers.agentcairn` entry from `~/.gemini/config/mcp_config.json`. Note: `agy plugin install` takes a **local directory** or a registered marketplace (not a git repo), so point `--source` at a cloned checkout's `plugin/` dir for now. Antigravity has no recognized plugin hooks, so ambient capture is out-of-band via `cairn sweep` (path: `~/.gemini/antigravity-cli/brain/<uuid>/.system_generated/logs/transcript.jsonl`).
-[^cursor-sweep]: Cursor has no plugin hooks, so ambient capture is out-of-band via `cairn sweep` (source: Cursor's global `globalStorage/state.vscdb` SQLite database, `cursorDiskKV` table, user "bubbles"). Cursor remains an MCP host for output (`cairn install cursor` → `~/.cursor/mcp.json`); there is no Cursor plugin.
+[^cursor-sweep]: Cursor has no plugin hooks, so ambient capture is out-of-band via `cairn sweep` (source: Cursor's global `globalStorage/state.vscdb` SQLite database, `cursorDiskKV` table, user "bubbles"). Cursor remains an MCP host for output (`cairn install cursor` → `~/.cursor/mcp.json`); there is no Cursor plugin. `cairn install cursor` also installs the `using-agentcairn-memory` skill (recall/remember guidance) to `~/.cursor/skills/using-agentcairn-memory/SKILL.md`.
 [^gemini-ingest]: Gemini CLI (consumer) transcript ingestion is **not supported** — Google is sunsetting the Gemini CLI (consumer cutoff 2026-06-18) in favour of Antigravity CLI, which agentcairn ingests instead. `cairn install gemini` (MCP server wiring) remains valid for any Gemini-based host that speaks MCP.
 
 `cairn install` routes by host kind automatically:
@@ -119,7 +119,7 @@ agentcairn works at two levels. **Plugin hosts** (Claude Code, Codex, and Antigr
 cairn install                 # detect installed hosts + preview (writes nothing)
 cairn install codex           # install the Codex plugin (shells to `codex plugin …`; strips any stale MCP block from ~/.codex/config.toml)
 cairn install antigravity --source ./plugin  # install the Antigravity plugin from a local checkout (see note)
-cairn install cursor          # write MCP config for Cursor
+cairn install cursor          # write MCP config + install the memory skill for Cursor
 cairn install --all           # configure every detected host
 cairn install codex --source /path/to/agentcairn  # use a local checkout instead of the marketplace
 ```
