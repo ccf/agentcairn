@@ -62,22 +62,24 @@ def test_measure_size_and_run_smoke(tmp_path, monkeypatch):
     assert len(results) == 1
     r = results[0]
     assert r.n_chunks == 40
-    assert r.vec_p50 > 0 and r.vec_p95 >= 0
-    assert r.hybrid_p50 > 0 and r.hybrid_p95 >= 0
-    assert r.vec_pct >= 0
+    assert r.bind_p95 >= 0
+    assert r.vec_p95 >= 0
+    assert r.hybrid_p50 > 0
+    assert r.scan_p95 >= 0
 
 
 def test_verdict_crossover():
     from cairn_bench.latency import SizeResult, verdict
 
-    below = SizeResult(1000, 1.0, 2.0, 5.0, 9.0, 0.22)
-    above = SizeResult(50000, 1.0, 2.0, 60.0, 150.0, 0.013)
+    # SizeResult(n_chunks, bind_p95, vec_p50, vec_p95, hybrid_p50, hybrid_p95, scan_p95)
+    below = SizeResult(1000, 5.0, 6.0, 7.0, 8.0, 9.0, 2.0)
+    above = SizeResult(50000, 5.0, 200.0, 205.0, 1.0, 210.0, 200.0)
     assert "50000" in verdict([below, above], budget_ms=100.0)
-    assert "no crossover" in verdict([below], budget_ms=100.0).lower()
+    assert "no scan crossover" in verdict([below], budget_ms=100.0).lower()
 
 
 def test_render_table_has_headers():
     from cairn_bench.latency import SizeResult, render_table
 
-    out = render_table([SizeResult(40, 0.1, 0.2, 0.5, 0.9, 0.22)])
-    assert "size" in out and "vec p95" in out and "hybrid p95" in out
+    out = render_table([SizeResult(40, 0.1, 0.15, 0.2, 0.5, 0.9, 0.05)])
+    assert "bind p95" in out and "scan p95" in out and "hybrid p95" in out
