@@ -10,6 +10,20 @@ def test_server_registers_all_tools():
     assert {"remember", "search", "recall", "build_context", "recent"} <= names
 
 
+def test_search_and_recall_expose_project_and_scope():
+    # Provenance-aware recall: the MCP-exposed search/recall handlers must surface
+    # `project`/`scope` so agents can target a repo or hard-scope — not just rely
+    # on the server process cwd.
+    from cairn.mcp.server import build_server
+
+    mcp = build_server(vault="/tmp/vault", index="/tmp/i.duckdb")
+    tools = {t.name: t for t in asyncio.run(mcp.list_tools())}
+    for name in ("search", "recall"):
+        props = tools[name].inputSchema["properties"]
+        assert "project" in props, f"{name} missing project param"
+        assert "scope" in props, f"{name} missing scope param"
+
+
 # ---------------------------------------------------------------------------
 # Fix 2+3: resolve_config honors env vars and applies defaults
 # ---------------------------------------------------------------------------
