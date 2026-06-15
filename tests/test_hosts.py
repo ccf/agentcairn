@@ -207,3 +207,29 @@ def test_plugin_host_detected_via_cli_on_path(monkeypatch):
     ids = {h.id for h in hosts.detected_hosts()}
     assert "codex" in ids  # codex CLI present
     assert "claude-code" not in ids  # claude CLI absent
+
+
+def test_cursor_skill_text_is_the_bundled_skill():
+    from cairn.hosts.skills import cursor_skill_text
+
+    text = cursor_skill_text()
+    assert "name: using-agentcairn-memory" in text
+    assert text.startswith("---")
+
+
+def test_install_skill_writes_file(tmp_path):
+    from cairn.hosts.skills import cursor_skill_text, install_skill
+
+    note = install_skill(tmp_path, dry=False)
+    dest = tmp_path / "using-agentcairn-memory" / "SKILL.md"
+    assert dest.is_file()
+    assert dest.read_text(encoding="utf-8") == cursor_skill_text()
+    assert str(dest) in note
+
+
+def test_install_skill_dry_writes_nothing(tmp_path):
+    from cairn.hosts.skills import install_skill
+
+    note = install_skill(tmp_path, dry=True)
+    assert not (tmp_path / "using-agentcairn-memory").exists()
+    assert "would install" in note
