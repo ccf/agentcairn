@@ -63,3 +63,11 @@ def test_antigravity_mcp_config_is_wrapper_with_vault_env():
     assert ac["command"] == "uvx" and ac["args"] == ["agentcairn"]
     assert ac["env"]["CAIRN_VAULT"] == "~/agentcairn"
     assert ac["env"]["CAIRN_INDEX"] == "~/.cache/agentcairn/index.duckdb"
+
+
+def test_bundled_cursor_skill_matches_plugin_copy():
+    # The CLI installs this package-data copy into ~/.cursor/skills; it must stay
+    # byte-identical to the canonical plugin/ copy so the two never drift.
+    pkg_copy = ROOT / "src" / "cairn" / "assets" / "using-agentcairn-memory" / "SKILL.md"
+    plugin_copy = PLUGIN / "skills" / "using-agentcairn-memory" / "SKILL.md"
+    assert pkg_copy.read_bytes() == plugin_copy.read_bytes()
