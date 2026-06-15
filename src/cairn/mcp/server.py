@@ -56,16 +56,38 @@ def build_server(
     mcp = FastMCP("agentcairn")
 
     @mcp.tool()
-    def search(query: str, k: int = 10, rerank: bool = rerank_default) -> dict:
+    def search(
+        query: str,
+        k: int = 10,
+        rerank: bool = rerank_default,
+        project: str | None = None,
+        scope: str = "all",
+    ) -> dict:
         """Hybrid search over memory; returns a compact id+snippet index.
-        Reranks by default (set CAIRN_RERANK=0 to disable, or pass rerank=false)."""
-        return tools.search_tool(index, query, embedder=embedder, k=k, rerank=rerank)
+        Reranks by default (set CAIRN_RERANK=0 to disable, or pass rerank=false).
+        Recall prefers your current project's memories (boosted, non-lossy): pass
+        `project` (a repo name) to target another project, else the server's working
+        directory is used. `scope="project"` hard-limits results to that project."""
+        return tools.search_tool(
+            index, query, embedder=embedder, k=k, rerank=rerank, project=project, scope=scope
+        )
 
     @mcp.tool()
-    def recall(query: str, k: int = 5, rerank: bool = rerank_default) -> dict:
+    def recall(
+        query: str,
+        k: int = 5,
+        rerank: bool = rerank_default,
+        project: str | None = None,
+        scope: str = "all",
+    ) -> dict:
         """Search then hydrate the top-k notes' full text.
-        Reranks by default (set CAIRN_RERANK=0 to disable, or pass rerank=false)."""
-        return tools.recall_tool(index, query, embedder=embedder, k=k, rerank=rerank)
+        Reranks by default (set CAIRN_RERANK=0 to disable, or pass rerank=false).
+        Recall prefers your current project's memories (boosted, non-lossy): pass
+        `project` (a repo name) to target another project, else the server's working
+        directory is used. `scope="project"` hard-limits results to that project."""
+        return tools.recall_tool(
+            index, query, embedder=embedder, k=k, rerank=rerank, project=project, scope=scope
+        )
 
     @mcp.tool()
     def build_context(permalink: str) -> dict:
