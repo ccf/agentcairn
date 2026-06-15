@@ -52,3 +52,32 @@ def test_time_calls_returns_two_positive_ms():
     calls = [0.001] * 8  # 8 inputs; fn sleeps 1ms each
     p50, p95 = time_calls(lambda s: time.sleep(s), calls, warmup=2)
     assert p50 > 0 and p95 >= p50
+
+
+def test_measure_size_and_run_smoke(tmp_path, monkeypatch):
+    import cairn_bench.latency as L
+
+    monkeypatch.chdir(tmp_path)
+    results = L.run(sizes=[40], dim=8, n_queries=5, seed=3)
+    assert len(results) == 1
+    r = results[0]
+    assert r.n_chunks == 40
+    assert r.vec_p50 > 0 and r.vec_p95 >= 0
+    assert r.hybrid_p50 > 0 and r.hybrid_p95 >= 0
+    assert r.vec_pct >= 0
+
+
+def test_verdict_crossover():
+    from cairn_bench.latency import SizeResult, verdict
+
+    below = SizeResult(1000, 1.0, 2.0, 5.0, 9.0, 0.22)
+    above = SizeResult(50000, 1.0, 2.0, 60.0, 150.0, 0.013)
+    assert "50000" in verdict([below, above], budget_ms=100.0)
+    assert "no crossover" in verdict([below], budget_ms=100.0).lower()
+
+
+def test_render_table_has_headers():
+    from cairn_bench.latency import SizeResult, render_table
+
+    out = render_table([SizeResult(40, 0.1, 0.2, 0.5, 0.9, 0.22)])
+    assert "size" in out and "vec p95" in out and "hybrid p95" in out
