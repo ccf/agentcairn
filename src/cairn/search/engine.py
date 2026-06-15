@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -16,6 +17,7 @@ from cairn.temporal import db_now, from_db, validity_factor
 
 _RRF_MACRO = "CREATE OR REPLACE MACRO rrf(rank, k := 60) AS coalesce(1.0 / (k + rank), 0)"
 _VALIDITY_PENALTY = 0.5
+_PROJECT_BOOST = 1.4
 
 
 def open_search(index_path: str) -> duckdb.DuckDBPyConnection:
@@ -123,7 +125,9 @@ def _hybrid_sql(
         if validity_aware
         else ""
     )
-    proj_boost = " * (CASE WHEN n.project = ? THEN 1.4 ELSE 1.0 END)" if project_boost else ""
+    proj_boost = (
+        f" * (CASE WHEN n.project = ? THEN {_PROJECT_BOOST} ELSE 1.0 END)" if project_boost else ""
+    )
     scope = " WHERE n.project = ?" if scope_project else ""
     return f"""
         WITH fts AS (
@@ -175,7 +179,9 @@ def _bm25_only_sql(
         if validity_aware
         else ""
     )
-    proj_boost = " * (CASE WHEN n.project = ? THEN 1.4 ELSE 1.0 END)" if project_boost else ""
+    proj_boost = (
+        f" * (CASE WHEN n.project = ? THEN {_PROJECT_BOOST} ELSE 1.0 END)" if project_boost else ""
+    )
     scope = " WHERE n.project = ?" if scope_project else ""
     return f"""
         WITH fts AS (
@@ -317,9 +323,7 @@ def search(
 
     current = resolve_current_project(project)
     if scope == "project" and current is None:
-        import logging
-
-        logging.getLogger(__name__).info(
+        logging.getLogger(__name__).warning(
             "recall scope='project' requested but no current project resolved; "
             "falling back to scope='all'"
         )
@@ -362,14 +366,18 @@ def search(
         cands = [{**r, "text": text_by_id.get(r["chunk_id"], r["snippet"])} for r in rows]
         ranked = rerank_candidates(query, cands, top_k=k)
         if current is not None:
-            ranked = [
-                {
-                    **c,
-                    "rerank_score": c["rerank_score"]
-                    * (1.4 if c.get("project") == current else 1.0),
-                }
-                for c in ranked
-            ]
+            ranked = sorted(
+                (
+                    {
+                        **c,
+                        "rerank_score": c["rerank_score"]
+                        * (_PROJECT_BOOST if c.get("project") == current else 1.0),
+                    }
+                    for c in ranked
+                ),
+                key=lambda c: c["rerank_score"],
+                reverse=True,
+            )
         if validity_aware:
             # Apply validity penalty to cross-encoder scores so superseded/expired/
             # not-yet-valid notes are still demoted in the reranked order.
