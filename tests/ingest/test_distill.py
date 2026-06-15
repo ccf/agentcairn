@@ -31,6 +31,38 @@ def test_distiller_builds_non_lossy_note_with_backlink():
     assert "pin the store path" in note.body
 
 
+def test_distiller_persists_project_and_harness_when_present():
+    cand = Candidate(
+        text="We decided to pin the store path to ~/.agentmemory/data.",
+        session_id="sess-9",
+        cwd="/Users/x/proj",
+        git_branch="main",
+        timestamp="2026-06-08T10:00:00Z",
+        source_path=Path("/x/.claude/projects/p/sess-9.jsonl"),
+        project="agentcairn",
+        harness="claude-code",
+    )
+    note = ExtractiveDistiller().distill(cand)
+    assert note.frontmatter["project"] == "agentcairn"
+    assert note.frontmatter["harness"] == "claude-code"
+
+
+def test_distiller_omits_origin_keys_when_absent():
+    cand = Candidate(
+        text="We decided to pin the store path to ~/.agentmemory/data.",
+        session_id="sess-9",
+        cwd="/Users/x/proj",
+        git_branch="main",
+        timestamp="2026-06-08T10:00:00Z",
+        source_path=Path("/x/.claude/projects/p/sess-9.jsonl"),
+        project=None,
+        harness=None,
+    )
+    note = ExtractiveDistiller().distill(cand)
+    assert "project" not in note.frontmatter
+    assert "harness" not in note.frontmatter
+
+
 def test_distiller_permalink_is_stable_for_same_content():
     a = ExtractiveDistiller().distill(_candidate())
     b = ExtractiveDistiller().distill(_candidate())
