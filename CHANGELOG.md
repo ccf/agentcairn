@@ -5,6 +5,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-06-15
+
+### Added
+- **Cursor is now first-class on both sides — ingest *and* output.**
+  - **Ingest (#36, the final harness).** agentcairn captures Cursor sessions from its global `<CursorUser>/globalStorage/state.vscdb` SQLite store (`cursorDiskKV` table, `bubbleId:*` JSON "bubbles"); `cairn sweep` auto-detects it alongside Claude Code, Codex, and Antigravity. The DB is read lock-free and immutable (`file:…?immutable=1`) so a running Cursor is never disturbed, and the user-only filter is pushed into SQL (`json_valid(value)` precedes `json_extract`, so a single malformed bubble can't abort the scan). Classification is positive-identification and fail-closed: only a `type==1` bubble with non-empty `text` is a candidate, and attached files / rules / @-mentions / codebase context live in separate fields, so injected framing can't leak into the vault. `--project` isn't honored for Cursor (one global DB spans all projects; per-bubble `workspaceProjectDir` still gives provenance).
+  - **Output — the recall/remember skill.** `cairn install cursor` now also installs the `using-agentcairn-memory` skill to `~/.cursor/skills/using-agentcairn-memory/SKILL.md`, alongside the unchanged `~/.cursor/mcp.json` write. Cursor has no plugin system, so it stays an **MCP host** (`kind="mcp"`); the skill install is additive via a new `Host.skill_dir`, and the skill ships as package data (`cairn/assets/`) so a pip-installed `cairn` can write it without the repo `plugin/` dir (a test keeps the two copies byte-identical). `--print` previews the MCP snippet and a `would install skill → …` note and writes nothing.
+
 ## [0.14.0] - 2026-06-14
 
 ### Added
