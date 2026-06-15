@@ -171,7 +171,6 @@ def recall_tool(
                     note.get("superseded_by"),
                     now,
                 )
-                note["project"] = note.get("project")
                 note["cross_project"] = bool(note.get("project") and note.get("project") != current)
                 notes.append(note)
         full = 0
