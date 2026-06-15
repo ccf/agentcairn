@@ -39,28 +39,33 @@ build_synthetic_index(path, n_chunks, *, dim, seed) -> None
 
 The builder:
 - Open the index via `cairn.index.schema.open_index(path, dim=dim, model_id="bench")` so the schema (incl. the `project`/`harness` columns) exactly matches production.
-- Generate `n_chunks` random `float32` vectors with `numpy` (`rng = numpy.random.default_rng(seed)`; `rng.standard_normal((n_chunks, dim))`). numpy is available transitively (fastembed/duckdb); if a direct dep is wanted the plan adds it to the `bench` extra.
-- Generate `n_chunks` short pseudo-text snippets from a small fixed word list (so `text` is non-empty and BM25/FTS works) — e.g. a handful of random words per chunk, seeded.
-- **Bulk insert** (per-row `execute` is too slow at 100k): register a numpy/Arrow table and `INSERT INTO chunk_embeddings SELECT ...`; insert `chunks` and `notes` rows the same way (one `notes` row per chunk: `permalink = note_permalink = "n{i}"`, `valid_from/until/superseded_by = NULL`, `project/harness = NULL`). DuckDB ingests a registered relation in one statement.
+- **Generate all rows server-side in DuckDB** (review finding C1: per-row `executemany` of 768-float Python lists costs ~40 ms/row — the same Python↔DuckDB bind tax — making a 100k build take >1 hour). Generate entirely in-engine over `range(n_chunks)` so vectors never cross the Python boundary:
+  - `SELECT setseed(<seed-normalized-to-[-1,1]>)` for reproducibility, then
+  - `INSERT INTO chunk_embeddings SELECT 'c'||i, [random()::FLOAT FOR _x IN range(<dim>)] FROM range(<n>) t(i)` — a fresh random `dim`-vector per row, in one statement.
+  - `INSERT INTO notes SELECT 'c'||i, '/bench/c'||i||'.md', 'note '||i, 'memory', 'c'||i, 0.0, NULL, NULL, NULL, NULL, NULL FROM range(<n>) t(i)`.
+  - `INSERT INTO chunks SELECT 'c'||i, 'c'||i, '', 0, '<fixed 6-word phrase from the word list>' FROM range(<n>) t(i)` (constant tokenizable text is fine for latency — BM25 still does full work; query strings draw from the same words so they match).
+  This is near-instant at all sizes and eliminates the build-time bind cost. (numpy is still used to generate the *query* vectors in `measure_size`, which is the production-representative bind we WANT to measure.)
 - `build_fts(con)` to create the BM25 index.
+- **Determinism:** `setseed` makes the embedding generation reproducible across builds; the determinism test asserts `c0`'s vector is identical across two same-seed builds.
 
 ### B. Timing
 
 ```
-time_calls(fn, queries, *, warmup=2) -> (p50_ms, p95_ms)
+time_calls(fn, queries, *, warmup=3) -> (p50_ms, p95_ms)
 ```
 - `queries` is a list of precomputed query vectors (and, for end-to-end, a paired query string drawn from the same word list so BM25 matches something).
-- Run `warmup` calls (discarded), then time each remaining call with `time.perf_counter`; return p50/p95 in ms (use `statistics.quantiles` or a simple percentile on the sorted samples).
+- Run `warmup` calls (discarded — ≥3 to clear DuckDB extension/JIT/first-plan cold start), then time each remaining call with `time.perf_counter`; return p50/p95 in ms via a nearest-rank percentile on the sorted samples. (Wall-clock `perf_counter` is correct — it captures the cross-language bind cost CPU-time would hide. With ~50 samples a single GC/jitter spike can land on p95; acceptable for a manual tool, noted in the report.)
 
 ### C. Per-size measurement
 
 ```
-measure_size(n_chunks, *, dim, n_queries, seed) -> SizeResult
+measure_size(path, n_chunks, *, dim, n_queries, seed) -> SizeResult
 ```
 - Build the synthetic index once into a temp-file path (`build_synthetic_index`), then open it for querying via `open_search(path)` (the connection that carries the `rrf` macro + fts).
-- `vec`: time `lambda q: vector_search(con, q, dim=dim, pool=200)` over `n_queries` random vectors.
-- `hybrid`: time `lambda (q, s): hybrid_search(con, s, q, dim=dim, limit=10, pool=200)` over the same vectors paired with random query strings.
-- Return a small dataclass `SizeResult(n_chunks, vec_p50, vec_p95, hybrid_p50, hybrid_p95, vec_pct=vec_p95/hybrid_p95)`.
+- `bind`: time `lambda q: con.execute("SELECT ?::FLOAT[dim]", [q]).fetchall()` — the no-op query-vector bind baseline (the fixed, size-independent floor; see §1 finding).
+- `vec`: time `lambda q: vector_search(con, q, dim=dim, pool=200)` over the same `n_queries` random vectors.
+- `hybrid`: time `lambda (q, s): hybrid_search(con, s, q, dim=dim, limit=10, pool=200)` over the same vectors paired with query strings.
+- Return `SizeResult(n_chunks, bind_p95, vec_p50, vec_p95, hybrid_p50, hybrid_p95, scan_p95=max(0.0, vec_p95 - bind_p95))`. The **`scan_p95`** (size-dependent cosine cost, with the fixed bind floor subtracted) is the number the HNSW decision keys off — it is what HNSW would actually reduce.
 
 ### D. Runner + report
 
@@ -68,23 +73,25 @@ measure_size(n_chunks, *, dim, n_queries, seed) -> SizeResult
 run(sizes, *, dim=768, n_queries=50, budget_ms=100.0, seed=0) -> list[SizeResult]
 main()  # argparse: --sizes, --queries, --dim, --budget-ms, --seed
 ```
-- Print a table: `size | vec p50 | vec p95 | hybrid p50 | hybrid p95 | vec% (of hybrid p95)`.
-- Print a verdict: the smallest size whose `hybrid_p95 >= budget_ms` ("crossover at N chunks — HNSW warranted above ~N"), or "no crossover ≤ {max size}: brute force sufficient at all tested sizes."
-- The operator pastes the table + verdict into `benchmarks/README.md` (a new "Retrieval latency" subsection) and updates CLAUDE.md's threshold note with the measured number.
+- Print a table: `size | bind p95 | vec p95 | scan p95 | hybrid p50 | hybrid p95` (scan = vec − bind, the HNSW-addressable cost).
+- Print a verdict keyed off **`scan_p95`** (not the raw vector floor): the smallest size whose `scan_p95 >= budget_ms` ("scan crossover at N chunks — HNSW warranted above ~N"), or "no scan crossover ≤ {max size}: the cosine scan stays under {budget}ms at all tested sizes; recall latency is dominated by the fixed ~{bind}ms query-vector bind, which HNSW does not address." The verdict explicitly names the fixed bind floor so the reader doesn't mistake it for scan cost.
+- The operator pastes the table + verdict into `benchmarks/README.md` (a new "Retrieval latency" subsection) and updates CLAUDE.md's threshold note with the measured numbers.
 
 ## Data flow
 
 ```
 for n in sizes:
-  # build (writable) then close
-  con = open_index(tmp, dim); insert n synthetic chunks/notes/embeddings; build_fts(con); con.close()
+  # build (writable) — vectors/notes/chunks generated server-side via range(n); then close
+  con = open_index(tmp, dim); setseed; INSERT ... SELECT ... FROM range(n); build_fts(con); con.close()
   # query (read-only attach + rrf macro + fts)
   con = open_search(tmp)
-  qvecs = [rng.standard_normal(dim) for _ in range(n_queries)]
-  vec_p50/p95   = time_calls(λ q: vector_search(con, q, dim, pool=200), qvecs)
-  hyb_p50/p95   = time_calls(λ (q,s): hybrid_search(con, s, q, dim, limit=10, pool=200), zip(qvecs, qstrings))
+  qvecs = [rng.standard_normal(dim).tolist() for _ in range(n_queries+warmup)]   # production-style list bind
+  bind_p95       = time_calls(λ q: con.execute("SELECT ?::FLOAT[dim]", [q]).fetchall(), qvecs)[1]
+  vec_p50/p95    = time_calls(λ q: vector_search(con, q, dim, pool=200), qvecs)
+  hyb_p50/p95    = time_calls(λ (q,s): hybrid_search(con, s, q, dim, limit=10, pool=200), zip(qvecs, qstrings))
+  scan_p95       = max(0.0, vec_p95 - bind_p95)
   con.close()
-print table + verdict(budget_ms)
+print table + verdict(budget_ms)   # verdict keys off scan_p95
 ```
 
 ## Error handling
@@ -96,10 +103,10 @@ print table + verdict(budget_ms)
 
 ## Testing / verification
 
-- **Smoke test** (`benchmarks/tests/test_latency.py`, runs in CI): `run(sizes=[50], n_queries=5, dim=8)` returns one `SizeResult` with all timings `> 0`, `0 <= vec_pct <= ~2`, and `measure_size` doesn't raise; assert the table-render function produces the expected column headers. **No latency-value assertions** (machine-dependent).
-- **Determinism:** same seed → identical synthetic data (assert two builds at a tiny size produce identical `chunk_embeddings` row counts and a stable first-vector sample).
+- **Smoke test** (`benchmarks/tests/test_latency.py`, runs in CI): `run(sizes=[50], n_queries=5, dim=8)` returns one `SizeResult` with `vec_p95 >= 0`, `hybrid_p50 > 0`, `bind_p95 >= 0`, `scan_p95 >= 0`, and `measure_size` doesn't raise; assert the table-render function produces the expected column headers. **No latency-value assertions** (machine-dependent).
+- **Determinism:** same seed → identical synthetic data (assert two builds at a tiny size produce identical `chunk_embeddings` row counts and an identical `c0` vector — `setseed`-backed).
 - `uv run pytest benchmarks/tests/ -q` green (the CI `bench-offline` job).
-- **Dogfood (manual):** run `uv run python -m cairn_bench.latency` on the dev machine across the full size set; record the table + verdict into `benchmarks/README.md`; update CLAUDE.md's "unvalidated threshold" line with the measured crossover (or "brute force sufficient ≤ 100k").
+- **Dogfood (manual):** run `PYTHONPATH=benchmarks uv run python -m cairn_bench.latency` (the repo's established invocation — `benchmarks/` is on pytest's pythonpath but not the interpreter's) on the dev machine across the full size set; record the table + verdict into `benchmarks/README.md`; update CLAUDE.md's "unvalidated threshold" line with the measured numbers (the scan crossover, or "scan stays sub-budget ≤ 100k; recall latency is bind-dominated").
 
 ## File-by-file
 
