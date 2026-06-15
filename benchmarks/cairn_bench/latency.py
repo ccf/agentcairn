@@ -6,6 +6,8 @@ docs/specs/2026-06-15-retrieval-latency-benchmark-design.md."""
 
 from __future__ import annotations
 
+import time
+
 import numpy as np
 
 from cairn.index.build import build_fts
@@ -61,3 +63,25 @@ def build_synthetic_index(path: str, n_chunks: int, *, dim: int, seed: int) -> N
         build_fts(con)
     finally:
         con.close()
+
+
+def _percentile(samples: list[float], pct: float) -> float:
+    """Nearest-rank percentile (pct in 0..100) over a non-empty sample list."""
+    if not samples:
+        return 0.0
+    ordered = sorted(samples)
+    k = max(0, min(len(ordered) - 1, int(round((pct / 100.0) * (len(ordered) - 1)))))
+    return ordered[k]
+
+
+def time_calls(fn, inputs, *, warmup: int = 2) -> tuple[float, float]:
+    """Run `fn(x)` for each x in `inputs`; discard the first `warmup` calls;
+    return (p50_ms, p95_ms) over the rest."""
+    samples: list[float] = []
+    for i, x in enumerate(inputs):
+        t0 = time.perf_counter()
+        fn(x)
+        dt_ms = (time.perf_counter() - t0) * 1000.0
+        if i >= warmup:
+            samples.append(dt_ms)
+    return _percentile(samples, 50), _percentile(samples, 95)

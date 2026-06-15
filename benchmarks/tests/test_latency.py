@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
+import time
+
 from cairn_bench.latency import build_synthetic_index
 
 from cairn.search import open_search
@@ -34,3 +36,19 @@ def test_build_synthetic_index_is_deterministic(tmp_path):
     finally:
         c1.close()
         c2.close()
+
+
+def test_percentile_basic():
+    from cairn_bench.latency import _percentile
+
+    data = [10.0, 20.0, 30.0, 40.0, 50.0]
+    assert _percentile(data, 50) == 30.0
+    assert 40.0 <= _percentile(data, 95) <= 50.0
+
+
+def test_time_calls_returns_two_positive_ms():
+    from cairn_bench.latency import time_calls
+
+    calls = [0.001] * 8  # 8 inputs; fn sleeps 1ms each
+    p50, p95 = time_calls(lambda s: time.sleep(s), calls, warmup=2)
+    assert p50 > 0 and p95 >= p50
