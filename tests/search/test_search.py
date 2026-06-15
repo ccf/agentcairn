@@ -532,6 +532,83 @@ def test_no_project_is_noop(tmp_path, monkeypatch):
     assert "agentcairn" in projs and "otherrepo" in projs
 
 
+def test_rerank_path_project_boost_resorts(tmp_path, monkeypatch):
+    """On the rerank path the x1.4 project boost must re-sort, even when
+    validity_aware=False (which otherwise re-sorts as a side effect).
+
+    The monkeypatched reranker hands back the cross-project ('otherrepo') note
+    with a HIGHER raw cross-encoder score than the same-project ('agentcairn')
+    note. Without an explicit re-sort after the boost, agentcairn's boosted
+    score (0.7 x 1.4 = 0.98) would still trail otherrepo (0.9), the order would
+    stay otherrepo-first, and Hit.score would be non-monotonic. With the fix,
+    agentcairn (0.98) must lead and scores must be descending."""
+    from cairn.embed import FakeEmbedder
+    from cairn.search import open_search, search
+
+    def fake_rerank(query, candidates, *, top_k):
+        result = []
+        for c in candidates:
+            score = 0.9 if c.get("project") == "otherrepo" else 0.7
+            result.append({**c, "rerank_score": score})
+        # Hand them back otherrepo-first (higher raw score first).
+        return sorted(result, key=lambda c: c["rerank_score"], reverse=True)[:top_k]
+
+    monkeypatch.setattr("cairn.search.engine.rerank_candidates", fake_rerank)
+
+    index_path = _build_two_project_index(tmp_path, FakeEmbedder(dim=8))
+    con = open_search(str(index_path))
+    try:
+        hits = search(
+            con,
+            "deploy key rotation",
+            embedder=FakeEmbedder(dim=8),
+            k=5,
+            project="agentcairn",
+            rerank=True,
+            validity_aware=False,
+        )
+    finally:
+        con.close()
+    assert hits
+    perms = [h.project for h in hits]
+    assert perms[0] == "agentcairn", f"same-project must lead after boost; got {perms}"
+    scores = [h.score for h in hits]
+    assert scores == sorted(scores, reverse=True), f"scores not descending: {scores}"
+
+
+def test_scope_project_excludes_null_project_note(tmp_path):
+    """scope='project' must exclude notes with NO project frontmatter (NULL),
+    not just cross-project notes."""
+    from cairn.embed import FakeEmbedder
+    from cairn.index import build_fts, index_vault, open_index
+    from cairn.search import open_search, search
+
+    v = tmp_path / "vault"
+    v.mkdir()
+    body = "Procedure for deploy key rotation across the fleet of servers.\n"
+    (v / "a.md").write_text(f"---\ntitle: A\npermalink: a\nproject: agentcairn\n---\n{body}")
+    (v / "n.md").write_text(f"---\ntitle: N\npermalink: n\n---\n{body}")  # no project
+    idx = str(tmp_path / "i.duckdb")
+    con0 = open_index(idx, dim=8, model_id=FakeEmbedder(dim=8).model_id)
+    index_vault(con0, str(v), FakeEmbedder(dim=8))
+    build_fts(con0)
+    con0.close()
+
+    con = open_search(idx)
+    try:
+        hits = search(
+            con,
+            "deploy key rotation",
+            embedder=FakeEmbedder(dim=8),
+            k=5,
+            project="agentcairn",
+            scope="project",
+        )
+    finally:
+        con.close()
+    assert hits and all(h.project == "agentcairn" for h in hits)
+
+
 def test_resolve_current_project_explicit_wins(monkeypatch):
     from cairn.search.engine import resolve_current_project
 
