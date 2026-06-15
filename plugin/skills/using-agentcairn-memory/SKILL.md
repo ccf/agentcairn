@@ -12,6 +12,7 @@ Before designing, debugging, or re-deriving something non-trivial, **search memo
 - Use the `recall` tool (hybrid search) with a focused query — "how did we fix the auth token refresh?", "what did we decide about the migration order?".
 - Expand a promising hit with `build_context` to read the full note.
 - Recall is cross-project: prior solutions in *any* repo can help. Cite notes by permalink.
+- Recall automatically prefers your current project's memories while still surfacing relevant cross-project ones (marked `[from: <project>]`); pass a project to target another repo, or `--scope project` to limit a query to just this one.
 
 ## Remember durable facts
 After a decision, a non-obvious fix, a gotcha, or a stated user preference, **persist it** with the
