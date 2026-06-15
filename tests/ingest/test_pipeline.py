@@ -6,7 +6,7 @@ import json
 from cairn.ingest.dedup import DedupLedger
 from cairn.ingest.events import EventKind, NormalizedEvent
 from cairn.ingest.models import IngestReport, Transcript
-from cairn.ingest.pipeline import ingest_transcript
+from cairn.ingest.pipeline import ingest_transcript, select_candidates
 
 SECRET = "ghp_16C7e42F292c6912E7710c838347Ae178B4a"
 
@@ -25,6 +25,32 @@ def _ev(kind, text, ts="t0"):
         source_path=Path("/tmp/sess-1.jsonl"),
         harness="claude-code",
     )
+
+
+def test_select_candidates_threads_harness_from_event():
+    from pathlib import Path
+
+    ev = NormalizedEvent(
+        kind=EventKind.AUTHORED_USER,
+        role="user",
+        text="We decided to always rebase-merge and delete the branch.",
+        timestamp="t0",
+        session_id="sess-1",
+        project="proj",
+        git_branch="main",
+        source_path=Path("/tmp/sess-1.jsonl"),
+        harness="codex",
+    )
+    transcript = Transcript(
+        session_id="sess-1",
+        cwd="/Users/x/proj",
+        git_branch="main",
+        path=Path("/tmp/sess-1.jsonl"),
+        events=[ev],
+    )
+    candidates = select_candidates(transcript)
+    assert len(candidates) == 1
+    assert candidates[0].harness == "codex"
 
 
 def _transcript(tmp_path) -> Transcript:

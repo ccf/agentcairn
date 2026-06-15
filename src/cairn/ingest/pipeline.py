@@ -50,6 +50,7 @@ def select_candidates(transcript: Transcript) -> list[Candidate]:
                 timestamp=e.timestamp,
                 source_path=e.source_path,
                 project=e.project,
+                harness=e.harness,
                 antecedent=antecedent,
             )
         )
