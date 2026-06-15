@@ -88,6 +88,38 @@ def test_open_index_migrate_then_reconcile_works(tmp_path):
     con.close()
 
 
+def test_open_index_has_project_and_harness_columns(tmp_path):
+    con = open_index(str(tmp_path / "i.duckdb"), dim=8, model_id="m")
+    cols = {r[1] for r in con.execute("PRAGMA table_info('notes')").fetchall()}
+    assert "project" in cols, f"project column missing; got {cols}"
+    assert "harness" in cols, f"harness column missing; got {cols}"
+    con.close()
+
+
+def test_open_index_migrates_old_notes_table_adds_origin_columns(tmp_path):
+    """A pre-provenance notes table (bitemporal but no origin columns) must be
+    additively migrated to gain project/harness, preserving existing rows."""
+    db_path = str(tmp_path / "old.duckdb")
+    old_con = duckdb.connect(db_path)
+    old_con.execute(
+        "CREATE TABLE notes ("
+        "  permalink VARCHAR PRIMARY KEY, path VARCHAR, title VARCHAR, type VARCHAR,"
+        "  content_hash VARCHAR, mtime DOUBLE,"
+        "  valid_from TIMESTAMP, valid_until TIMESTAMP, superseded_by VARCHAR)"
+    )
+    old_con.execute("INSERT INTO notes (permalink) VALUES ('n1')")
+    old_con.close()
+
+    con = open_index(db_path, dim=8, model_id="m")
+    cols = {r[1] for r in con.execute("PRAGMA table_info('notes')").fetchall()}
+    assert "project" in cols, f"project column missing after migration; got {cols}"
+    assert "harness" in cols, f"harness column missing after migration; got {cols}"
+    row = con.execute("SELECT project FROM notes WHERE permalink='n1'").fetchone()
+    assert row is not None
+    assert row[0] is None
+    con.close()
+
+
 def test_open_index_creates_tables_and_meta(tmp_path):
     con = open_index(str(tmp_path / "i.duckdb"), dim=8, model_id="fake-8")
     tables = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
