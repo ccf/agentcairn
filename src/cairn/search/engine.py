@@ -97,10 +97,18 @@ def vector_search(
     return [(r[0], float(r[1])) for r in con.execute(sql, [qvec, pool]).fetchall()]
 
 
-def _hybrid_sql(dim: int, graph_boost: bool = True, validity_aware: bool = True) -> str:
+def _hybrid_sql(
+    dim: int,
+    graph_boost: bool = True,
+    validity_aware: bool = True,
+    project_boost: bool = False,
+    scope_project: bool = False,
+) -> str:
     # BM25 arm + brute-force cosine arm, each ranked, fused by rrf(), then an
     # optional graph-boost (x1.2 when the note is the target of any link). pool >> limit.
     # An optional validity multiplier (x0.5) demotes superseded/expired/not-yet-valid notes.
+    # An optional provenance boost (x1.4) lifts notes whose project matches the current one
+    # (non-lossy); an optional scope filter hard-restricts to the current project.
     boost = (
         " * (CASE WHEN EXISTS (SELECT 1 FROM links l WHERE l.dst_target = c.note_permalink) "
         "THEN 1.2 ELSE 1.0 END)"
@@ -115,6 +123,8 @@ def _hybrid_sql(dim: int, graph_boost: bool = True, validity_aware: bool = True)
         if validity_aware
         else ""
     )
+    proj_boost = " * (CASE WHEN n.project = ? THEN 1.4 ELSE 1.0 END)" if project_boost else ""
+    scope = " WHERE n.project = ?" if scope_project else ""
     return f"""
         WITH fts AS (
             SELECT chunk_id, rank() OVER (ORDER BY score DESC) AS r
@@ -138,14 +148,19 @@ def _hybrid_sql(dim: int, graph_boost: bool = True, validity_aware: bool = True)
         )
         SELECT f.chunk_id, c.note_permalink, c.heading_path, left(c.text, 240) AS snippet,
                n.valid_from, n.valid_until, n.superseded_by, n.project,
-               f.rrf_score{boost}{validity} AS score
+               f.rrf_score{boost}{validity}{proj_boost} AS score
         FROM fused f JOIN chunks c ON c.chunk_id = f.chunk_id
-        JOIN notes n ON n.permalink = c.note_permalink
+        JOIN notes n ON n.permalink = c.note_permalink{scope}
         ORDER BY score DESC LIMIT ?
     """
 
 
-def _bm25_only_sql(graph_boost: bool = True, validity_aware: bool = True) -> str:
+def _bm25_only_sql(
+    graph_boost: bool = True,
+    validity_aware: bool = True,
+    project_boost: bool = False,
+    scope_project: bool = False,
+) -> str:
     boost = (
         " * (CASE WHEN EXISTS (SELECT 1 FROM links l WHERE l.dst_target = c.note_permalink) "
         "THEN 1.2 ELSE 1.0 END)"
@@ -160,6 +175,8 @@ def _bm25_only_sql(graph_boost: bool = True, validity_aware: bool = True) -> str
         if validity_aware
         else ""
     )
+    proj_boost = " * (CASE WHEN n.project = ? THEN 1.4 ELSE 1.0 END)" if project_boost else ""
+    scope = " WHERE n.project = ?" if scope_project else ""
     return f"""
         WITH fts AS (
             SELECT chunk_id, rank() OVER (ORDER BY score DESC) AS r
@@ -171,9 +188,9 @@ def _bm25_only_sql(graph_boost: bool = True, validity_aware: bool = True) -> str
         )
         SELECT c.chunk_id, c.note_permalink, c.heading_path, left(c.text, 240) AS snippet,
                n.valid_from, n.valid_until, n.superseded_by, n.project,
-               rrf(f.r){boost}{validity} AS score
+               rrf(f.r){boost}{validity}{proj_boost} AS score
         FROM fts f JOIN chunks c ON c.chunk_id = f.chunk_id
-        JOIN notes n ON n.permalink = c.note_permalink
+        JOIN notes n ON n.permalink = c.note_permalink{scope}
         ORDER BY score DESC LIMIT ?
     """
 
@@ -187,16 +204,26 @@ def bm25_only(
     graph_boost: bool = True,
     validity_aware: bool = True,
     now: datetime | None = None,
+    current: str | None = None,
+    scope: str = "all",
 ) -> list[dict]:
     now = now if now is not None else db_now()
-    sql = _bm25_only_sql(graph_boost, validity_aware)
+    project_boost = current is not None
+    scope_project = scope == "project" and current is not None
+    sql = _bm25_only_sql(graph_boost, validity_aware, project_boost, scope_project)
     # Bind-param ordering (positional by appearance in SQL string):
-    #   [query, pool]  — BM25 FTS arm
-    #   + [now, now]   — validity CASE comparisons (only when validity_aware)
-    #   + [limit]      — LIMIT
+    #   [query, pool]    — BM25 FTS arm
+    #   + [now, now]     — validity CASE comparisons (only when validity_aware)
+    #   + [current]      — project-boost CASE (only when project_boost)
+    #   + [current]      — scope WHERE filter (only when scope_project)
+    #   + [limit]        — LIMIT
     params: list = [query, pool]
     if validity_aware:
         params += [now, now]
+    if project_boost:
+        params.append(current)
+    if scope_project:
+        params.append(current)
     params.append(limit)
     rows = con.execute(sql, params).fetchall()
     return [
@@ -226,17 +253,27 @@ def hybrid_search(
     graph_boost: bool = True,
     validity_aware: bool = True,
     now: datetime | None = None,
+    current: str | None = None,
+    scope: str = "all",
 ) -> list[dict]:
     """Hybrid BM25 + cosine via RRF, optionally graph-boosted. Returns compact dict rows."""
     now = now if now is not None else db_now()
-    sql = _hybrid_sql(dim, graph_boost, validity_aware)
+    project_boost = current is not None
+    scope_project = scope == "project" and current is not None
+    sql = _hybrid_sql(dim, graph_boost, validity_aware, project_boost, scope_project)
     # Bind-param ordering (positional by appearance in SQL string):
     #   [query, pool, qvec, pool]  — BM25 FTS arm + cosine arm
     #   + [now, now]               — validity CASE comparisons (only when validity_aware)
+    #   + [current]                — project-boost CASE (only when project_boost)
+    #   + [current]                — scope WHERE filter (only when scope_project)
     #   + [limit]                  — LIMIT
     params: list = [query, pool, qvec, pool]
     if validity_aware:
         params += [now, now]
+    if project_boost:
+        params.append(current)
+    if scope_project:
+        params.append(current)
     params.append(limit)
     rows = con.execute(sql, params).fetchall()
     return [
@@ -265,6 +302,8 @@ def search(
     rerank: bool = False,
     graph_boost: bool = True,
     validity_aware: bool = True,
+    project: str | None = None,
+    scope: str = "all",
 ) -> list[Hit]:
     """Top-level retrieval (degradation ladder): hybrid when an embedder is given
     (auto-degrades to BM25 if no embeddings exist), else BM25-only.
@@ -275,6 +314,15 @@ def search(
     # Capture one instant for both SQL and rerank validity comparisons.
     now_aware = datetime.now(UTC)
     now_naive = now_aware.replace(tzinfo=None)  # naive-UTC for DuckDB TIMESTAMP bind
+
+    current = resolve_current_project(project)
+    if scope == "project" and current is None:
+        import logging
+
+        logging.getLogger(__name__).info(
+            "recall scope='project' requested but no current project resolved; "
+            "falling back to scope='all'"
+        )
 
     if embedder is not None:
         qvec = embedder.embed_query(query)
@@ -288,6 +336,8 @@ def search(
             graph_boost=graph_boost,
             validity_aware=validity_aware,
             now=now_naive,
+            current=current,
+            scope=scope,
         )
     else:
         rows = bm25_only(
@@ -298,6 +348,8 @@ def search(
             graph_boost=graph_boost,
             validity_aware=validity_aware,
             now=now_naive,
+            current=current,
+            scope=scope,
         )
     if rerank and rows:
         # Hydrate full text for a precise rerank, then map back to compact Hits.
@@ -309,6 +361,15 @@ def search(
         }
         cands = [{**r, "text": text_by_id.get(r["chunk_id"], r["snippet"])} for r in rows]
         ranked = rerank_candidates(query, cands, top_k=k)
+        if current is not None:
+            ranked = [
+                {
+                    **c,
+                    "rerank_score": c["rerank_score"]
+                    * (1.4 if c.get("project") == current else 1.0),
+                }
+                for c in ranked
+            ]
         if validity_aware:
             # Apply validity penalty to cross-encoder scores so superseded/expired/
             # not-yet-valid notes are still demoted in the reranked order.

@@ -449,6 +449,89 @@ def test_hit_carries_project(tmp_path):
     assert any(h.project == "agentcairn" for h in hits)
 
 
+def _build_two_project_index(tmp_path: Path, emb) -> str:
+    """Two notes with IDENTICAL bodies (so BM25 + cosine arms score them equally),
+    differing only by ``project`` frontmatter. The only ranking differentiator is
+    the provenance boost, so ordering is deterministic regardless of the embedder."""
+    from cairn.index import build_fts, index_vault, open_index
+
+    v = tmp_path / "vault"
+    v.mkdir()
+    body = "Procedure for deploy key rotation across the fleet of servers.\n"
+    (v / "a.md").write_text(f"---\ntitle: A\npermalink: a\nproject: agentcairn\n---\n{body}")
+    (v / "b.md").write_text(f"---\ntitle: B\npermalink: b\nproject: otherrepo\n---\n{body}")
+    idx = str(tmp_path / "i.duckdb")
+    con = open_index(idx, dim=emb.dim, model_id=emb.model_id)
+    index_vault(con, str(v), emb)
+    build_fts(con)
+    con.close()
+    return idx
+
+
+def test_same_project_boosted_above_cross_project(tmp_path):
+    from cairn.embed import FakeEmbedder
+    from cairn.search import open_search, search
+
+    index_path = _build_two_project_index(tmp_path, FakeEmbedder(dim=8))
+    con = open_search(str(index_path))
+    try:
+        hits = search(
+            con,
+            "deploy key rotation",
+            embedder=FakeEmbedder(dim=8),
+            k=5,
+            project="agentcairn",
+        )
+    finally:
+        con.close()
+    assert any(h.project == "otherrepo" for h in hits)  # non-lossy: still present
+    a = next(i for i, h in enumerate(hits) if h.project == "agentcairn")
+    b = next(i for i, h in enumerate(hits) if h.project == "otherrepo")
+    assert a < b  # same-project ranks ahead
+
+
+def test_scope_project_filters_out_cross_project(tmp_path):
+    from cairn.embed import FakeEmbedder
+    from cairn.search import open_search, search
+
+    index_path = _build_two_project_index(tmp_path, FakeEmbedder(dim=8))
+    con = open_search(str(index_path))
+    try:
+        hits = search(
+            con,
+            "deploy key rotation",
+            embedder=FakeEmbedder(dim=8),
+            k=5,
+            project="agentcairn",
+            scope="project",
+        )
+    finally:
+        con.close()
+    assert hits and all(h.project == "agentcairn" for h in hits)
+
+
+def test_no_project_is_noop(tmp_path, monkeypatch):
+    from cairn.embed import FakeEmbedder
+    from cairn.search import open_search, search
+
+    monkeypatch.setattr("os.getcwd", lambda: "/")  # cwd fallback yields None
+    index_path = _build_two_project_index(tmp_path, FakeEmbedder(dim=8))
+    con = open_search(str(index_path))
+    try:
+        hits = search(
+            con,
+            "deploy key rotation",
+            embedder=FakeEmbedder(dim=8),
+            k=5,
+            project=None,
+            scope="project",  # scope degrades to all
+        )
+    finally:
+        con.close()
+    projs = {h.project for h in hits}
+    assert "agentcairn" in projs and "otherrepo" in projs
+
+
 def test_resolve_current_project_explicit_wins(monkeypatch):
     from cairn.search.engine import resolve_current_project
 
