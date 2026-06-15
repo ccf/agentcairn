@@ -6,6 +6,7 @@ from cairn.search.engine import (
     get_note,
     hybrid_search,
     open_search,
+    resolve_current_project,
     search,
     vector_search,
 )
@@ -19,6 +20,7 @@ __all__ = [
     "hybrid_search",
     "open_search",
     "rerank_candidates",
+    "resolve_current_project",
     "search",
     "vector_search",
 ]

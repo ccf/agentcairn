@@ -419,3 +419,34 @@ def test_rerank_inert_without_validity_fields(tmp_path, monkeypatch):
         assert call_count[0] == 1, "rerank stub must have been called exactly once"
     finally:
         con.close()
+
+
+def test_resolve_current_project_explicit_wins(monkeypatch):
+    from cairn.search.engine import resolve_current_project
+
+    monkeypatch.setattr("os.getcwd", lambda: "/Users/x/git/otherrepo")
+    assert resolve_current_project("agentcairn") == "agentcairn"
+
+
+def test_resolve_current_project_falls_back_to_cwd(monkeypatch):
+    from cairn.search.engine import resolve_current_project
+
+    monkeypatch.setattr("os.getcwd", lambda: "/Users/x/git/agentcairn")
+    assert resolve_current_project(None) == "agentcairn"
+
+
+def test_resolve_current_project_none_for_root(monkeypatch):
+    from cairn.search.engine import resolve_current_project
+
+    monkeypatch.setattr("os.getcwd", lambda: "/")
+    assert resolve_current_project(None) is None
+
+
+def test_resolve_current_project_none_when_getcwd_raises(monkeypatch):
+    from cairn.search.engine import resolve_current_project
+
+    def boom():
+        raise OSError("cwd deleted")
+
+    monkeypatch.setattr("os.getcwd", boom)
+    assert resolve_current_project(None) is None
