@@ -27,7 +27,7 @@ from cairn.ingest.consolidate import (
 from cairn.ingest.dedup import DedupLedger
 from cairn.ingest.judge import _EMBED_BATCH, JudgedCache, resolve_judge
 from cairn.ingest.pipeline import ingest_transcripts
-from cairn.search import open_search, search
+from cairn.search import open_search, resolve_current_project, search
 from cairn.vault import parse_note
 
 
@@ -207,6 +207,12 @@ def recall(
         "--rerank/--no-rerank",
         help="Cross-encoder rerank (default on; or set CAIRN_RERANK=0).",
     ),
+    project: str = typer.Option(
+        None, "--project", help="Boost this project's memories (default: current dir)."
+    ),
+    scope: str = typer.Option(
+        "all", "--scope", help="'all' (boost, non-lossy) or 'project' (hard-filter)."
+    ),
 ) -> None:
     """Hybrid recall over the index (semantic + BM25 + graph-boost).
 
@@ -220,8 +226,11 @@ def recall(
         typer.echo(f"no index at {idx} — run `cairn reindex <vault>` first")
         raise typer.Exit(1)
     emb = None if embedder == "none" else get_embedder(embedder)
+    current = resolve_current_project(project)
     con = open_search(str(idx))
-    hits = search(con, query, embedder=emb, k=k, rerank=resolve_rerank(rerank))
+    hits = search(
+        con, query, embedder=emb, k=k, rerank=resolve_rerank(rerank), project=current, scope=scope
+    )
     # Best-effort savings ledger — must never break recall. Note: this CLI path
     # returns snippets, so `recalled` is the snippet payload (smaller than the
     # MCP recall_tool's full-note payload); both honestly reflect what each
@@ -239,7 +248,8 @@ def recall(
         typer.echo("(no results)")
         return
     for h in hits:
-        typer.echo(f"[{h.score:.3f}] {h.permalink}  ·  {h.heading_path}")
+        mark = f"  [from: {h.project}]" if h.project and h.project != current else ""
+        typer.echo(f"[{h.score:.3f}] {h.permalink}  ·  {h.heading_path}{mark}")
         typer.echo(f"        {h.snippet.strip()[:160]}")
 
 

@@ -160,6 +160,35 @@ def test_recall_command(tmp_path):
     assert "a" in s.output  # the permalink shows up in results
 
 
+def test_cli_recall_marks_cross_project(tmp_path, monkeypatch):
+    v = tmp_path / "vault"
+    v.mkdir()
+    (v / "other.md").write_text(
+        "---\ntitle: Other\npermalink: other\nproject: otherrepo\n---\n"
+        "this is the query content about widgets\n"
+    )
+    idx = tmp_path / "i.duckdb"
+    r = runner.invoke(app, ["reindex", str(v), "--index", str(idx), "--embedder", "fake"])
+    assert r.exit_code == 0, r.output
+    monkeypatch.setattr("os.getcwd", lambda: "/Users/x/git/agentcairn")
+    r = runner.invoke(
+        app,
+        [
+            "recall",
+            "the query",
+            "--index",
+            str(idx),
+            "--embedder",
+            "fake",
+            "--no-rerank",
+            "--project",
+            "agentcairn",
+        ],
+    )
+    assert r.exit_code == 0, r.output
+    assert "[from: otherrepo]" in r.output
+
+
 # add to tests/test_cli.py  (reuses _seed_transcript from test_ingest_command)
 def test_sweep_command(tmp_path):
     projects = tmp_path / "projects"

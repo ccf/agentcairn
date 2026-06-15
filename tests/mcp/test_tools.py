@@ -497,6 +497,45 @@ def test_no_type_error_on_validity_annotation(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# Task 6: provenance-aware recall — project/scope params + cross-project mark
+# ---------------------------------------------------------------------------
+
+
+def _build_cross_project_index(tmp_path: Path) -> Path:
+    """Build an index with a note whose frontmatter declares another project."""
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "other.md").write_text(
+        "---\ntitle: Other\npermalink: other\nproject: otherrepo\n---\n"
+        "this is the query content about widgets\n"
+    )
+    idx = tmp_path / "i.duckdb"
+    emb = FakeEmbedder(dim=8)
+    con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
+    reconcile(con, str(vault), emb)
+    con.close()
+    return idx
+
+
+def test_recall_tool_marks_cross_project(tmp_path, monkeypatch):
+    idx = _build_cross_project_index(tmp_path)
+    monkeypatch.setattr("os.getcwd", lambda: "/Users/x/git/agentcairn")
+    out = recall_tool(str(idx), "the query", embedder="fake", k=5)
+    note = out["notes"][0]
+    assert note["project"] == "otherrepo"
+    assert note["cross_project"] is True
+
+
+def test_search_tool_marks_cross_project(tmp_path, monkeypatch):
+    idx = _build_cross_project_index(tmp_path)
+    monkeypatch.setattr("os.getcwd", lambda: "/Users/x/git/agentcairn")
+    out = search_tool(str(idx), "the query", embedder="fake", k=5)
+    hit = out["hits"][0]
+    assert hit["project"] == "otherrepo"
+    assert hit["cross_project"] is True
+
+
+# ---------------------------------------------------------------------------
 # Bugbot Fix 2: search_tool/recall_tool must pass pool >= fetch to search()
 # ---------------------------------------------------------------------------
 
