@@ -1432,3 +1432,206 @@ def test_consolidation_supersedes_survives_malformed_old_note(tmp_path, monkeypa
     )
     assert len(rep.written) == 1  # new note still written despite the bad old note
     assert rep.superseded == 0  # mark skipped, no crash
+
+
+# ---------------------------------------------------------------------------
+# Summaries — session-keyed supersession + exclusion from cosine consolidation
+# ---------------------------------------------------------------------------
+
+
+def _summary_transcript(tmp_path, text, sid="s1", ts="2026-06-16T03:00:00Z"):
+    from pathlib import Path
+
+    return Transcript(
+        session_id=sid,
+        cwd="/x",
+        git_branch=None,
+        path=tmp_path / f"{sid}.jsonl",
+        events=[
+            NormalizedEvent(
+                kind=EventKind.COMPACT_SUMMARY,
+                role="user",
+                text=text,
+                timestamp=ts,
+                session_id=sid,
+                project="agentcairn",
+                git_branch=None,
+                source_path=Path(f"/x/{sid}.jsonl"),
+                harness="claude-code",
+            )
+        ],
+    )
+
+
+def _session_summary_notes(vault):
+    from cairn.vault import parse_note
+
+    out = []
+    for p in (vault / "memories").glob("*.md"):
+        note = parse_note(p.read_text(encoding="utf-8"))
+        if note.frontmatter.get("kind") == "session-summary":
+            out.append((p, note))
+    return out
+
+
+def test_resweep_supersedes_prior_session_summary(tmp_path):
+    """A second summary for the SAME session supersedes the prior one (one current
+    summary per session, prior demoted not deleted). An unchanged re-sweep is a
+    no-op."""
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    vault = tmp_path / "v"
+    vault.mkdir()
+    ledger = DedupLedger(tmp_path / "led.sha256")
+
+    # Run 1: latest summary "v1" for session s1.
+    r1 = ingest_transcripts(
+        [_summary_transcript(tmp_path, "SUMMARY VERSION ONE", sid="s1")],
+        vault_root=vault,
+        ledger=ledger,
+    )
+    assert len(r1.written) == 1
+    notes = _session_summary_notes(vault)
+    assert len(notes) == 1
+    (v1_path, v1_note) = notes[0]
+    assert not v1_note.frontmatter.get("superseded_by")  # nothing to supersede yet
+    v1_permalink = v1_note.frontmatter["permalink"]
+
+    # Unchanged re-sweep: same content, same ledger -> deduped, writes nothing.
+    r_noop = ingest_transcripts(
+        [_summary_transcript(tmp_path, "SUMMARY VERSION ONE", sid="s1")],
+        vault_root=vault,
+        ledger=ledger,
+    )
+    assert r_noop.written == []
+    assert r_noop.deduped == 1
+
+    # Run 2: a DIFFERENT latest summary "v2" for the SAME session s1 (different
+    # content -> not deduped). The v2 note becomes current; v1 is superseded.
+    r2 = ingest_transcripts(
+        [_summary_transcript(tmp_path, "SUMMARY VERSION TWO", sid="s1")],
+        vault_root=vault,
+        ledger=ledger,
+    )
+    assert len(r2.written) == 1
+    assert r2.superseded >= 1
+
+    notes = _session_summary_notes(vault)
+    assert len(notes) == 2  # non-lossy: both notes still on disk
+    by_perm = {n.frontmatter["permalink"]: n for _, n in notes}
+    v2_permalink = next(p for p in by_perm if p != v1_permalink)
+    # v1 now points at v2; v2 is current (not superseded).
+    assert by_perm[v1_permalink].frontmatter.get("superseded_by") == v2_permalink
+    assert not by_perm[v2_permalink].frontmatter.get("superseded_by")
+
+
+def test_resweep_does_not_supersede_other_session_summary(tmp_path):
+    """A new summary for session s2 must NOT supersede an existing summary for s1
+    (supersession is session-keyed)."""
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    vault = tmp_path / "v"
+    vault.mkdir()
+    ledger = DedupLedger(tmp_path / "led.sha256")
+    ingest_transcripts(
+        [_summary_transcript(tmp_path, "S1 SUMMARY", sid="s1")],
+        vault_root=vault,
+        ledger=ledger,
+    )
+    r2 = ingest_transcripts(
+        [_summary_transcript(tmp_path, "S2 SUMMARY", sid="s2")],
+        vault_root=vault,
+        ledger=ledger,
+    )
+    assert r2.superseded == 0  # different session -> nothing to supersede
+    notes = _session_summary_notes(vault)
+    assert all(not n.frontmatter.get("superseded_by") for _, n in notes)
+
+
+def test_summary_excluded_from_consolidation(tmp_path):
+    """Regression (code review): in a CONSOLIDATING run (LLM tier + consolidator +
+    neighbor_index), a force-kept summary candidate (a) is always written, (b) never
+    triggers _consolidate (so it can't supersede or be deduped against a user-memory
+    neighbor), and (c) is NOT added to the neighbor index (it can't poison later
+    matches). The user candidate in the same run still consolidates normally."""
+    from cairn.ingest.consolidate import ConsolidationVerdict
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    vault = tmp_path / "v"
+    vault.mkdir()
+
+    # A consolidator that would SUPERSEDE anything it is asked to classify, and a
+    # neighbor index that always returns a hit. If a summary ever reached either,
+    # it would wrongly mark the neighbor superseded and be recorded as added.
+    cons = _FakeConsolidator(ConsolidationVerdict.SUPERSEDES)
+    nidx = _FakeNeighborIndex({"SUMMARY": ("user-old", "an existing user memory", "t0", 0.99)})
+
+    SUMMARY = "SUMMARY: this session did X and Y, a long model-generated synthesis."
+    t = _summary_transcript(tmp_path, SUMMARY, sid="s1")
+
+    rep = ingest_transcripts(
+        [t],
+        vault_root=vault,
+        ledger=DedupLedger(tmp_path / "l.sha256"),
+        judge=_llm_judge_keep_all(),
+        consolidator=cons,
+        neighbor_index=nidx,
+    )
+
+    assert rep.judge_tier == "llm"  # consolidating run
+    assert len(rep.written) == 1  # the summary WAS written
+    assert rep.semantic_deduped == 0  # never deduped against the neighbor
+    # The summary never went through consolidation:
+    assert cons.calls == 0  # _consolidate was never invoked for the summary
+    # and the summary was NOT added to the neighbor index.
+    summary_note = _session_summary_notes(vault)[0][1]
+    summary_perm = summary_note.frontmatter["permalink"]
+    assert all(perm != summary_perm for perm, _ in nidx.added)
+    assert all(SUMMARY not in text for _, text in nidx.added)
+
+
+def test_summary_and_user_coexist_in_consolidating_run(tmp_path):
+    """In a consolidating run a user candidate still consolidates (added to the
+    neighbor index, classify called) while the summary bypasses both blocks."""
+    from cairn.ingest.consolidate import ConsolidationVerdict
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    vault = tmp_path / "v"
+    vault.mkdir()
+    cons = _FakeConsolidator(ConsolidationVerdict.DISTINCT)
+    nidx = _FakeNeighborIndex({"never-matches-xyz": ("o", "o", "t0", 0.99)})
+
+    from pathlib import Path
+
+    t = Transcript(
+        session_id="s1",
+        cwd="/x",
+        git_branch=None,
+        path=tmp_path / "s1.jsonl",
+        events=[
+            _ev(EventKind.AUTHORED_USER, "we always rebase-merge approved PRs", ts="t1"),
+            NormalizedEvent(
+                kind=EventKind.COMPACT_SUMMARY,
+                role="user",
+                text="model session synthesis summary",
+                timestamp="t2",
+                session_id="s1",
+                project="agentcairn",
+                git_branch=None,
+                source_path=Path("/x/s1.jsonl"),
+                harness="claude-code",
+            ),
+        ],
+    )
+    rep = ingest_transcripts(
+        [t],
+        vault_root=vault,
+        ledger=DedupLedger(tmp_path / "l.sha256"),
+        judge=_llm_judge_keep_all(),
+        consolidator=cons,
+        neighbor_index=nidx,
+    )
+    assert len(rep.written) == 2  # user note + summary note
+    # exactly ONE add to the neighbor index: the user note, never the summary.
+    assert len(nidx.added) == 1
+    assert "rebase-merge" in nidx.added[0][1]

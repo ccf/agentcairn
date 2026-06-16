@@ -113,6 +113,37 @@ def mark_superseded(path: Path, by_permalink: str) -> None:
     path.write_text(write_note(note), encoding="utf-8")
 
 
+def supersede_prior_session_summaries(
+    vault_root: Path, subdir: str, session_id: str, new_permalink: str
+) -> int:
+    """Mark existing session-summary notes for `session_id` (other than `new_permalink`,
+    not already superseded) as superseded_by the new one. Returns count. Fail-safe:
+    skips malformed notes, never raises."""
+    src = f"memory://session/{session_id}"
+    base = Path(vault_root) / subdir
+    if not base.exists():
+        return 0
+    n = 0
+    for path in base.glob("*.md"):
+        try:
+            note = parse_note(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        fm = note.frontmatter
+        if (
+            fm.get("kind") == "session-summary"
+            and fm.get("source") == src
+            and fm.get("permalink") != new_permalink
+            and not fm.get("superseded_by")
+        ):
+            try:
+                mark_superseded(path, new_permalink)
+                n += 1
+            except Exception:
+                pass
+    return n
+
+
 def write_derived_note(note: Note, vault_root: Path, *, subdir: str = "memories") -> Path:
     """Serialize `note` and write it under vault_root/subdir. Path-traversal guarded:
     the resolved target MUST stay within vault_root, else ValueError."""
