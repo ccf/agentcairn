@@ -188,7 +188,7 @@ QA-accuracy numbers (LLM-judged) are available too, but use an Anthropic judge r
   - **Ollama embedding tier** — ✅ local models via `CAIRN_EMBEDDER=ollama` (`CAIRN_EMBED_MODEL`/`OLLAMA_HOST`); cloud (OpenAI/Voyage) still pending.
   - ✅ **Bi-temporal validity** — frontmatter `valid_from`/`valid_until`/`superseded_by`; recall soft-demotes superseded/expired facts (non-lossy — never hidden) and annotates each result's currency + an `as_of` anchor, so the *current* fact wins and the agent can reason over time. *(shipped)*
   - In-memory HNSW for large-vault retrieval latency.
-- **v2** — Obsidian plugin surface, MotherDuck cloud sync, optional LLM entity extraction.
+- **v2** — ◐ **Obsidian plugin** ([agentcairn-obsidian](https://github.com/ccf/agentcairn-obsidian)) — a vault-native Memory view (list + provenance + currency + graph) for reading/navigating your memory in Obsidian; *(MVP shipped; semantic recall stays in the CLI/MCP)*. MotherDuck cloud sync, optional LLM entity extraction still pending.
 
 ## Development
 
