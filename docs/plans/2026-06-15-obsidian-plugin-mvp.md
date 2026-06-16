@@ -1,6 +1,8 @@
 # agentcairn Obsidian Plugin MVP — Implementation Plan
 
 > **Amendment (2026-06-15):** executed through Task 6 and shipped (plugin `0.2.0`), **except the Memory Graph (Task 5), which was cut post-QA** — agentcairn notes don't `[[wikilink]]` each other, so the graph was edge-empty on real vaults. Deferred to a future semantic-edges version. Tasks 1–4 + 6 shipped (list + provenance + currency + release plumbing).
+>
+> **Lesson for a future graph revival (Bugbot, valid):** the Task 5 `renderGraph` reference leaks d3 simulations — it relies on an `ac-detach` event to `sim.stop()` that nothing dispatches, so every re-render (filter change / debounced refresh) starts another `forceSimulation` while prior ones keep ticking. When the graph returns, **hold the `Simulation` and call `sim.stop()` at the start of each re-render and on view `onClose`** (or stop after the layout settles). The reference snippet below is retained as-is for the record but must NOT be copied verbatim.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
