@@ -5,9 +5,9 @@ import { benchmark } from "../lib/content";
 <Section id="measured" eyebrow="Benchmarks measured">
   <div class="prose-measure">
     <h3 class="font-sans text-[13px] text-[var(--color-ink-muted)] mb-2">Retrieval — LoCoMo</h3>
-    <table class="w-full border-collapse font-mono text-[13px]">
+    <table class="w-full table-fixed border-collapse font-mono text-[13px]">
       <thead><tr class="text-[var(--color-ink-muted)] text-left border-b border-[var(--color-border)]">
-        <th class="py-2 font-normal">arm</th><th class="py-2 font-normal">r@5</th><th class="py-2 font-normal">r@10</th><th class="py-2 font-normal">MRR</th>
+        <th class="py-2 font-normal w-2/5">arm</th><th class="py-2 font-normal">r@5</th><th class="py-2 font-normal">r@10</th><th class="py-2 font-normal">MRR</th>
       </tr></thead>
       <tbody>
         {benchmark.rows.map((r) => (
@@ -20,9 +20,9 @@ import { benchmark } from "../lib/content";
     <p class="font-serif text-[14px] text-[var(--color-ink-faint)] mt-3">{benchmark.locomoCaption}</p>
 
     <h3 class="font-sans text-[13px] text-[var(--color-ink-muted)] mb-2 mt-8">Retrieval — LongMemEval-S</h3>
-    <table class="w-full border-collapse font-mono text-[13px]">
+    <table class="w-full table-fixed border-collapse font-mono text-[13px]">
       <thead><tr class="text-[var(--color-ink-muted)] text-left border-b border-[var(--color-border)]">
-        <th class="py-2 font-normal">arm</th><th class="py-2 font-normal">session r@5</th><th class="py-2 font-normal">session MRR</th><th class="py-2 font-normal">turn r@5</th>
+        <th class="py-2 font-normal w-2/5">arm</th><th class="py-2 font-normal">session r@5</th><th class="py-2 font-normal">session MRR</th><th class="py-2 font-normal">turn r@5</th>
       </tr></thead>
       <tbody>
         {benchmark.longmemevalRows.map((r) => (
@@ -35,9 +35,9 @@ import { benchmark } from "../lib/content";
     <p class="font-serif text-[14px] text-[var(--color-ink-faint)] mt-3">{benchmark.longmemevalCaption}</p>
 
     <h3 class="font-sans text-[13px] text-[var(--color-ink-muted)] mb-2 mt-8">Context efficiency</h3>
-    <table class="w-full border-collapse font-mono text-[13px]">
+    <table class="w-full table-fixed border-collapse font-mono text-[13px]">
       <thead><tr class="text-[var(--color-ink-muted)] text-left border-b border-[var(--color-border)]">
-        <th class="py-2 font-normal">dataset</th><th class="py-2 font-normal">haystack</th><th class="py-2 font-normal">recalled</th><th class="py-2 font-normal">reduction</th>
+        <th class="py-2 font-normal w-2/5">dataset</th><th class="py-2 font-normal">haystack</th><th class="py-2 font-normal">recalled</th><th class="py-2 font-normal">reduction</th>
       </tr></thead>
       <tbody>
         {benchmark.contextRows.map((r) => (

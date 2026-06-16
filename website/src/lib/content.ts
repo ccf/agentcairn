@@ -35,10 +35,8 @@ export const footer = {
   definition:
     "a stack of stones raised to mark a trail or a place worth remembering, left for whoever comes next.",
   guides: [
-    { label: "Memory for Claude Code", href: "/claude-code-memory" },
-    { label: "Memory for Cursor", href: "/cursor-memory" },
-    { label: "AI memory in Obsidian", href: "/obsidian-ai-memory" },
     { label: "What is agent memory?", href: "/agent-memory" },
+    { label: "AI memory in Obsidian", href: "/obsidian-ai-memory" },
     { label: "vs Mem0, Letta, Zep, basic-memory", href: "/alternatives" },
   ],
 };
