@@ -114,7 +114,11 @@ def test_real_noise_shapes_are_not_authored(tmp_path):
     t.write_text("\n".join(json.dumps(o) for o in [*noise, authored]) + "\n")
     tr = parse_transcript(t)
     cands = select_candidates(tr)
-    assert [c.text for c in cands] == ["we decided to always rebase-merge the branch"]
+    # The compaction summary is now PROMOTED as a kind="summary" candidate, but
+    # none of the noise classes may become an authored-user candidate.
+    assert [c.text for c in cands if c.kind == "user"] == [
+        "we decided to always rebase-merge the branch"
+    ]
     # ANSI was stripped from the (excluded) tool-result during parse, too
     assert all("\x1b" not in e.text for e in tr.events)
 
