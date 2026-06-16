@@ -1,0 +1,71 @@
+---
+import ContentPage from "../layouts/ContentPage.astro";
+import Section from "../components/Section.astro";
+import Prose from "../components/Prose.astro";
+
+const title = "AI Agent Memory in Your Obsidian Vault — agentcairn";
+const description =
+  "Your coding agent's memory as plain Markdown in an Obsidian vault you own — readable, editable, and the source of truth (not a one-way export).";
+const cta = "cairn install claude-code";
+---
+<ContentPage title={title} description={description} cta={cta}>
+  <Section id="intro">
+    <h1 class="font-serif text-[40px] leading-tight mb-6">Your AI agent's memory, in an Obsidian vault</h1>
+    <Prose>
+      <p>
+        agentcairn stores your coding agent's memory as plain Markdown in an
+        Obsidian vault you own — the source of truth, not a one-way export.
+      </p>
+    </Prose>
+  </Section>
+
+  <Section id="wedge" eyebrow="The wedge">
+    <Prose>
+      <p>
+        The memory is readable and editable Markdown with frontmatter and
+        <code>[[wikilinks]]</code>. Open it in Obsidian, read what your agent
+        knows, and correct it directly. Hand-edit a fact and the agent honors it
+        on the next reindex — your edits are not overwritten.
+      </p>
+      <p>
+        Because the vault is the truth, you are never reverse-engineering a
+        database to find out what your agent remembers. You just read the files.
+      </p>
+    </Prose>
+  </Section>
+
+  <Section id="plugin" eyebrow="The Obsidian plugin">
+    <Prose>
+      <p>
+        The
+        <a href="https://github.com/ccf/agentcairn-obsidian" class="underline">agentcairn-obsidian</a>
+        plugin surfaces your memory inside Obsidian: a filterable list of notes,
+        with provenance (where each memory came from) and currency (how fresh it
+        is). You see what the agent knows, where it learned it, and whether it is
+        still current.
+      </p>
+    </Prose>
+  </Section>
+
+  <Section id="sync" eyebrow="Stays in sync">
+    <Prose>
+      <p>
+        A rebuildable DuckDB index reconciles to the vault and provides fast
+        hybrid retrieval (BM25 + vector + RRF, with an optional cross-encoder
+        reranker). The index is a disposable cache; the vault is always the
+        truth. <code>cairn reindex</code> rebuilds it from the Markdown with zero
+        data loss.
+      </p>
+      <p>
+        This works with any host. Plugin hosts like Claude Code and Codex get a
+        first-class plugin; every other MCP host is wired in with
+        <code>cairn install</code>. They all share one vault.
+      </p>
+      <p>
+        <a href="/agent-memory" class="underline">What is agent memory?</a>
+        &middot;
+        <a href="/alternatives" class="underline">How agentcairn compares</a>
+      </p>
+    </Prose>
+  </Section>
+</ContentPage>

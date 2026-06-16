@@ -1,0 +1,74 @@
+---
+import ContentPage from "../layouts/ContentPage.astro";
+import Section from "../components/Section.astro";
+import Prose from "../components/Prose.astro";
+
+const title = "Persistent Memory for Claude Code — agentcairn";
+const description =
+  "Give Claude Code durable, local memory that survives every session — captured and recalled as Markdown you own. Install in one command.";
+const cta = "cairn install claude-code";
+---
+<ContentPage title={title} description={description} cta={cta}>
+  <Section id="intro">
+    <h1 class="font-serif text-[40px] leading-tight mb-6">Persistent memory for Claude Code</h1>
+    <Prose>
+      <p>
+        Claude Code starts every session cold. agentcairn gives it durable
+        cross-session memory, stored as Markdown you own.
+      </p>
+    </Prose>
+  </Section>
+
+  <Section id="problem" eyebrow="The problem">
+    <Prose>
+      <p>
+        Each new session begins from scratch. The decisions you made, the
+        approaches you ruled out, the conventions you settled on — all of it is
+        gone when the context window closes. You re-explain the same things, and
+        the agent repeats mistakes it already learned to avoid.
+      </p>
+    </Prose>
+  </Section>
+
+  <Section id="how" eyebrow="How agentcairn works with Claude Code">
+    <Prose>
+      <p>
+        Claude Code is a plugin host. The agentcairn plugin recalls relevant
+        memory at the start of a session and captures at the end. It bundles an
+        MCP server that exposes <code>recall</code>, <code>search</code>, and
+        <code>remember</code>, so the agent can pull prior context or write a new
+        fact on demand.
+      </p>
+      <p>
+        Capture runs out-of-band. <code>cairn sweep</code> reads your session
+        transcripts, redacts secrets, dedups, importance-gates, and distills what
+        is worth keeping into the vault. Nothing blocks your work; the writing
+        happens after the fact.
+      </p>
+      <p>Install it into Claude Code with one command:</p>
+    </Prose>
+    <pre class="font-mono text-[14px] mt-2 overflow-x-auto" tabindex="0"><code>cairn install claude-code</code></pre>
+  </Section>
+
+  <Section id="ownership" eyebrow="Your memory is yours">
+    <Prose>
+      <p>
+        Memory is distilled into a local, Obsidian-compatible Markdown vault. It
+        is the source of truth — not a one-way export from a database. The vault
+        survives model upgrades, index rebuilds, and even uninstalling the tool.
+        There is nothing to lose, because the truth was never trapped in a
+        database.
+      </p>
+      <p>
+        A rebuildable DuckDB index gives Claude Code fast hybrid retrieval
+        (BM25 + vector + RRF, with an optional cross-encoder reranker). The index
+        is a cache; the Markdown is the truth.
+      </p>
+      <p>
+        <a href="/agent-memory" class="underline">What is agent memory?</a>
+        &middot;
+        <a href="/alternatives" class="underline">How agentcairn compares</a>
+      </p>
+    </Prose>
+  </Section>
+</ContentPage>

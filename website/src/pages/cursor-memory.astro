@@ -1,0 +1,79 @@
+---
+import ContentPage from "../layouts/ContentPage.astro";
+import Section from "../components/Section.astro";
+import Prose from "../components/Prose.astro";
+
+const title = "Long-Term Memory for Cursor — agentcairn";
+const description =
+  "Add durable cross-session memory to Cursor. agentcairn recalls prior decisions and stores them as Markdown you control — local, free, open-source.";
+const cta = "cairn install cursor";
+---
+<ContentPage title={title} description={description} cta={cta}>
+  <Section id="intro">
+    <h1 class="font-serif text-[40px] leading-tight mb-6">Long-term memory for Cursor</h1>
+    <Prose>
+      <p>
+        Cursor doesn't carry decisions across sessions. agentcairn adds durable,
+        local recall.
+      </p>
+    </Prose>
+  </Section>
+
+  <Section id="problem" eyebrow="The problem">
+    <Prose>
+      <p>
+        Every Cursor session starts cold. The reasoning behind a refactor, the
+        library you chose and why, the dead ends you already explored — none of
+        it persists. You spend the first part of each session re-establishing
+        context the agent had yesterday.
+      </p>
+    </Prose>
+  </Section>
+
+  <Section id="how" eyebrow="How it works">
+    <Prose>
+      <p>
+        <code>cairn install cursor</code> writes the MCP server configuration and
+        installs the recall/remember skill into Cursor. The agent gains
+        <code>recall</code>, <code>search</code>, and <code>remember</code> tools
+        backed by your vault.
+      </p>
+      <p>
+        Cursor is an MCP host, not a plugin host, so capture runs out-of-band.
+        <code>cairn sweep</code> ingests your Cursor sessions into the vault —
+        redacted, deduped, importance-gated, distilled. When you start a new task,
+        recall surfaces the relevant prior work.
+      </p>
+      <p>
+        The install is non-destructive and idempotent. Your existing MCP servers
+        are preserved and the original config is backed up before anything is
+        written. The vault is global: one <code>~/agentcairn</code> vault shared
+        across every host, so memory captured in Cursor is also available to your
+        other agents.
+      </p>
+      <p>Wire it into Cursor with one command:</p>
+    </Prose>
+    <pre class="font-mono text-[14px] mt-2 overflow-x-auto" tabindex="0"><code>cairn install cursor</code></pre>
+  </Section>
+
+  <Section id="ownership" eyebrow="Ownership">
+    <Prose>
+      <p>
+        Your memory lives in a Markdown vault you control. It is the source of
+        truth, not a database export, and it survives model upgrades, index
+        rebuilds, and uninstalling the tool. A rebuildable DuckDB index gives fast
+        hybrid retrieval (BM25 + vector + RRF, with an optional cross-encoder
+        reranker) on top of it.
+      </p>
+      <p>
+        agentcairn is local-first, free, and open-source under Apache-2.0.
+        Nothing phones home.
+      </p>
+      <p>
+        <a href="/agent-memory" class="underline">What is agent memory?</a>
+        &middot;
+        <a href="/alternatives" class="underline">How agentcairn compares</a>
+      </p>
+    </Prose>
+  </Section>
+</ContentPage>
