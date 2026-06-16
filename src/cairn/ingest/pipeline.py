@@ -181,7 +181,9 @@ def ingest_transcripts(
     # Phase B: ONE batched judge call over the un-cached candidates. This phase
     # must NEVER raise: any judge failure degrades those candidates to
     # heuristic-only gating (LLM chunk failures also degrade internally).
-    to_judge = [i for i in range(len(pending)) if i not in judged]
+    to_judge = [
+        i for i in range(len(pending)) if i not in judged and pending[i][0].kind != "summary"
+    ]
     if judge is not None and to_judge:
         try:
             results = judge.judge(
@@ -207,6 +209,13 @@ def ingest_transcripts(
     )
     kept: list[tuple[Candidate, str]] = []
     for idx, (cand, h) in enumerate(pending):
+        # Compaction summaries bypass the judge/importance gate entirely: they are
+        # model-generated session syntheses we always keep (they were still
+        # redacted+deduped in Phase A). Mark them important for frontmatter.
+        if cand.kind == "summary":
+            cand = replace(cand, importance=0.9)
+            kept.append((cand, h))
+            continue
         heuristic = score(cand.text)
         j = judged.get(idx)
         # A degraded judgment is a fallback verdict wearing the LLM run's tier — it

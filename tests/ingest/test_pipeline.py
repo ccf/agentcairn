@@ -151,10 +151,11 @@ def test_pipeline_ingests_only_authored_user_events(tmp_path):
     )
     report = ingest_transcript(tr, vault_root=vault, ledger=ledger)
     # The latest compaction summary is now ALSO selected (as a kind="summary"
-    # candidate), so authored counts 2; but this generic summary scores below the
-    # importance gate, so only the substantive user turn is written.
+    # candidate), so authored counts 2; summaries bypass the judge/importance gate
+    # and are ALWAYS kept, so BOTH the summary and the substantive user turn are
+    # written (tool results / meta injections / assistant turns still excluded by kind).
     assert report.authored == 2
-    assert report.candidates == 1
+    assert report.candidates == 2
     assert report.event_kinds == {
         "tool_result": 1,
         "meta_injection": 1,
@@ -164,7 +165,57 @@ def test_pipeline_ingests_only_authored_user_events(tmp_path):
     blob = "\n".join(p.read_text() for p in vault.rglob("*.md"))
     assert "rebase-merge" in blob
     assert "task-notification" not in blob and "Context Usage" not in blob
-    assert "being continued from a previous conversation" not in blob  # summary gated out
+    assert "being continued from a previous conversation" in blob  # summary now kept
+
+
+def test_compaction_summary_bypasses_judge_and_is_kept(tmp_path):
+    """A kind="summary" candidate must bypass the durability judge entirely (it
+    never reaches judge()), and is ALWAYS kept (written) even under a reject-all
+    judge — summaries are still redacted+deduped in Phase A (unchanged)."""
+    from pathlib import Path
+
+    from cairn.ingest.judge import Judgment
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    SUMMARY = "This session did X and fixed Y. Detailed model-generated synthesis."
+    seen: list[str] = []
+
+    class RejectAllJudge:
+        degraded = 0
+
+        def judge(self, texts, *, contexts=None):
+            seen.extend(texts)
+            return [Judgment(durability=0.0) for _ in texts]
+
+    t = Transcript(
+        session_id="s1",
+        cwd="/x",
+        git_branch=None,
+        path=Path("/x/t.jsonl"),
+        events=[
+            NormalizedEvent(
+                kind=EventKind.COMPACT_SUMMARY,
+                role="user",
+                text=SUMMARY,
+                timestamp="2026-06-16T03:00:00Z",
+                session_id="s1",
+                project="agentcairn",
+                git_branch=None,
+                source_path=Path("/x/t.jsonl"),
+                harness="claude-code",
+            ),
+        ],
+    )
+    vault = tmp_path / "v"
+    vault.mkdir()
+    ledger = DedupLedger(tmp_path / "led.sha256")
+    report = ingest_transcripts(
+        [t], vault_root=vault, ledger=ledger, judge=RejectAllJudge(), judged_cache=None
+    )
+    assert report.candidates == 1  # the summary WAS kept/written
+    assert len(report.written) == 1
+    assert report.gated_out == 0
+    assert SUMMARY not in seen  # judge never saw the summary
 
 
 def test_pipeline_dedup_skips_on_second_run(tmp_path):
