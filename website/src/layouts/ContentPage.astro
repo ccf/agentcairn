@@ -1,0 +1,24 @@
+---
+import Base from "./Base.astro";
+import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
+import Section from "../components/Section.astro";
+import CopyButton from "../components/CopyButton.astro";
+const { title, description, faq, cta = "cairn install claude-code" } = Astro.props;
+---
+<Base title={title} description={description} faq={faq}>
+  <Nav />
+  <main id="main">
+    <p class="px-6 pt-6"><a href="/" class="text-[var(--color-ink-muted)] hover:underline">← agentcairn</a></p>
+    <slot />
+    <Section id="cta" eyebrow="Get started">
+      <p class="font-serif text-[16px]">Install agentcairn into your agent in one command:</p>
+      <div class="flex items-center gap-3 mt-2">
+        <pre class="font-mono text-[14px] overflow-x-auto" tabindex="0"><code>{cta}</code></pre>
+        <CopyButton text={cta} />
+      </div>
+      <p class="mt-3 font-serif text-[16px]"><a href="https://github.com/ccf/agentcairn" class="underline">GitHub</a> · <a href="/#quickstart" class="underline">Full quickstart</a></p>
+    </Section>
+  </main>
+  <Footer />
+</Base>

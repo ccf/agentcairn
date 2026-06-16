@@ -5,6 +5,12 @@ import { footer, site } from "../lib/content";
   <p class="font-serif text-[14px] text-[var(--color-ink-muted)] max-w-[var(--container-prose)] mb-6">
     <span class="font-mono text-[var(--color-ink)]">cairn</span>&nbsp;<span class="font-mono text-[12px] text-[var(--color-ink-faint)]">/kɛən/ · noun</span> — {footer.definition}
   </p>
+  <nav aria-label="Guides" class="font-mono text-[12px] text-[var(--color-ink-faint)] flex flex-wrap gap-x-6 gap-y-2 mb-6">
+    <span class="text-[var(--color-ink)]">Guides</span>
+    {footer.guides.map((g) => (
+      <a href={g.href} class="hover:text-[var(--color-ink)]">{g.label}</a>
+    ))}
+  </nav>
   <div class="font-mono text-[12px] text-[var(--color-ink-faint)] flex flex-wrap gap-x-6 gap-y-2">
     <span>{footer.copyright}</span>
     <a href={`${site.repo}/blob/main/LICENSE`} class="hover:text-[var(--color-ink)]">{footer.license}</a>

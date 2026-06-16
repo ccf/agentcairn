@@ -1,7 +1,7 @@
 ---
 import "../styles/global.css";
 import { site } from "../lib/content";
-const { title = site.title, description = site.description } = Astro.props;
+const { title = site.title, description = site.description, faq } = Astro.props;
 const canonical = new URL(Astro.url.pathname, Astro.site).href;
 const ogImage = new URL("/og.png", Astro.site).href;
 
@@ -24,6 +24,11 @@ const appLd = {
   license: "https://www.apache.org/licenses/LICENSE-2.0",
   sameAs: [site.repo, site.pypi],
 };
+const faqLd = (Array.isArray(faq) && faq.length)
+  ? { "@context": "https://schema.org", "@type": "FAQPage",
+      mainEntity: faq.map((f) => ({ "@type": "Question", name: f.q,
+        acceptedAnswer: { "@type": "Answer", text: f.a } })) }
+  : null;
 ---
 <!doctype html>
 <html lang="en">
@@ -56,6 +61,7 @@ const appLd = {
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <script type="application/ld+json" set:html={JSON.stringify(websiteLd)} />
     <script type="application/ld+json" set:html={JSON.stringify(appLd)} />
+    {faqLd && <script type="application/ld+json" set:html={JSON.stringify(faqLd)} />}
   </head>
   <body>
     <a href="#main" class="sr-only focus:not-sr-only">Skip to content</a>
