@@ -88,31 +88,29 @@ const cols = ["Dimension", "agentcairn", "basic-memory", "Mem0", "Letta", "Zep"]
   </Section>
 
   <Section id="comparison" eyebrow="At a glance">
-    <Prose>
-      <div class="overflow-x-auto" tabindex="0">
-        <table class="w-full border-collapse text-[15px]">
-          <thead>
-            <tr>
-              {cols.map((c) => (
-                <th class="border border-[var(--color-rule)] px-3 py-2 text-left align-top font-serif font-semibold whitespace-nowrap">{c}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr>
-                <th scope="row" class="border border-[var(--color-rule)] px-3 py-2 text-left align-top font-serif font-semibold">{r.dim}</th>
-                <td class="border border-[var(--color-rule)] px-3 py-2 align-top">{r.cairn}</td>
-                <td class="border border-[var(--color-rule)] px-3 py-2 align-top">{r.basic}</td>
-                <td class="border border-[var(--color-rule)] px-3 py-2 align-top">{r.mem0}</td>
-                <td class="border border-[var(--color-rule)] px-3 py-2 align-top">{r.letta}</td>
-                <td class="border border-[var(--color-rule)] px-3 py-2 align-top">{r.zep}</td>
-              </tr>
+    <div class="overflow-x-auto" tabindex="0">
+      <table class="w-full min-w-[760px] table-fixed border-collapse text-[14px] leading-snug">
+        <thead>
+          <tr>
+            {cols.map((c, i) => (
+              <th class={"border border-[var(--color-rule)] px-3 py-2 text-left align-top font-sans font-semibold " + (i === 0 ? "w-[15%]" : "w-[17%]")}>{c}</th>
             ))}
-          </tbody>
-        </table>
-      </div>
-    </Prose>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr class="text-[var(--color-ink-muted)]">
+              <th scope="row" class="border border-[var(--color-rule)] px-3 py-2 text-left align-top font-sans font-semibold text-[var(--color-ink)]">{r.dim}</th>
+              <td class="border border-[var(--color-rule)] px-3 py-2 align-top text-[var(--color-ink)]">{r.cairn}</td>
+              <td class="border border-[var(--color-rule)] px-3 py-2 align-top">{r.basic}</td>
+              <td class="border border-[var(--color-rule)] px-3 py-2 align-top">{r.mem0}</td>
+              <td class="border border-[var(--color-rule)] px-3 py-2 align-top">{r.letta}</td>
+              <td class="border border-[var(--color-rule)] px-3 py-2 align-top">{r.zep}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   </Section>
 
   <Section id="tools" eyebrow="The tools, fairly">
@@ -182,10 +180,6 @@ const cols = ["Dimension", "agentcairn", "basic-memory", "Mem0", "Letta", "Zep"]
     <Prose>
       <p>
         <a href="/agent-memory" class="underline">What agent memory is</a>
-        &middot;
-        <a href="/claude-code-memory" class="underline">Memory for Claude Code</a>
-        &middot;
-        <a href="/cursor-memory" class="underline">Memory for Cursor</a>
         &middot;
         <a href="/obsidian-ai-memory" class="underline">AI memory in Obsidian</a>
       </p>

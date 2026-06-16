@@ -2,8 +2,6 @@ import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
 const PAGES = [
-  { path: "/claude-code-memory", h1: /Persistent memory for Claude Code/i },
-  { path: "/cursor-memory", h1: /memory for Cursor/i },
   { path: "/obsidian-ai-memory", h1: /Obsidian vault/i },
   { path: "/agent-memory", h1: /memory for AI coding agents/i },
   { path: "/alternatives", h1: /agentcairn vs/i },
