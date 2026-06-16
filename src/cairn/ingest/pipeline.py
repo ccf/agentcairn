@@ -13,7 +13,13 @@ from pathlib import Path
 
 from cairn.ingest.consolidate import ConsolidationVerdict, Consolidator, NeighborIndex
 from cairn.ingest.dedup import DedupLedger, content_hash
-from cairn.ingest.distill import Distiller, ExtractiveDistiller, mark_superseded, write_derived_note
+from cairn.ingest.distill import (
+    Distiller,
+    ExtractiveDistiller,
+    mark_superseded,
+    supersede_prior_session_summaries,
+    write_derived_note,
+)
 from cairn.ingest.events import EventKind, NormalizedEvent
 from cairn.ingest.importance import KEEP_THRESHOLD, score
 from cairn.ingest.judge import Judge, JudgedCache, Judgment, tier_at_least
@@ -266,7 +272,11 @@ def ingest_transcripts(
         note = distiller.distill(cand)
         if dry_run:
             continue
-        if consolidating:
+        # Force-kept summaries must NEVER touch cosine consolidation: a large
+        # model summary could wrongly supersede a user memory, be dropped as a
+        # DUPLICATE (defeating always-keep), or poison the distilled-calibrated
+        # neighbor index. Both consolidation blocks are gated on kind != "summary".
+        if consolidating and cand.kind != "summary":
             verdict, neighbor = _consolidate(cand, consolidator, neighbor_index)
             if verdict is ConsolidationVerdict.DUPLICATE:
                 report.semantic_deduped += 1
@@ -288,9 +298,15 @@ def ingest_transcripts(
                         # skip the supersede mark and keep both notes (safe).
                         pass
         path = write_derived_note(note, vault_root, subdir=subdir)
+        if cand.kind == "summary":
+            # One current summary per session: demote (not delete) any prior
+            # session-summary note for the SAME session. Session-keyed, non-lossy.
+            report.superseded += supersede_prior_session_summaries(
+                vault_root, subdir, cand.session_id, note.permalink
+            )
         ledger.add(h)
         report.written.append(path)
-        if consolidating:
+        if consolidating and cand.kind != "summary":
             neighbor_index.add(note.permalink, _memory_text(cand), cand.timestamp, str(path))
     return report
 
