@@ -27,6 +27,45 @@ def _ev(kind, text, ts="t0"):
     )
 
 
+def test_select_candidates_promotes_latest_compaction_summary():
+    from pathlib import Path
+
+    def ev(kind, text, ts):
+        return NormalizedEvent(
+            kind=kind,
+            role="user",
+            text=text,
+            timestamp=ts,
+            session_id="s1",
+            project="agentcairn",
+            git_branch=None,
+            source_path=Path("/x/t.jsonl"),
+            harness="claude-code",
+        )
+
+    t = Transcript(
+        session_id="s1",
+        cwd="/x",
+        git_branch=None,
+        path=Path("/x/t.jsonl"),
+        events=[
+            ev(EventKind.AUTHORED_USER, "do the thing", "2026-06-16T00:00:00Z"),
+            ev(EventKind.COMPACT_SUMMARY, "summary v1", "2026-06-16T01:00:00Z"),
+            ev(EventKind.AUTHORED_USER, "another ask", "2026-06-16T02:00:00Z"),
+            ev(EventKind.COMPACT_SUMMARY, "summary v2 LATEST", "2026-06-16T03:00:00Z"),
+        ],
+    )
+    cands = select_candidates(t)
+    users = [c for c in cands if c.kind == "user"]
+    summaries = [c for c in cands if c.kind == "summary"]
+    assert len(users) == 2
+    assert len(summaries) == 1
+    assert summaries[0].text == "summary v2 LATEST"
+    assert summaries[0].session_id == "s1"
+    assert summaries[0].project == "agentcairn"
+    assert summaries[0].harness == "claude-code"
+
+
 def test_select_candidates_threads_harness_from_event():
     from pathlib import Path
 
@@ -111,7 +150,10 @@ def test_pipeline_ingests_only_authored_user_events(tmp_path):
         ],
     )
     report = ingest_transcript(tr, vault_root=vault, ledger=ledger)
-    assert report.authored == 1
+    # The latest compaction summary is now ALSO selected (as a kind="summary"
+    # candidate), so authored counts 2; but this generic summary scores below the
+    # importance gate, so only the substantive user turn is written.
+    assert report.authored == 2
     assert report.candidates == 1
     assert report.event_kinds == {
         "tool_result": 1,
@@ -122,6 +164,7 @@ def test_pipeline_ingests_only_authored_user_events(tmp_path):
     blob = "\n".join(p.read_text() for p in vault.rglob("*.md"))
     assert "rebase-merge" in blob
     assert "task-notification" not in blob and "Context Usage" not in blob
+    assert "being continued from a previous conversation" not in blob  # summary gated out
 
 
 def test_pipeline_dedup_skips_on_second_run(tmp_path):

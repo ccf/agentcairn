@@ -40,6 +40,7 @@ class Candidate:
     importance: float | None = None  # combined score (heuristic x judge); distiller uses it
     antecedent: str | None = None  # nearest preceding assistant turn (resolution
     # context for the LLM judge ONLY; redacted; never stored in the note)
+    kind: str = "user"  # "user" (authored prompt) | "summary" (compaction session summary)
 
 
 @dataclass

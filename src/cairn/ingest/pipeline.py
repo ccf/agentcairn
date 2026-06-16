@@ -14,7 +14,7 @@ from pathlib import Path
 from cairn.ingest.consolidate import ConsolidationVerdict, Consolidator, NeighborIndex
 from cairn.ingest.dedup import DedupLedger, content_hash
 from cairn.ingest.distill import Distiller, ExtractiveDistiller, mark_superseded, write_derived_note
-from cairn.ingest.events import EventKind
+from cairn.ingest.events import EventKind, NormalizedEvent
 from cairn.ingest.importance import KEEP_THRESHOLD, score
 from cairn.ingest.judge import Judge, JudgedCache, Judgment, tier_at_least
 from cairn.ingest.models import Candidate, IngestReport, Transcript
@@ -33,10 +33,14 @@ def select_candidates(transcript: Transcript) -> list[Candidate]:
     as resolution context for the LLM judge — never stored in the note."""
     out: list[Candidate] = []
     last_assistant: dict[str, str] = {}  # session_id -> nearest preceding assistant text
+    latest_summary: dict[str, NormalizedEvent] = {}  # session_id -> latest compaction summary
     for e in transcript.events:
         sid = e.session_id or transcript.session_id
         if e.kind == EventKind.AUTHORED_ASSISTANT:
             last_assistant[sid] = e.text
+            continue
+        if e.kind == EventKind.COMPACT_SUMMARY:
+            latest_summary[sid] = e  # keep the LAST summary per session (promoted below)
             continue
         if e.kind != EventKind.AUTHORED_USER:
             continue  # tool results / meta / etc. do not clear the antecedent
@@ -52,6 +56,21 @@ def select_candidates(transcript: Transcript) -> list[Candidate]:
                 project=e.project,
                 harness=e.harness,
                 antecedent=antecedent,
+            )
+        )
+    for sid, e in latest_summary.items():
+        out.append(
+            Candidate(
+                text=e.text,
+                session_id=sid,
+                cwd=transcript.cwd,
+                git_branch=e.git_branch,
+                timestamp=e.timestamp,
+                source_path=e.source_path,
+                project=e.project,
+                harness=e.harness,
+                antecedent=None,
+                kind="summary",
             )
         )
     return out
