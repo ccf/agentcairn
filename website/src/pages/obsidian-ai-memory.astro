@@ -6,7 +6,9 @@ import Prose from "../components/Prose.astro";
 const title = "AI Agent Memory in Your Obsidian Vault — agentcairn";
 const description =
   "Your coding agent's memory as plain Markdown in an Obsidian vault you own — readable, editable, and the source of truth (not a one-way export).";
-const cta = "cairn install claude-code";
+// Host-neutral: this page's readers may use any agent; `cairn install` (no host)
+// detects the installed agents and wires whichever you have.
+const cta = "cairn install";
 ---
 <ContentPage title={title} description={description} cta={cta}>
   <Section id="intro">
