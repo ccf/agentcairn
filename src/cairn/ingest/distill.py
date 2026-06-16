@@ -51,6 +51,32 @@ class ExtractiveDistiller:
 
     def distill(self, candidate: Candidate) -> Note:
         h = content_hash(candidate.text)
+        if candidate.kind == "summary":
+            proj = candidate.project or "session"
+            day = (candidate.timestamp or "")[:10]
+            title = f"Session summary · {proj}" + (f" · {day}" if day else "")
+            slug = f"session-summary-{_slugify(proj)}-{h[:8]}"
+            frontmatter = {
+                "title": title,
+                "type": "memory",
+                "kind": "session-summary",
+                "permalink": slug,
+                "tags": ["session-summary", "ingested"],
+                "created": candidate.timestamp,
+                "source": f"memory://session/{candidate.session_id}",
+                "importance": round(candidate.importance, 3)
+                if candidate.importance is not None
+                else 0.9,
+            }
+            if candidate.project:
+                frontmatter["project"] = candidate.project
+            if candidate.harness:
+                frontmatter["harness"] = candidate.harness
+            body = (
+                "- [context] Session summary (model-generated) #session-summary\n"
+                f"- [verbatim] {candidate.text.strip()}\n"
+            )
+            return Note(permalink=slug, frontmatter=frontmatter, body=body)
         slug = f"{_slugify(candidate.text)}-{h[:8]}"
         j = candidate.judgment
         title = (j.title if j and j.title else None) or _truncate_title(candidate.text)

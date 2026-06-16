@@ -90,6 +90,34 @@ def test_write_derived_note_rejects_path_traversal(tmp_path):
         write_derived_note(note, vault, subdir="memories")
 
 
+def test_distiller_session_summary_note_shape():
+    from pathlib import Path
+
+    from cairn.ingest.distill import ExtractiveDistiller
+    from cairn.ingest.models import Candidate
+
+    cand = Candidate(
+        text="This session is being continued…\nSummary: did X, fixed Y.",
+        session_id="sess-7",
+        cwd="/x",
+        git_branch=None,
+        timestamp="2026-06-16T03:00:00Z",
+        source_path=Path("/x/t.jsonl"),
+        project="agentcairn",
+        harness="claude-code",
+        kind="summary",
+    )
+    note = ExtractiveDistiller().distill(cand)
+    assert note.frontmatter["kind"] == "session-summary"
+    assert "session-summary" in note.frontmatter["tags"]
+    assert note.frontmatter["type"] == "memory"
+    assert note.frontmatter["project"] == "agentcairn"
+    assert note.frontmatter["harness"] == "claude-code"
+    assert note.frontmatter["source"] == "memory://session/sess-7"
+    assert "did X, fixed Y." in note.body  # verbatim summary retained
+    assert note.permalink.startswith("session-summary-")
+
+
 def test_mark_superseded_sets_frontmatter(tmp_path):
     from cairn.ingest.distill import mark_superseded
     from cairn.vault import parse_note
