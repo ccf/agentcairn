@@ -1,9 +1,13 @@
 export const site = {
+  name: "agentcairn",
   title: "agentcairn — local-first memory for AI agents",
   description:
     "Your agent's memory as plain Markdown you own. A rebuildable DuckDB index gives fast hybrid retrieval; the vault is the source of truth.",
   url: "https://agentcairn.dev",
   repo: "https://github.com/ccf/agentcairn",
+  pypi: "https://pypi.org/project/agentcairn/",
+  ogImageAlt: "agentcairn — local-first memory for AI agents",
+  themeColor: "#ffffff",
 };
 
 export const nav = [

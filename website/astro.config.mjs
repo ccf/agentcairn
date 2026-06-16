@@ -1,6 +1,7 @@
 // @ts-check
 import { defineConfig } from "astro/config";
 import react from "@astrojs/react";
+import sitemap from "@astrojs/sitemap";
 import tailwindcss from "@tailwindcss/vite";
 
 // Static site → served by Cloudflare Workers Static Assets (see wrangler.jsonc).
@@ -9,6 +10,6 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   output: "static",
   site: "https://agentcairn.dev",
-  integrations: [react()],
+  integrations: [react(), sitemap()],
   vite: { plugins: [tailwindcss()] },
 });
