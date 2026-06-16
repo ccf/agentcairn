@@ -1,0 +1,205 @@
+---
+import ContentPage from "../layouts/ContentPage.astro";
+import Section from "../components/Section.astro";
+import Prose from "../components/Prose.astro";
+
+const title = "agentcairn vs Mem0, Letta, Zep & basic-memory";
+const description =
+  "How agentcairn compares to Mem0, Letta, Zep, and basic-memory: local Markdown vault vs cloud DB, source-of-truth vs export, daemonless.";
+
+const faq = [
+  {
+    q: "Is agentcairn a Mem0 alternative?",
+    a: "Yes — both give AI agents long-term memory, but agentcairn stores it as a local Markdown vault you own rather than in a vector database, and is built specifically for coding agents.",
+  },
+  {
+    q: "Can I move my memory off agentcairn?",
+    a: "Yes — your memory is plain Markdown files in a folder you control. There's nothing to export; the DuckDB index is a rebuildable cache, not the source of truth.",
+  },
+  {
+    q: "How is agentcairn different from basic-memory?",
+    a: "They share a local-first, Markdown-as-source-of-truth design. agentcairn is Apache-2.0 (basic-memory is AGPL-3.0) and is purpose-built for coding-agent memory — multi-harness plugins, out-of-band transcript capture, secret redaction, and provenance-aware recall.",
+  },
+];
+
+const rows = [
+  {
+    dim: "Source of truth",
+    cairn: "Markdown vault",
+    basic: "Markdown files",
+    mem0: "database",
+    letta: "database (Postgres)",
+    zep: "knowledge graph",
+  },
+  {
+    dim: "Plain files you own/edit",
+    cairn: "Yes",
+    basic: "Yes",
+    mem0: "No",
+    letta: "No",
+    zep: "No",
+  },
+  {
+    dim: "Runs as",
+    cairn: "daemonless CLI + on-demand MCP",
+    basic: "local CLI + MCP (optional cloud)",
+    mem0: "library / self-host / cloud",
+    letta: "self-host (de-emphasized) + cloud",
+    zep: "hosted SaaS (self-host CE deprecated)",
+  },
+  {
+    dim: "Retrieval",
+    cairn: "hybrid BM25+vector (RRF) + reranker + wikilink graph",
+    basic: "hybrid full-text+vector + wikilink graph",
+    mem0: "hybrid (semantic+BM25+entity)",
+    letta: "pgvector-based",
+    zep: "temporal knowledge graph",
+  },
+  {
+    dim: "License",
+    cairn: "Apache-2.0",
+    basic: "AGPL-3.0",
+    mem0: "Apache-2.0",
+    letta: "Apache-2.0",
+    zep: "Graphiti Apache-2.0; Zep Cloud proprietary",
+  },
+  {
+    dim: "Focus",
+    cairn: "memory for coding agents",
+    basic: "local-first knowledge/memory",
+    mem0: "memory layer for LLM apps",
+    letta: "stateful-agents framework",
+    zep: "enterprise agent memory",
+  },
+];
+
+const cols = ["Dimension", "agentcairn", "basic-memory", "Mem0", "Letta", "Zep"];
+---
+<ContentPage title={title} description={description} faq={faq}>
+  <Section id="intro">
+    <h1 class="font-serif text-[40px] leading-tight mb-6">agentcairn vs other agent-memory tools</h1>
+    <Prose>
+      <p>
+        Most agent-memory tools keep your memory in a database. agentcairn keeps
+        it as a Markdown vault you own, where the files are the source of truth —
+        not an export.
+      </p>
+    </Prose>
+  </Section>
+
+  <Section id="comparison" eyebrow="At a glance">
+    <Prose>
+      <div class="overflow-x-auto" tabindex="0">
+        <table class="w-full border-collapse text-[15px]">
+          <thead>
+            <tr>
+              {cols.map((c) => (
+                <th class="border border-[var(--color-rule)] px-3 py-2 text-left align-top font-serif font-semibold whitespace-nowrap">{c}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr>
+                <th scope="row" class="border border-[var(--color-rule)] px-3 py-2 text-left align-top font-serif font-semibold">{r.dim}</th>
+                <td class="border border-[var(--color-rule)] px-3 py-2 align-top">{r.cairn}</td>
+                <td class="border border-[var(--color-rule)] px-3 py-2 align-top">{r.basic}</td>
+                <td class="border border-[var(--color-rule)] px-3 py-2 align-top">{r.mem0}</td>
+                <td class="border border-[var(--color-rule)] px-3 py-2 align-top">{r.letta}</td>
+                <td class="border border-[var(--color-rule)] px-3 py-2 align-top">{r.zep}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Prose>
+  </Section>
+
+  <Section id="tools" eyebrow="The tools, fairly">
+    <Prose>
+      <h3 class="font-serif text-[22px] leading-snug mb-2">Mem0</h3>
+      <p class="mb-6">
+        An Apache-2.0 open-source memory layer for LLM apps, available as an
+        embeddable library, a self-hosted server, or a managed cloud platform.
+        Memory lives in a vector database (not human-readable files). Hybrid
+        retrieval (semantic + BM25 + entity). It is not cloud-only.
+        <a href="https://mem0.ai" class="underline">mem0.ai</a>
+        &middot;
+        <a href="https://github.com/mem0ai/mem0" class="underline">GitHub</a>
+      </p>
+
+      <h3 class="font-serif text-[22px] leading-snug mb-2">Letta</h3>
+      <p class="mb-6">
+        Formerly MemGPT. An Apache-2.0 framework for stateful agents — memory is
+        one part of a broader agent platform, not a standalone memory store.
+        State lives in Postgres (pgvector). It ships a hosted cloud plus a
+        self-hostable server that is officially de-emphasized.
+        <a href="https://letta.com" class="underline">letta.com</a>
+        &middot;
+        <a href="https://github.com/letta-ai/letta" class="underline">GitHub</a>
+      </p>
+
+      <h3 class="font-serif text-[22px] leading-snug mb-2">Zep</h3>
+      <p class="mb-6">
+        A context-engineering platform built on a temporal knowledge graph. The
+        shipping product, Zep Cloud, is a proprietary hosted service. Its
+        open-source engine, Graphiti (Apache-2.0), can be used on its own, but
+        the self-hostable Zep Community Edition is deprecated. So &ldquo;open
+        source&rdquo; applies to Graphiti, not the hosted product.
+        <a href="https://getzep.com" class="underline">getzep.com</a>
+      </p>
+
+      <h3 class="font-serif text-[22px] leading-snug mb-2">basic-memory</h3>
+      <p class="mb-6">
+        agentcairn&rsquo;s closest peer — local-first, with Markdown files as the
+        source of truth and a derivative local index, plus a wikilink knowledge
+        graph and hybrid retrieval. The differences are narrow and factual: it is
+        AGPL-3.0 (vs agentcairn&rsquo;s permissive Apache-2.0), and it is a
+        general human+AI knowledge system, whereas agentcairn is purpose-built
+        for coding-agent memory — multi-harness plugins (Claude Code, Codex,
+        Cursor), out-of-band session-transcript capture, secret redaction before
+        write, bi-temporal validity, and provenance-aware recall.
+        <a href="https://github.com/basicmachines-co/basic-memory" class="underline">GitHub</a>
+        &middot;
+        <a href="https://docs.basicmemory.com" class="underline">docs</a>
+      </p>
+    </Prose>
+  </Section>
+
+  <Section id="when-not" eyebrow="When not to choose agentcairn">
+    <Prose>
+      <p>agentcairn is local-first memory for coding agents. It is the wrong tool when:</p>
+      <ul class="list-disc pl-6 space-y-2">
+        <li>You want a hosted, managed multi-tenant SaaS &rarr; Mem0 or Zep.</li>
+        <li>You need a full stateful-agent framework, not just memory &rarr; Letta.</li>
+        <li>You need enterprise graph memory at scale &rarr; Zep.</li>
+        <li>You want a drop-in memory API for a general (non-coding-agent) LLM app &rarr; Mem0.</li>
+      </ul>
+    </Prose>
+  </Section>
+
+  <Section id="learn-more" eyebrow="Learn more">
+    <Prose>
+      <p>
+        <a href="/agent-memory" class="underline">What agent memory is</a>
+        &middot;
+        <a href="/claude-code-memory" class="underline">Memory for Claude Code</a>
+        &middot;
+        <a href="/cursor-memory" class="underline">Memory for Cursor</a>
+        &middot;
+        <a href="/obsidian-ai-memory" class="underline">AI memory in Obsidian</a>
+      </p>
+    </Prose>
+  </Section>
+
+  <Section id="faq" eyebrow="FAQ">
+    <Prose>
+      {faq.map((f) => (
+        <div class="mb-6">
+          <h3 class="font-serif text-[22px] leading-snug mb-2">{f.q}</h3>
+          <p>{f.a}</p>
+        </div>
+      ))}
+    </Prose>
+  </Section>
+</ContentPage>
