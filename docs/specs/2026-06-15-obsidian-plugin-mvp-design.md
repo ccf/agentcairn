@@ -1,6 +1,8 @@
 # agentcairn Obsidian Plugin — MVP (path 1)
 
-**Status:** Approved (2026-06-15)
+> **Amendment (2026-06-15, post-QA):** the **Memory Graph was cut from the MVP** and deferred. On a real vault, agentcairn's ingested notes carry **zero `[[wikilinks]]`** between each other (verified: 0 of 559 notes), so a link-based graph is empty — colored dots, no structure. The graph returns only once it can draw **meaningful edges**: semantic relatedness (embeddings — "path 2") and/or `superseded_by` lineage. Shipped MVP (plugin `0.2.0`) is therefore **Memory list + provenance + currency**. The graph sections below are retained as the original design record; treat them as **deferred**, not shipped.
+
+**Status:** Approved (2026-06-15); graph deferred post-QA (see amendment)
 **Implementation repo:** a **new, separate** repository `ccf/agentcairn-obsidian` (TypeScript). This spec lives in the agentcairn (Python) repo because it depends on that project's **frontmatter contract**; the plugin code, tests, and releases live in the new repo with their own semver and release process.
 **Affects:** nothing in `src/cairn` — the plugin is read-only over the Markdown vault and never touches the Python package or the `.duckdb` index.
 

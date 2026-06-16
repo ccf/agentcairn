@@ -1,5 +1,7 @@
 # agentcairn Obsidian Plugin MVP — Implementation Plan
 
+> **Amendment (2026-06-15):** executed through Task 6 and shipped (plugin `0.2.0`), **except the Memory Graph (Task 5), which was cut post-QA** — agentcairn notes don't `[[wikilink]]` each other, so the graph was edge-empty on real vaults. Deferred to a future semantic-edges version. Tasks 1–4 + 6 shipped (list + provenance + currency + release plumbing).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A vault-native, pure-TypeScript Obsidian plugin that surfaces agentcairn memory — a filterable **Memory list**, an **active-note provenance** panel, **currency** styling, and a custom **Memory Graph** — read entirely from Obsidian's `metadataCache`.
