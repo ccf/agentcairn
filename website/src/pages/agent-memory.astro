@@ -1,0 +1,163 @@
+---
+import ContentPage from "../layouts/ContentPage.astro";
+import Section from "../components/Section.astro";
+import Prose from "../components/Prose.astro";
+
+const title = "Long-Term Memory for AI Coding Agents — agentcairn";
+const description =
+  "What agent memory is, why coding agents forget, and how to add durable recall — local-first, with your data as the source of truth.";
+
+const faq = [
+  {
+    q: "What is agent memory?",
+    a: "Agent memory is durable storage and recall of the facts, decisions, and conventions an AI agent accumulates across sessions — surfaced when relevant, beyond what fits in a single context window.",
+  },
+  {
+    q: "Why do AI coding agents forget between sessions?",
+    a: "A context window is ephemeral: it is discarded when the session ends. Without an external memory layer, each new session starts cold and the agent has no record of earlier work.",
+  },
+  {
+    q: "How is a local-first memory vault different from a cloud memory database?",
+    a: "A local-first vault stores memory as files on your machine that you can read, edit, and move. A cloud memory database keeps that memory in a hosted database accessed over the network. The data model and where it lives are the main differences.",
+  },
+  {
+    q: "Does agentcairn memory survive uninstalling the tool?",
+    a: "Yes. Memory is plain Markdown in your vault, and the DuckDB index is a rebuildable cache. Uninstalling the tool leaves the Markdown intact, so nothing is trapped in a database.",
+  },
+  {
+    q: "Which AI agents work with agentcairn?",
+    a: "Claude Code and Codex install as plugins. Cursor and other MCP hosts connect through the bundled MCP server, sharing one global vault.",
+  },
+];
+---
+<ContentPage title={title} description={description} faq={faq}>
+  <Section id="intro">
+    <h1 class="font-serif text-[40px] leading-tight mb-6">Long-term memory for AI coding agents</h1>
+    <Prose>
+      <p>
+        Coding agents are good at the task in front of them and forgetful about
+        everything else. This page explains what agent memory is, why agents
+        forget by default, and what to look for when you add durable recall.
+      </p>
+    </Prose>
+  </Section>
+
+  <Section id="why-forget" eyebrow="Why coding agents forget">
+    <Prose>
+      <p>
+        A model reasons over a context window — a finite buffer of tokens. When
+        a session ends, that buffer is discarded. Nothing persists by default.
+        The next session starts cold: the decisions you made, the approaches you
+        ruled out, and the conventions you settled on are simply gone. You
+        re-explain them, and the agent repeats mistakes it already learned to
+        avoid.
+      </p>
+    </Prose>
+  </Section>
+
+  <Section id="what-is" eyebrow="What &ldquo;agent memory&rdquo; is">
+    <Prose>
+      <p>
+        Agent memory is an external layer that runs a loop:
+        <strong>capture</strong> &rarr; <strong>recall</strong> &rarr;
+        <strong>consolidation</strong>. Capture reads what happened and writes
+        down what is worth keeping. Recall surfaces the relevant subset at the
+        start of, or during, a later session. Consolidation dedups and reconciles
+        facts so the store stays coherent over time.
+      </p>
+      <p>
+        This is distinct from a bigger context window. A larger window lets the
+        model see more at once; memory lets durable facts outlive the window and
+        return only when they are relevant — without paying to re-load the whole
+        history every time.
+      </p>
+    </Prose>
+  </Section>
+
+  <Section id="architectures" eyebrow="Two architectures">
+    <Prose>
+      <p>
+        Memory systems mostly fall into two camps, and both are reasonable
+        choices depending on what you value.
+      </p>
+      <p>
+        A <strong>cloud memory database</strong> keeps your memories in a hosted
+        store. The service handles persistence, indexing, and retrieval; you read
+        and write through its API. This centralizes operations and can scale
+        across machines and teams without local setup.
+      </p>
+      <p>
+        A <strong>local-first vault</strong> keeps memory as files on your own
+        machine — typically Markdown you can open, edit, and move. Retrieval runs
+        against a local index. This keeps the data under your control and
+        portable, at the cost of running the index locally.
+      </p>
+    </Prose>
+  </Section>
+
+  <Section id="what-to-look-for" eyebrow="What to look for">
+    <Prose>
+      <p>
+        Whichever architecture you pick, a few properties separate a memory layer
+        you can trust from one you cannot:
+      </p>
+      <ul class="list-disc pl-6 space-y-2">
+        <li>
+          <strong>Data ownership and portability.</strong> Can you read, edit, and
+          move your memory, or is it locked inside a proprietary store?
+        </li>
+        <li>
+          <strong>Recall quality.</strong> Hybrid retrieval — keyword (BM25) plus
+          semantic (vector) search — generally beats either alone for surfacing
+          the right fact.
+        </li>
+        <li>
+          <strong>Non-lossiness.</strong> Originals should be retained.
+          Summarization that throws away the source text is hard to audit and
+          impossible to recover.
+        </li>
+        <li>
+          <strong>Secret redaction.</strong> Tokens, keys, and credentials should
+          be scrubbed before anything is written to storage.
+        </li>
+      </ul>
+    </Prose>
+  </Section>
+
+  <Section id="agentcairn" eyebrow="How agentcairn approaches it">
+    <Prose>
+      <p>
+        agentcairn is local-first. Memory is distilled into a local Markdown vault
+        that is the source of truth — not a one-way export from a database. A
+        rebuildable DuckDB index gives fast hybrid retrieval (BM25 + vector, fused
+        with RRF, with an optional reranker). The index is a cache; the Markdown
+        is the truth, so it survives model upgrades, index rebuilds, and
+        uninstalling the tool.
+      </p>
+      <p>
+        It works across coding agents: Claude Code and Codex as plugins, Cursor
+        and other MCP hosts via the bundled server, all sharing one global vault.
+      </p>
+      <p>
+        <a href="/claude-code-memory" class="underline">Memory for Claude Code</a>
+        &middot;
+        <a href="/cursor-memory" class="underline">Memory for Cursor</a>
+        &middot;
+        <a href="/obsidian-ai-memory" class="underline">AI memory in Obsidian</a>
+        &middot;
+        <a href="/alternatives" class="underline">How agentcairn compares</a>
+      </p>
+    </Prose>
+  </Section>
+
+  <Section id="faq" eyebrow="FAQ">
+    <Prose>
+      {faq.map((f) => (
+        <div class="mb-6">
+          <h3 class="font-serif text-[22px] leading-snug mb-2">{f.q}</h3>
+          <p>{f.a}</p>
+        </div>
+      ))}
+    </Prose>
+  </Section>
+</ContentPage>
