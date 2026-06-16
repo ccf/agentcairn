@@ -4,7 +4,9 @@ import Nav from "../components/Nav.astro";
 import Footer from "../components/Footer.astro";
 import Section from "../components/Section.astro";
 import CopyButton from "../components/CopyButton.astro";
-const { title, description, faq, cta = "cairn install claude-code" } = Astro.props;
+// Default is host-neutral (`--all` configures every detected agent). Agent-specific
+// pages (e.g. /claude-code-memory, /cursor-memory) override `cta` with their host.
+const { title, description, faq, cta = "cairn install --all" } = Astro.props;
 ---
 <Base title={title} description={description} faq={faq}>
   <Nav />
