@@ -58,8 +58,17 @@ def test_mcp_config_wires_uvx_agentcairn():
     assert srv["env"]["CAIRN_VAULT"] == "${user_config.vault_path}"
 
 
-def _run_hook(script, stdin_obj, env_extra, cwd=None):
+def _run_hook(script, stdin_obj, env_extra, cwd=None, first_run=False):
     env = {**os.environ, **env_extra}
+    # The index is now vault-derived, so session-start.sh detects a first run via the
+    # cache dir ($HOME/.cache/agentcairn/indexes), NOT the (now-ignored) $2 index arg.
+    # Pin HOME to the test's tmp dir so the probe is deterministic instead of inheriting
+    # the CI runner's real home, and pre-create the cache dir unless we're testing the
+    # genuine first-run branch.
+    home = Path(env["VAULT_ARG"]).parent
+    env["HOME"] = str(home)
+    if not first_run:
+        (home / ".cache" / "agentcairn" / "indexes").mkdir(parents=True, exist_ok=True)
     return subprocess.run(
         ["sh", str(PLUGIN / "scripts" / script), env["VAULT_ARG"], env["INDEX_ARG"]],
         input=json.dumps(stdin_obj),
@@ -147,8 +156,9 @@ def test_session_start_first_run_no_index_exits_quietly(tmp_path):
         {
             "PATH": f"{bindir}:{os.environ['PATH']}",
             "VAULT_ARG": str(vault),
-            "INDEX_ARG": str(tmp_path / "i.duckdb"),  # absent → first-run branch
+            "INDEX_ARG": str(tmp_path / "i.duckdb"),  # ignored; first-run is detected via cache dir
         },
+        first_run=True,  # no cache dir → genuine first-run branch (warm detached, exit quietly)
     )
     assert r.returncode == 0
     assert r.stdout.strip() == ""  # nothing to surface on first run
