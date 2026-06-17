@@ -54,10 +54,6 @@ def default_ledger(vault: Path | str) -> Path:
     return cache_root() / "ledgers" / f"{vault_key(vault)}.sha256"
 
 
-def judged_cache(vault: Path | str) -> Path:
-    return cache_root() / "ledgers" / f"{vault_key(vault)}.judged.jsonl"
-
-
 def migrate_legacy_index(env: Mapping[str, str] | None = None) -> Path | None:
     """One-time best-effort: if the legacy global `<cache>/index.duckdb` exists and
     CAIRN_INDEX is unset, infer its vault root from a stored note path and move it to

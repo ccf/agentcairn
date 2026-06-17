@@ -46,10 +46,6 @@ def test_ledger_helpers_match_existing_scheme(tmp_path):
         paths.default_ledger(vault)
         == paths.cache_root() / "ledgers" / f"{paths.vault_key(vault)}.sha256"
     )
-    assert (
-        paths.judged_cache(vault)
-        == paths.cache_root() / "ledgers" / f"{paths.vault_key(vault)}.judged.jsonl"
-    )
 
 
 def _make_index(path, note_path):

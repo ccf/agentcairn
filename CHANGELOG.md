@@ -5,6 +5,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+### Changed
+- The DuckDB index default is now **vault-scoped**: `~/.cache/agentcairn/indexes/<vault_key>.duckdb`,
+  derived from the vault. A scratch/test vault can no longer write into your production index.
+  `--index` / `CAIRN_INDEX` still override. `cairn install` no longer pins `CAIRN_INDEX`
+  (and strips a stale one); the legacy global `index.duckdb` is auto-rehomed on first run.
+  `cairn install`'s `--index` flag was removed (the index is derived from the vault).
+
+### Added
+- `--vault` on `recall` / `recent` / `index-status` / `doctor` (the index derives from it).
+- `cairn doctor` now reports `DRIFT` (with counts + remedy) when the index and vault disagree.
+
 ## [0.17.0] - 2026-06-16
 
 ### Added

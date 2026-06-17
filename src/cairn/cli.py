@@ -137,7 +137,9 @@ def parse(
 def reindex(
     vault: Path = typer.Argument(..., exists=True, file_okay=False, help="Vault directory."),
     index: Path = typer.Option(
-        None, "--index", help="Index .duckdb path (default ~/.cache/agentcairn/index.duckdb)."
+        None,
+        "--index",
+        help="Index .duckdb path (default: ~/.cache/agentcairn/indexes/<vault_key>.duckdb).",
     ),
     embedder: str = typer.Option(
         None,
@@ -633,7 +635,9 @@ def sweep(
     ),
     threshold: float = typer.Option(0.5, "--threshold", help="Importance keep-threshold."),
     index: Path = typer.Option(
-        None, "--index", help="Index .duckdb path (default ~/.cache/agentcairn/index.duckdb)."
+        None,
+        "--index",
+        help="Index .duckdb path (default: ~/.cache/agentcairn/indexes/<vault_key>.duckdb).",
     ),
     embedder: str = typer.Option(
         None,
@@ -702,7 +706,9 @@ def sweep(
 @app.command()
 def doctor(
     index: Path = typer.Option(
-        None, "--index", help="Index .duckdb path (default ~/.cache/agentcairn/index.duckdb)."
+        None,
+        "--index",
+        help="Index .duckdb path (default: ~/.cache/agentcairn/indexes/<vault_key>.duckdb).",
     ),
     vault: Path = typer.Option(
         None,

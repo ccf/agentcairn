@@ -1642,3 +1642,38 @@ def test_install_cursor_strips_stale_cairn_index(tmp_path, monkeypatch):
     env = _j.loads(cfg.read_text())["mcpServers"]["agentcairn"]["env"]
     assert "CAIRN_INDEX" not in env
     assert env["CAIRN_VAULT"] == str((tmp_path / "v").resolve())
+
+
+def test_ingest_default_ledger_is_vault_scoped(tmp_path, monkeypatch):
+    """ingest with no --ledger writes the dedup ledger to the vault-scoped path."""
+    from cairn import paths
+
+    monkeypatch.setattr(paths, "cache_root", lambda: tmp_path / "cache")
+    monkeypatch.delenv("CAIRN_INDEX", raising=False)
+    projects = tmp_path / "projects"
+    cwd = "/Users/x/proj"
+    _seed_transcript(
+        projects,
+        cwd,
+        "s1",
+        [("user", "We decided to always escape the ATTACH path before interpolating it.")],
+    )
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    r = runner.invoke(
+        app,
+        [
+            "ingest",
+            "--vault",
+            str(vault),
+            "--transcripts-dir",
+            str(projects),
+            "--harness",
+            "claude-code",
+            "--project",
+            cwd,
+        ],
+        env={"CAIRN_JUDGE": "none"},
+    )
+    assert r.exit_code == 0, r.output
+    assert paths.default_ledger(vault).exists()  # vault-scoped ledger, not the global one
