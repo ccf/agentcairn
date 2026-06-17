@@ -1635,3 +1635,131 @@ def test_summary_and_user_coexist_in_consolidating_run(tmp_path):
     # exactly ONE add to the neighbor index: the user note, never the summary.
     assert len(nidx.added) == 1
     assert "rebase-merge" in nidx.added[0][1]
+
+
+# ---------------------------------------------------------------------------
+# Summaries — redaction (Phase A) + isolation from user-prompt capture
+# ---------------------------------------------------------------------------
+
+
+def test_compaction_summary_is_redacted(tmp_path):
+    """A secret embedded in a compaction summary MUST be redacted before the
+    session-summary note is written. Summaries bypass the judge, but they are
+    still redacted in Phase A like every other candidate — a leak here is the
+    system's worst failure mode (spec §11/§14), so it's regression-tested.
+    SECRET is a github_token shape the redactor reliably matches."""
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    SECRET = "ghp_16C7e42F292c6912E7710c838347Ae178B4a"
+    text = (
+        "This session rotated the deploy token; the old credential was "
+        f"{SECRET} and has now been revoked."
+    )
+    vault = tmp_path / "v"
+    vault.mkdir()
+    ledger = DedupLedger(tmp_path / "led.sha256")
+    # judge=None is fine: summaries bypass the judge and are always kept.
+    report = ingest_transcripts(
+        [_summary_transcript(tmp_path, text, sid="s1")],
+        vault_root=vault,
+        ledger=ledger,
+        judge=None,
+    )
+
+    assert report.redactions >= 1  # the secret WAS redacted in Phase A
+    written = "".join(p.read_text(encoding="utf-8") for p in report.written)
+    assert "session-summary" in written  # the summary note WAS written
+    assert SECRET not in written  # ...with the secret redacted out
+    assert "[REDACTED" in written
+    # belt-and-braces: nothing on disk leaks the secret either
+    blob = "\n".join(p.read_text(encoding="utf-8") for p in vault.rglob("*.md"))
+    assert SECRET not in blob
+
+
+def test_summary_does_not_perturb_user_capture(tmp_path):
+    """Isolation regression: adding a compaction summary to a transcript must not
+    change user-prompt capture. N genuine user turns + 1 COMPACT_SUMMARY ->
+    exactly N user notes (no kind: session-summary) PLUS exactly one
+    session-summary note."""
+    from pathlib import Path
+
+    from cairn.ingest.pipeline import ingest_transcripts
+    from cairn.vault import parse_note
+
+    user_turns = [
+        "We decided to always rebase-merge approved PRs and delete the branch.",
+        "We decided design specs live under docs/specs and omit the superpowers segment.",
+    ]
+    user_events = [_ev(EventKind.AUTHORED_USER, t) for t in user_turns]
+    summary_event = NormalizedEvent(
+        kind=EventKind.COMPACT_SUMMARY,
+        role="user",
+        text="Model-generated synthesis of everything the session accomplished.",
+        timestamp="2026-06-16T03:00:00Z",
+        session_id="sess-1",
+        project="proj",
+        git_branch="main",
+        source_path=Path("/tmp/sess-1.jsonl"),
+        harness="claude-code",
+    )
+
+    def _user_notes(vault):
+        return [
+            parse_note(p.read_text(encoding="utf-8"))
+            for p in vault.rglob("*.md")
+            if parse_note(p.read_text(encoding="utf-8")).frontmatter.get("kind")
+            != "session-summary"
+        ]
+
+    # BASELINE: the user turns alone (no summary). judge=None gates on the
+    # heuristic, so the kept-user count is whatever it is — we don't hard-code it.
+    base_vault = tmp_path / "base"
+    base_vault.mkdir()
+    ingest_transcripts(
+        [
+            Transcript(
+                session_id="sess-1",
+                cwd="/Users/x/proj",
+                git_branch="main",
+                path=tmp_path / "base.jsonl",
+                events=user_events,
+            )
+        ],
+        vault_root=base_vault,
+        ledger=DedupLedger(tmp_path / "base.sha256"),
+        judge=None,
+    )
+    baseline_user_count = len(_user_notes(base_vault))
+    assert baseline_user_count >= 1  # at least one user turn is captured
+
+    # WITH SUMMARY: same user turns PLUS a compaction summary. User capture must be
+    # IDENTICAL in count, plus exactly one session-summary note.
+    vault = tmp_path / "v"
+    vault.mkdir()
+    t = Transcript(
+        session_id="sess-1",
+        cwd="/Users/x/proj",
+        git_branch="main",
+        path=tmp_path / "sess-1.jsonl",
+        events=[*user_events, summary_event],
+    )
+    ingest_transcripts(
+        [t], vault_root=vault, ledger=DedupLedger(tmp_path / "led.sha256"), judge=None
+    )
+
+    notes = [parse_note(p.read_text(encoding="utf-8")) for p in vault.rglob("*.md")]
+    summary_notes = [n for n in notes if n.frontmatter.get("kind") == "session-summary"]
+    user_notes = _user_notes(vault)
+
+    assert len(summary_notes) == 1  # exactly one session-summary note
+    assert len(user_notes) == baseline_user_count  # user capture unperturbed
+    # user notes carry the user's words and NOT the session-summary marker
+    user_blob = "\n".join(n.body for n in user_notes)
+    assert "rebase-merge" in user_blob  # the durable user turn was captured
+    assert all("session-summary" not in n.frontmatter.get("tags", []) for n in user_notes)
+    assert all(n.frontmatter.get("kind") != "session-summary" for n in user_notes)
+    # the summary note carries the marker and the verbatim synthesis
+    (summary,) = summary_notes
+    assert summary.frontmatter.get("kind") == "session-summary"
+    assert "session-summary" in summary.frontmatter.get("tags", [])
+    assert "Model-generated synthesis" in summary.body
