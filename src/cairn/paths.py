@@ -11,8 +11,6 @@ from pathlib import Path
 
 from cairn.config import cairn_env
 
-_DEFAULT_VAULT = Path.home() / "agentcairn"
-
 
 def cache_root() -> Path:
     return Path.home() / ".cache" / "agentcairn"
@@ -25,7 +23,7 @@ def resolve_vault(explicit: Path | str | None = None, env: Mapping[str, str] | N
     if env is None:
         env = cairn_env()
     v = env.get("CAIRN_VAULT")
-    return Path(v).expanduser() if v else _DEFAULT_VAULT
+    return Path(v).expanduser() if v else Path.home() / "agentcairn"
 
 
 def vault_key(vault: Path | str) -> str:
