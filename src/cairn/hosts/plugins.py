@@ -72,6 +72,41 @@ def migrate_codex_mcp_block(path: Path, *, dry: bool = False) -> str | None:
     return f"removed stale [mcp_servers.agentcairn] from {path}"
 
 
+def migrate_stale_cairn_index(path, *, fmt: str) -> bool:
+    """Remove a stale CAIRN_INDEX from agentcairn's env block in an existing host
+    config (the index is now vault-derived). Returns True if it changed the file.
+    Best-effort: missing/unparseable file → False, never raises."""
+    from pathlib import Path
+
+    p = Path(path)
+    if not p.exists():
+        return False
+    try:
+        text = p.read_text(encoding="utf-8")
+        if "CAIRN_INDEX" not in text:
+            return False
+        if fmt == "json":
+            import json
+
+            data = json.loads(text)
+            env = data.get("mcpServers", {}).get("agentcairn", {}).get("env", {})
+            if "CAIRN_INDEX" not in env:
+                return False
+            env.pop("CAIRN_INDEX")
+            p.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+            return True
+        else:  # toml — agentcairn writes a flat [mcp_servers.agentcairn.env] table
+            import re
+
+            new = re.sub(r"(?m)^\s*CAIRN_INDEX\s*=.*\n", "", text)
+            if new == text:
+                return False
+            p.write_text(new, encoding="utf-8")
+            return True
+    except Exception:
+        return False
+
+
 def migrate_antigravity_mcp_block(path: Path, *, dry: bool = False) -> str | None:
     """Remove a stale mcpServers.agentcairn entry from a JSON mcp_config.json so the
     bundled plugin MCP isn't double-registered. Backup-first; preserves everything
