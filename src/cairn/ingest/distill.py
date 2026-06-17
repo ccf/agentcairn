@@ -151,13 +151,18 @@ def supersede_prior_session_summaries(
             and not fm.get("superseded_by")
         ):
             continue
+        # Skip only notes STRICTLY newer than the incoming one (write order isn't
+        # timestamp order off the consolidating path, so an older summary written later
+        # must not supersede a newer on-disk note). Equal timestamps DO supersede
+        # (write-order tiebreak), so a same-second re-compaction still leaves exactly one
+        # current summary per session.
         prior_created = fm.get("created")
         if (
             new_created is not None
             and prior_created is not None
-            and str(prior_created) >= str(new_created)
+            and str(prior_created) > str(new_created)
         ):
-            continue  # the on-disk note is newer-or-equal — never supersede it with an older one
+            continue
         try:
             mark_superseded(path, new_permalink)
             n += 1

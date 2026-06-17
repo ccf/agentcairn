@@ -173,3 +173,35 @@ def test_supersession_timestamp_guard(tmp_path):
     )
     assert n2 == 1
     assert "superseded_by: newest-perma" in p_new.read_text(encoding="utf-8")
+
+
+def test_supersession_equal_timestamps_supersede(tmp_path):
+    """Equal `created` timestamps still supersede (write-order tiebreak), so a
+    same-second re-compaction leaves exactly one current summary per session."""
+    from pathlib import Path
+
+    from cairn.ingest.distill import (
+        ExtractiveDistiller,
+        supersede_prior_session_summaries,
+        write_derived_note,
+    )
+    from cairn.ingest.models import Candidate
+
+    (tmp_path / "memories").mkdir()
+    on_disk = Candidate(
+        text="first content",
+        session_id="s1",
+        cwd="/x",
+        git_branch=None,
+        timestamp="2026-06-16T05:00:00Z",
+        source_path=Path("/x/t.jsonl"),
+        project="agentcairn",
+        harness="claude-code",
+        kind="summary",
+    )
+    p = write_derived_note(ExtractiveDistiller().distill(on_disk), tmp_path)
+    n = supersede_prior_session_summaries(
+        tmp_path, "memories", "s1", "equal-perma", "2026-06-16T05:00:00Z"
+    )
+    assert n == 1
+    assert "superseded_by: equal-perma" in p.read_text(encoding="utf-8")
