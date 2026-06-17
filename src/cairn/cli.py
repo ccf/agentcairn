@@ -509,7 +509,7 @@ def install(
 
                     fmt = "toml" if h.format == "toml" else "json"
                     if not print_only:
-                        migrate_stale_cairn_index(h.config_path(), fmt=fmt)
+                        migrate_stale_cairn_index(h.config_path(), fmt=fmt, root_key=h.root_key)
         except Exception as e:  # best-effort per host; continue under --all
             failures += 1
             typer.echo(f"✗ {h.label}: {e}")
@@ -748,17 +748,27 @@ def doctor(
         raise typer.Exit(1)
     # Drift: index vs on-disk vault. Dead paths or unindexed notes mean the index
     # was built against a different/stale vault (the 2026-06-17 footgun).
+    # The dead-path check is index-intrinsic (always valid). The on-disk-unindexed
+    # half assumes the index belongs to `vault_dir` — only true when the index is the
+    # vault-derived default. With an explicit/decoupled --index (or CAIRN_INDEX)
+    # pointing elsewhere, comparing against vault_dir would report misleading DRIFT,
+    # so we skip that half and don't suggest reindexing the wrong vault.
+    coupled = idx == paths.default_index(vault_dir)
     indexed_missing = sum(1 for p in indexed_paths if p and not Path(p).exists())
-    on_disk = {str(p.resolve()) for p in vault_dir.rglob("*.md")} if vault_dir.exists() else set()
-    indexed_set = {str(Path(p).resolve()) for p in indexed_paths if p}
-    disk_unindexed = len(on_disk - indexed_set)
+    disk_unindexed = 0
+    if coupled and vault_dir.exists():
+        on_disk = {str(p.resolve()) for p in vault_dir.rglob("*.md")}
+        indexed_set = {str(Path(p).resolve()) for p in indexed_paths if p}
+        disk_unindexed = len(on_disk - indexed_set)
     if indexed_missing or disk_unindexed:
-        typer.echo(
-            f"status: DRIFT — {indexed_missing} indexed note(s) missing on disk, "
-            f"{disk_unindexed} on-disk note(s) unindexed. Fix: cairn reindex {vault_dir}"
-        )
+        parts = [f"{indexed_missing} indexed note(s) missing on disk"]
+        if coupled:
+            parts.append(f"{disk_unindexed} on-disk note(s) unindexed")
+        remedy = f"cairn reindex {vault_dir}" if coupled else "cairn reindex <the index's vault>"
+        typer.echo(f"status: DRIFT — {', '.join(parts)}. Fix: {remedy}")
         raise typer.Exit(1)
-    typer.echo("status: OK")
+    ok = "status: OK" if coupled else "status: OK (index/vault decoupled — coverage check skipped)"
+    typer.echo(ok)
 
 
 @app.command()

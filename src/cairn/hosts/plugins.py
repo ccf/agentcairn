@@ -72,9 +72,11 @@ def migrate_codex_mcp_block(path: Path, *, dry: bool = False) -> str | None:
     return f"removed stale [mcp_servers.agentcairn] from {path}"
 
 
-def migrate_stale_cairn_index(path, *, fmt: str) -> bool:
+def migrate_stale_cairn_index(path, *, fmt: str, root_key: str = "mcpServers") -> bool:
     """Remove a stale CAIRN_INDEX from agentcairn's env block in an existing host
     config (the index is now vault-derived). Returns True if it changed the file.
+    `root_key` is the JSON servers map key — "mcpServers" for most hosts, "servers"
+    for VS Code (ignored for TOML, which is keyed at [mcp_servers.agentcairn.env]).
     Best-effort: missing/unparseable file → False, never raises."""
     from pathlib import Path
 
@@ -89,7 +91,7 @@ def migrate_stale_cairn_index(path, *, fmt: str) -> bool:
             import json
 
             data = json.loads(text)
-            env = data.get("mcpServers", {}).get("agentcairn", {}).get("env", {})
+            env = data.get(root_key, {}).get("agentcairn", {}).get("env", {})
             if "CAIRN_INDEX" not in env:
                 return False
             env.pop("CAIRN_INDEX")

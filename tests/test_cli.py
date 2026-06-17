@@ -1594,6 +1594,56 @@ def test_migrate_stale_cairn_index_strips_json(tmp_path):
     assert "CAIRN_INDEX" not in env and env["CAIRN_VAULT"] == "/v"
 
 
+def test_migrate_stale_cairn_index_strips_vscode_servers_key(tmp_path):
+    """VS Code's MCP JSON uses the top-level `servers` key, not `mcpServers`."""
+    import json as _j
+
+    from cairn.hosts.plugins import migrate_stale_cairn_index
+
+    cfg = tmp_path / "mcp.json"
+    cfg.write_text(
+        _j.dumps(
+            {
+                "servers": {
+                    "agentcairn": {
+                        "command": "uvx",
+                        "args": ["agentcairn"],
+                        "env": {"CAIRN_VAULT": "/v", "CAIRN_INDEX": "/old/i.duckdb"},
+                    }
+                }
+            }
+        )
+    )
+    assert migrate_stale_cairn_index(cfg, fmt="json", root_key="servers") is True
+    env = _j.loads(cfg.read_text())["servers"]["agentcairn"]["env"]
+    assert "CAIRN_INDEX" not in env and env["CAIRN_VAULT"] == "/v"
+
+
+def test_doctor_no_false_drift_when_index_decoupled_from_vault(tmp_path, monkeypatch):
+    """An explicit --index pointing at another vault's index must NOT report DRIFT
+    against an unrelated --vault."""
+    from cairn import paths
+
+    monkeypatch.setattr(paths, "cache_root", lambda: tmp_path / "cache")
+    vault_a = tmp_path / "vaultA"
+    vault_a.mkdir()
+    (vault_a / "a.md").write_text("---\ntitle: A\npermalink: a\n---\nalpha body\n")
+    idx_a = tmp_path / "a.duckdb"
+    assert (
+        runner.invoke(
+            app, ["reindex", str(vault_a), "--index", str(idx_a), "--embedder", "fake"]
+        ).exit_code
+        == 0
+    )
+    vault_b = tmp_path / "vaultB"
+    vault_b.mkdir()
+    (vault_b / "b.md").write_text("---\ntitle: B\npermalink: b\n---\nbeta body\n")
+    r = runner.invoke(app, ["doctor", "--index", str(idx_a), "--vault", str(vault_b)])
+    assert r.exit_code == 0, r.output
+    assert "DRIFT" not in r.output
+    assert "status: OK" in r.output
+
+
 def test_migrate_stale_cairn_index_strips_toml(tmp_path):
     import tomlkit
 
