@@ -1411,6 +1411,26 @@ def test_sweep_default_index_is_vault_scoped(tmp_path, monkeypatch):
     assert paths.default_index(vault).exists()  # vault-scoped, not the global path
 
 
+def test_recall_derives_index_from_vault(tmp_path, monkeypatch):
+    """recall with --vault (no --index) reads the vault-derived index sweep wrote."""
+    from cairn import paths
+
+    monkeypatch.setattr(paths, "cache_root", lambda: tmp_path / "cache")
+    monkeypatch.delenv("CAIRN_INDEX", raising=False)
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "a.md").write_text("---\ntitle: A\npermalink: a\n---\nalpha apple brewing\n")
+    idx = paths.default_index(vault)
+    r = runner.invoke(app, ["reindex", str(vault), "--embedder", "fake"])  # derives same path
+    assert r.exit_code == 0, r.output
+    assert idx.exists()
+    s = runner.invoke(
+        app, ["recall", "apple brewing", "--vault", str(vault), "--embedder", "fake", "--no-rerank"]
+    )
+    assert s.exit_code == 0, s.output
+    assert "a" in s.output
+
+
 def test_sweep_auto_detects_both_harnesses(tmp_path, monkeypatch):
     """cairn sweep with NO --harness ingests Claude Code AND Codex transcripts in one
     auto-detect run — the headline seam of feature #36.
