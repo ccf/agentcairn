@@ -57,6 +57,8 @@ def test_ingest_command(tmp_path):
             "claude-code",
             "--project",
             cwd,
+            "--ledger",
+            str(tmp_path / "led.sha256"),  # hermetic: don't share the real ~/.cache ledger
         ],
         env={"CAIRN_JUDGE": "none"},  # hermetic: don't load the fastembed judge
     )
@@ -220,6 +222,8 @@ def test_sweep_command(tmp_path):
             str(idx),
             "--embedder",
             "fake",
+            "--ledger",
+            str(tmp_path / "led.sha256"),  # hermetic: don't share the real ~/.cache ledger
         ],
         env={"CAIRN_JUDGE": "none"},  # hermetic: don't load the fastembed judge
     )
