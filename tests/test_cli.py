@@ -1372,6 +1372,45 @@ def test_transcripts_dir_requires_single_harness(tmp_path, monkeypatch):
     assert "exactly one --harness" in clean
 
 
+def test_sweep_default_index_is_vault_scoped(tmp_path, monkeypatch):
+    """With no --index and no CAIRN_INDEX, sweep writes the vault-derived index."""
+    from cairn import paths
+
+    monkeypatch.setattr(paths, "cache_root", lambda: tmp_path / "cache")
+    monkeypatch.delenv("CAIRN_INDEX", raising=False)
+    projects = tmp_path / "projects"
+    cwd = "/Users/x/proj"
+    _seed_transcript(
+        projects,
+        cwd,
+        "s1",
+        [("user", "We decided to always escape the ATTACH path before interpolating it.")],
+    )
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    r = runner.invoke(
+        app,
+        [
+            "sweep",
+            "--vault",
+            str(vault),
+            "--transcripts-dir",
+            str(projects),
+            "--harness",
+            "claude-code",
+            "--project",
+            cwd,
+            "--embedder",
+            "fake",
+            "--ledger",
+            str(tmp_path / "led.sha256"),
+        ],
+        env={"CAIRN_JUDGE": "none"},
+    )
+    assert r.exit_code == 0, r.output
+    assert paths.default_index(vault).exists()  # vault-scoped, not the global path
+
+
 def test_sweep_auto_detects_both_harnesses(tmp_path, monkeypatch):
     """cairn sweep with NO --harness ingests Claude Code AND Codex transcripts in one
     auto-detect run — the headline seam of feature #36.

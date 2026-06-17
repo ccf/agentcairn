@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import dataclasses
-import hashlib
 import json
 import math
 import os
@@ -13,7 +12,7 @@ from pathlib import Path
 
 import typer
 
-from cairn import __version__
+from cairn import __version__, paths
 from cairn.config import cairn_env, resolve_rerank
 from cairn.embed import get_embedder
 from cairn.index import get_meta, open_index, reconcile
@@ -158,7 +157,7 @@ def reindex(
 ) -> None:
     """Reconcile the DuckDB index with the vault (incremental)."""
     embedder = embedder or cairn_env().get("CAIRN_EMBEDDER") or "fastembed"
-    idx = index or _default_index()
+    idx = paths.index_for(index, vault)
     idx.parent.mkdir(parents=True, exist_ok=True)
     emb = get_embedder(embedder)
     con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
@@ -644,11 +643,7 @@ def sweep(
 ) -> None:
     """Batch-ingest transcripts into the vault, then reindex (cron maintenance)."""
     embedder = embedder or cairn_env().get("CAIRN_EMBEDDER") or "fastembed"
-    vault_key = hashlib.sha256(str(vault.resolve()).encode()).hexdigest()[:16]
-    if ledger is not None:
-        led_path = ledger
-    else:
-        led_path = Path.home() / ".cache" / "agentcairn" / "ledgers" / f"{vault_key}.sha256"
+    led_path = ledger if ledger is not None else paths.default_ledger(vault)
     led = DedupLedger(led_path)
     selected = _resolve_harnesses(harness, cairn_env())
     if transcripts_dir is not None and (selected is None or len(selected) != 1):
@@ -661,7 +656,7 @@ def sweep(
     # One embedder serves the judge, consolidation neighbor queries, and reindex
     # (avoid a double model load).
     emb = get_embedder(embedder)
-    idx = index or _default_index()
+    idx = paths.index_for(index, vault)
     idx.parent.mkdir(parents=True, exist_ok=True)
     # Build consolidation deps before ingest. _DistilledNeighborIndex reads the
     # vault directly (no DuckDB read handle needed), so no open/close dance here.
@@ -679,7 +674,7 @@ def sweep(
         ledger=led,
         threshold=threshold,
         judge=resolve_judge(embedder=emb),
-        judged_cache=JudgedCache(led_path.parent / f"{vault_key}.judged.jsonl"),
+        judged_cache=JudgedCache(led_path.parent / f"{paths.vault_key(vault)}.judged.jsonl"),
         consolidator=consolidator,
         neighbor_index=neighbor_index,
     )
@@ -768,11 +763,7 @@ def ingest(
     embedder = embedder or cairn_env().get("CAIRN_EMBEDDER") or "fastembed"
     # Keep ledger OUTSIDE the vault (dedup.py docstring + spec). Namespace
     # by vault path so different vaults use separate ledgers.
-    vault_key = hashlib.sha256(str(vault.resolve()).encode()).hexdigest()[:16]
-    if ledger is not None:
-        led_path = ledger
-    else:
-        led_path = Path.home() / ".cache" / "agentcairn" / "ledgers" / f"{vault_key}.sha256"
+    led_path = ledger if ledger is not None else paths.default_ledger(vault)
     led = DedupLedger(led_path)
     selected = _resolve_harnesses(harness, cairn_env())
     if transcripts_dir is not None and (selected is None or len(selected) != 1):
@@ -803,7 +794,7 @@ def ingest(
         ledger=led,
         threshold=threshold,
         judge=judge,
-        judged_cache=JudgedCache(led_path.parent / f"{vault_key}.judged.jsonl"),
+        judged_cache=JudgedCache(led_path.parent / f"{paths.vault_key(vault)}.judged.jsonl"),
         dry_run=dry_run,
     )
     prefix = "[dry-run] " if dry_run else ""
