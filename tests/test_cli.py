@@ -715,8 +715,8 @@ def test_install_unknown_host_errors(tmp_path, monkeypatch):
 
 
 def test_install_defaults_honor_config_file(tmp_path, monkeypatch):
-    """Without --vault/--index, install resolves CAIRN_VAULT/CAIRN_INDEX from
-    the env/file layer instead of hardcoding ~/agentcairn."""
+    """Without --vault, install resolves CAIRN_VAULT from the env/file layer instead
+    of hardcoding ~/agentcairn. CAIRN_INDEX is no longer pinned in the MCP entry."""
     import json as _j
 
     import cairn.config as cfg
@@ -737,7 +737,7 @@ def test_install_defaults_honor_config_file(tmp_path, monkeypatch):
     data = _j.loads((tmp_path / ".cursor" / "mcp.json").read_text())
     env = data["mcpServers"]["agentcairn"]["env"]
     assert env["CAIRN_VAULT"] == str(vault_dir.resolve())
-    assert env["CAIRN_INDEX"] == str(idx.resolve())
+    assert "CAIRN_INDEX" not in env  # index is now derived from the vault
 
 
 def test_install_all_with_none_detected_reports_and_exits_0(tmp_path, monkeypatch):
@@ -1530,3 +1530,42 @@ def test_sweep_auto_detects_both_harnesses(tmp_path, monkeypatch):
     assert "rebase-merge the codex branch" in all_content, (
         "no Codex note found (expected 'rebase-merge the codex branch' phrase)"
     )
+
+
+def test_install_cursor_omits_cairn_index(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / ".cursor").mkdir()
+    r = runner.invoke(app, ["install", "cursor", "--vault", str(tmp_path / "v")])
+    assert r.exit_code == 0, r.output
+    import json as _j
+
+    env = _j.loads((tmp_path / ".cursor" / "mcp.json").read_text())["mcpServers"]["agentcairn"][
+        "env"
+    ]
+    assert env["CAIRN_VAULT"] == str((tmp_path / "v").resolve())
+    assert "CAIRN_INDEX" not in env  # derived from the vault now
+
+
+def test_migrate_stale_cairn_index_strips_json(tmp_path):
+    import json as _j
+
+    from cairn.hosts.plugins import migrate_stale_cairn_index
+
+    cfg = tmp_path / "mcp.json"
+    cfg.write_text(
+        _j.dumps(
+            {
+                "mcpServers": {
+                    "agentcairn": {
+                        "command": "uvx",
+                        "args": ["agentcairn"],
+                        "env": {"CAIRN_VAULT": "/v", "CAIRN_INDEX": "/old/i.duckdb"},
+                    }
+                }
+            }
+        )
+    )
+    changed = migrate_stale_cairn_index(cfg, fmt="json")
+    assert changed is True
+    env = _j.loads(cfg.read_text())["mcpServers"]["agentcairn"]["env"]
+    assert "CAIRN_INDEX" not in env and env["CAIRN_VAULT"] == "/v"

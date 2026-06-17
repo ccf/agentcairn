@@ -442,11 +442,7 @@ def install(
 
     settings = cairn_env()
     default_vault = Path(settings.get("CAIRN_VAULT") or (Path.home() / "agentcairn"))
-    default_index = Path(
-        settings.get("CAIRN_INDEX") or (Path.home() / ".cache" / "agentcairn" / "index.duckdb")
-    )
     v = str((vault or default_vault).expanduser().resolve())
-    idx = str((index or default_index).expanduser().resolve())
     ids = ", ".join(h.id for h in HOSTS)
 
     if host is None and not all_hosts:  # detect + preview, write nothing
@@ -507,7 +503,7 @@ def install(
                     if note:
                         typer.echo(f"  {note}")
             else:
-                entry = mcp_entry(v, idx)
+                entry = mcp_entry(v)
                 out = write_host(h, entry, dry=print_only)
                 if print_only:
                     typer.echo(f"# {h.label} ({h.config_path()})")
@@ -517,6 +513,12 @@ def install(
                 if h.skill_dir is not None:
                     note = install_skill(Path(h.skill_dir).expanduser(), dry=print_only)
                     typer.echo(f"  {note}")
+                if h.kind != "plugin":
+                    from cairn.hosts.plugins import migrate_stale_cairn_index
+
+                    fmt = "toml" if h.format == "toml" else "json"
+                    if not print_only:
+                        migrate_stale_cairn_index(h.config_path(), fmt=fmt)
         except Exception as e:  # best-effort per host; continue under --all
             failures += 1
             typer.echo(f"✗ {h.label}: {e}")

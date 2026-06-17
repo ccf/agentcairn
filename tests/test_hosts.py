@@ -7,15 +7,13 @@ from cairn.hosts.writers import write_json_mcp
 
 
 def test_mcp_entry_shape():
-    e = mcp_entry("/home/u/agentcairn", "/home/u/.cache/agentcairn/index.duckdb")
+    e = mcp_entry("/home/u/agentcairn")
     assert e == {
         "command": "uvx",
         "args": ["agentcairn"],
-        "env": {
-            "CAIRN_VAULT": "/home/u/agentcairn",
-            "CAIRN_INDEX": "/home/u/.cache/agentcairn/index.duckdb",
-        },
+        "env": {"CAIRN_VAULT": "/home/u/agentcairn"},
     }
+    assert "CAIRN_INDEX" not in e["env"]  # index is vault-derived, not pinned
 
 
 def test_get_host_known_and_unknown():
@@ -67,7 +65,7 @@ def test_detected_hosts_uses_home(tmp_path, monkeypatch):
     assert "cursor" in ids
 
 
-_ENTRY = mcp_entry("/v", "/i")
+_ENTRY = mcp_entry("/v")
 
 
 def test_json_writer_creates_and_writes(tmp_path):
