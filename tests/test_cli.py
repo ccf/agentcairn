@@ -801,7 +801,7 @@ def test_install_plugin_vault_notice_shows_under_print(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
     r = runner.invoke(app, ["install", "codex", "--print", "--vault", str(tmp_path / "v")])
     assert r.exit_code == 0, r.output
-    assert "don't apply" in r.output  # notice shown even under --print
+    assert "doesn't apply" in r.output  # notice shown even under --print
 
 
 def test_install_codex_print_reports_stale_mcp_migration(tmp_path, monkeypatch):
@@ -1569,3 +1569,53 @@ def test_migrate_stale_cairn_index_strips_json(tmp_path):
     assert changed is True
     env = _j.loads(cfg.read_text())["mcpServers"]["agentcairn"]["env"]
     assert "CAIRN_INDEX" not in env and env["CAIRN_VAULT"] == "/v"
+
+
+def test_migrate_stale_cairn_index_strips_toml(tmp_path):
+    import tomlkit
+
+    from cairn.hosts.plugins import migrate_stale_cairn_index
+
+    cfg = tmp_path / "config.toml"
+    # A foreign tool also has a CAIRN_INDEX in a different section; only agentcairn's
+    # must be removed (section-scoped, not a blind line strip).
+    cfg.write_text(
+        "[other_tool.env]\n"
+        'CAIRN_INDEX = "/keep/me.duckdb"\n\n'
+        "[mcp_servers.agentcairn.env]\n"
+        'CAIRN_VAULT = "/v"\n'
+        'CAIRN_INDEX = "/old/i.duckdb"\n'
+    )
+    changed = migrate_stale_cairn_index(cfg, fmt="toml")
+    assert changed is True
+    doc = tomlkit.parse(cfg.read_text())
+    env = doc["mcp_servers"]["agentcairn"]["env"]
+    assert "CAIRN_INDEX" not in env and env["CAIRN_VAULT"] == "/v"
+    assert doc["other_tool"]["env"]["CAIRN_INDEX"] == "/keep/me.duckdb"  # foreign key untouched
+
+
+def test_install_cursor_strips_stale_cairn_index(tmp_path, monkeypatch):
+    """E2E: a host config that already pins CAIRN_INDEX gets it stripped on re-install."""
+    import json as _j
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cfg = tmp_path / ".cursor" / "mcp.json"
+    cfg.parent.mkdir()
+    cfg.write_text(
+        _j.dumps(
+            {
+                "mcpServers": {
+                    "agentcairn": {
+                        "command": "uvx",
+                        "args": ["agentcairn"],
+                        "env": {"CAIRN_VAULT": "/old/v", "CAIRN_INDEX": "/old/i.duckdb"},
+                    }
+                }
+            }
+        )
+    )
+    r = runner.invoke(app, ["install", "cursor", "--vault", str(tmp_path / "v")])
+    assert r.exit_code == 0, r.output
+    env = _j.loads(cfg.read_text())["mcpServers"]["agentcairn"]["env"]
+    assert "CAIRN_INDEX" not in env
+    assert env["CAIRN_VAULT"] == str((tmp_path / "v").resolve())

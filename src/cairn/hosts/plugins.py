@@ -95,13 +95,13 @@ def migrate_stale_cairn_index(path, *, fmt: str) -> bool:
             env.pop("CAIRN_INDEX")
             p.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
             return True
-        else:  # toml — agentcairn writes a flat [mcp_servers.agentcairn.env] table
-            import re
-
-            new = re.sub(r"(?m)^\s*CAIRN_INDEX\s*=.*\n", "", text)
-            if new == text:
+        else:  # toml — scope to [mcp_servers.agentcairn.env], like migrate_codex_mcp_block
+            doc = tomlkit.parse(text)
+            env = doc.get("mcp_servers", {}).get("agentcairn", {}).get("env", {})
+            if "CAIRN_INDEX" not in env:
                 return False
-            p.write_text(new, encoding="utf-8")
+            del env["CAIRN_INDEX"]
+            p.write_text(tomlkit.dumps(doc), encoding="utf-8")
             return True
     except Exception:
         return False

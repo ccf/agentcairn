@@ -416,10 +416,9 @@ def install(
         False, "--print", help="Print the config/commands; write nothing."
     ),
     vault: Path = typer.Option(
-        None, "--vault", help="Vault path (mcp hosts; default ~/agentcairn)."
-    ),
-    index: Path = typer.Option(
-        None, "--index", help="Index path (mcp hosts; default ~/.cache/agentcairn/index.duckdb)."
+        None,
+        "--vault",
+        help="Vault path (mcp hosts; default ~/agentcairn). The index is derived from the vault.",
     ),
     source: str = typer.Option(
         None,
@@ -472,10 +471,9 @@ def install(
     for h in targets:
         try:
             if h.kind == "plugin":
-                if vault or index:
+                if vault:
                     typer.echo(
-                        f"  note: --vault/--index don't apply to {h.label} "
-                        "(set in the plugin's config)"
+                        f"  note: --vault doesn't apply to {h.label} (set in the plugin's config)"
                     )
                 # Codex/Claude accept the git marketplace ref as a default; Antigravity's
                 # `agy plugin install` cannot fetch a git repo, so it requires --source.
