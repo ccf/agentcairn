@@ -49,15 +49,18 @@ def test_resolve_config_explicit_index_wins(monkeypatch):
 
 
 def test_resolve_config_index_default(monkeypatch):
-    """Falls back to ~/.cache/agentcairn/index.duckdb when nothing is set."""
-    from pathlib import Path
-
+    """Falls back to vault-derived index (default_index(~/agentcairn)) when nothing is set."""
+    from cairn import paths
     from cairn.mcp.server import resolve_config
 
     monkeypatch.delenv("CAIRN_INDEX", raising=False)
+    monkeypatch.delenv("CAIRN_VAULT", raising=False)
     monkeypatch.delenv("CAIRN_EMBEDDER", raising=False)
     _, index, _ = resolve_config(index=None)
-    expected = str(Path.home() / ".cache" / "agentcairn" / "index.duckdb")
+    # No CAIRN_VAULT → vault defaults to ~/agentcairn; index derives from that vault.
+    from pathlib import Path
+
+    expected = str(paths.default_index(Path.home() / "agentcairn"))
     assert index == expected
 
 
@@ -102,6 +105,31 @@ def test_resolve_config_embedder_explicit_wins(monkeypatch):
     monkeypatch.setenv("CAIRN_EMBEDDER", "fake")
     _, _, embedder = resolve_config(embedder="none")
     assert embedder == "none"
+
+
+# ---------------------------------------------------------------------------
+# Task 5: resolve_config derives index from the resolved vault
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_config_derives_index_from_vault(monkeypatch, tmp_path):
+    from cairn import paths
+    from cairn.mcp.server import resolve_config
+
+    monkeypatch.setattr(paths, "cache_root", lambda: tmp_path / "cache")
+    monkeypatch.delenv("CAIRN_INDEX", raising=False)
+    monkeypatch.setenv("CAIRN_VAULT", str(tmp_path / "v"))
+    vault, index, _ = resolve_config()
+    assert index == str(paths.default_index(tmp_path / "v"))
+
+
+def test_resolve_config_index_env_still_wins(monkeypatch, tmp_path):
+    from cairn.mcp.server import resolve_config
+
+    monkeypatch.setenv("CAIRN_VAULT", str(tmp_path / "v"))
+    monkeypatch.setenv("CAIRN_INDEX", str(tmp_path / "explicit.duckdb"))
+    _, index, _ = resolve_config()
+    assert index == str(tmp_path / "explicit.duckdb")
 
 
 def _tool_rerank_default(mcp, name):

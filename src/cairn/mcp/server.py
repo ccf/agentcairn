@@ -6,14 +6,13 @@ real logic lives in cairn.mcp.tools."""
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
+from cairn import paths
 from cairn.config import cairn_env, resolve_rerank
 from cairn.mcp import tools
 
-_DEFAULT_INDEX = str(Path.home() / ".cache" / "agentcairn" / "index.duckdb")
 _DEFAULT_EMBEDDER = "fastembed"
 
 
@@ -27,21 +26,21 @@ def resolve_config(
 
     Returns a 3-tuple:
       vault    — explicit arg → CAIRN_VAULT env → None
-      index    — explicit arg → CAIRN_INDEX env → ~/.cache/agentcairn/index.duckdb
+      index    — explicit arg → CAIRN_INDEX env → derived from vault (paths.index_for)
       embedder — explicit arg → CAIRN_EMBEDDER env → "fastembed"
                  valid values: "fastembed", "fake", "ollama"
                  (ollama: model via CAIRN_EMBED_MODEL, host via OLLAMA_HOST)
     """
     settings = cairn_env()
     resolved_vault = vault or settings.get("CAIRN_VAULT")
-    resolved_index = index or settings.get("CAIRN_INDEX") or _DEFAULT_INDEX
-    resolved_embedder = embedder or settings.get("CAIRN_EMBEDDER") or _DEFAULT_EMBEDDER
     # Expand a leading "~": plugin user_config defaults like "~/agentcairn" may
     # reach us unnormalized, and DuckDB/open() treat a literal "~" as a relative
     # dir — so recall would miss the index and remember would write outside the vault.
     if resolved_vault:
         resolved_vault = os.path.expanduser(resolved_vault)
-    resolved_index = os.path.expanduser(resolved_index)
+    vault_path = paths.resolve_vault(resolved_vault, env=settings)
+    resolved_index = str(paths.index_for(index, vault_path, env=settings))
+    resolved_embedder = embedder or settings.get("CAIRN_EMBEDDER") or _DEFAULT_EMBEDDER
     return resolved_vault, resolved_index, resolved_embedder
 
 
