@@ -150,11 +150,12 @@ def test_pipeline_ingests_only_authored_user_events(tmp_path):
         ],
     )
     report = ingest_transcript(tr, vault_root=vault, ledger=ledger)
-    # The latest compaction summary is now ALSO selected (as a kind="summary"
-    # candidate), so authored counts 2; summaries bypass the judge/importance gate
-    # and are ALWAYS kept, so BOTH the summary and the substantive user turn are
-    # written (tool results / meta injections / assistant turns still excluded by kind).
-    assert report.authored == 2
+    # The latest compaction summary is ALSO selected (as a kind="summary" candidate)
+    # but is counted under `summaries`, not `authored` (which stays the genuine
+    # user-turn count). Summaries bypass the judge/importance gate and are ALWAYS
+    # kept, so BOTH the summary and the substantive user turn are written.
+    assert report.authored == 1
+    assert report.summaries == 1
     assert report.candidates == 2
     assert report.event_kinds == {
         "tool_result": 1,
@@ -1509,7 +1510,7 @@ def test_resweep_supersedes_prior_session_summary(tmp_path):
     # Run 2: a DIFFERENT latest summary "v2" for the SAME session s1 (different
     # content -> not deduped). The v2 note becomes current; v1 is superseded.
     r2 = ingest_transcripts(
-        [_summary_transcript(tmp_path, "SUMMARY VERSION TWO", sid="s1")],
+        [_summary_transcript(tmp_path, "SUMMARY VERSION TWO", sid="s1", ts="2026-06-16T06:00:00Z")],
         vault_root=vault,
         ledger=ledger,
     )

@@ -55,7 +55,11 @@ class ExtractiveDistiller:
             proj = candidate.project or "session"
             day = (candidate.timestamp or "")[:10]
             title = f"Session summary · {proj}" + (f" · {day}" if day else "")
-            slug = f"session-summary-{_slugify(proj)}-{h[:8]}"
+            # Encode the session id in the slug so two different sessions in the same
+            # project can never collide on the permalink (which would overwrite a note
+            # without superseding it).
+            sid_slug = _slugify(candidate.session_id or "")[:16] or "x"
+            slug = f"session-summary-{_slugify(proj)}-{sid_slug}-{h[:8]}"
             frontmatter = {
                 "title": title,
                 "type": "memory",
@@ -114,11 +118,21 @@ def mark_superseded(path: Path, by_permalink: str) -> None:
 
 
 def supersede_prior_session_summaries(
-    vault_root: Path, subdir: str, session_id: str, new_permalink: str
+    vault_root: Path,
+    subdir: str,
+    session_id: str,
+    new_permalink: str,
+    new_created: str | None = None,
 ) -> int:
     """Mark existing session-summary notes for `session_id` (other than `new_permalink`,
     not already superseded) as superseded_by the new one. Returns count. Fail-safe:
-    skips malformed notes, never raises."""
+    skips malformed notes, never raises.
+
+    Only supersedes notes STRICTLY OLDER than `new_created` (ISO timestamps compare
+    lexically): write order isn't guaranteed to be timestamp order off the
+    consolidating path, so a guard prevents an older summary written later from
+    wrongly superseding a newer on-disk note. When either timestamp is missing,
+    fall back to superseding (best-effort)."""
     src = f"memory://session/{session_id}"
     base = Path(vault_root) / subdir
     if not base.exists():
@@ -130,17 +144,25 @@ def supersede_prior_session_summaries(
         except Exception:
             continue
         fm = note.frontmatter
-        if (
+        if not (
             fm.get("kind") == "session-summary"
             and fm.get("source") == src
             and fm.get("permalink") != new_permalink
             and not fm.get("superseded_by")
         ):
-            try:
-                mark_superseded(path, new_permalink)
-                n += 1
-            except Exception:
-                pass
+            continue
+        prior_created = fm.get("created")
+        if (
+            new_created is not None
+            and prior_created is not None
+            and str(prior_created) >= str(new_created)
+        ):
+            continue  # the on-disk note is newer-or-equal — never supersede it with an older one
+        try:
+            mark_superseded(path, new_permalink)
+            n += 1
+        except Exception:
+            pass
     return n
 
 

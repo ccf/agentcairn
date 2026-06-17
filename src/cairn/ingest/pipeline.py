@@ -158,7 +158,10 @@ def ingest_transcripts(
             transcript.kind_counts or Counter(e.kind.value for e in transcript.events)
         )
         candidates = select_candidates(transcript)
-        report.authored += len(candidates)
+        # `authored` means genuinely-authored user turns; compaction summaries are
+        # counted separately so the CLI's "authored" line isn't inflated.
+        report.authored += sum(1 for c in candidates if c.kind == "user")
+        report.summaries += sum(1 for c in candidates if c.kind == "summary")
         for cand in candidates:
             red = redact(cand.text)
             report.redactions += red.count
@@ -302,7 +305,11 @@ def ingest_transcripts(
             # One current summary per session: demote (not delete) any prior
             # session-summary note for the SAME session. Session-keyed, non-lossy.
             report.superseded += supersede_prior_session_summaries(
-                vault_root, subdir, cand.session_id, note.permalink
+                vault_root,
+                subdir,
+                cand.session_id,
+                note.permalink,
+                note.frontmatter.get("created"),
             )
         ledger.add(h)
         report.written.append(path)

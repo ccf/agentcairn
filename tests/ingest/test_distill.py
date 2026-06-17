@@ -131,3 +131,45 @@ def test_mark_superseded_sets_frontmatter(tmp_path):
     note = parse_note(p.read_text(encoding="utf-8"))
     assert note.frontmatter.get("superseded_by") == "new-permalink"
     assert "old fact" in note.body  # body preserved
+
+
+def test_supersession_timestamp_guard(tmp_path):
+    """An older summary written later must NOT supersede a newer on-disk note;
+    a genuinely newer summary still supersedes the older one (Bugbot: write order
+    isn't timestamp order off the consolidating path)."""
+    from pathlib import Path
+
+    from cairn.ingest.distill import (
+        ExtractiveDistiller,
+        supersede_prior_session_summaries,
+        write_derived_note,
+    )
+    from cairn.ingest.models import Candidate
+
+    (tmp_path / "memories").mkdir()
+    newer = Candidate(
+        text="newer session summary content",
+        session_id="s1",
+        cwd="/x",
+        git_branch=None,
+        timestamp="2026-06-16T05:00:00Z",
+        source_path=Path("/x/t.jsonl"),
+        project="agentcairn",
+        harness="claude-code",
+        kind="summary",
+    )
+    p_new = write_derived_note(ExtractiveDistiller().distill(newer), tmp_path)
+
+    # An OLDER incoming summary must NOT supersede the newer on-disk note.
+    n = supersede_prior_session_summaries(
+        tmp_path, "memories", "s1", "older-perma", "2026-06-16T01:00:00Z"
+    )
+    assert n == 0
+    assert "superseded_by" not in p_new.read_text(encoding="utf-8")
+
+    # A genuinely NEWER incoming summary DOES supersede the older on-disk note.
+    n2 = supersede_prior_session_summaries(
+        tmp_path, "memories", "s1", "newest-perma", "2026-06-16T09:00:00Z"
+    )
+    assert n2 == 1
+    assert "superseded_by: newest-perma" in p_new.read_text(encoding="utf-8")

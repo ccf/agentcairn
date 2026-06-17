@@ -56,7 +56,8 @@ class IngestReport:
     redactions: int = 0
     deduped: int = 0  # skipped as already-seen
     gated_out: int = 0  # below importance threshold
-    authored: int = 0  # AUTHORED_USER events selected before redact/dedup/gate
+    authored: int = 0  # AUTHORED_USER turns selected (excludes compaction summaries)
+    summaries: int = 0  # COMPACT_SUMMARY (session-summary) candidates selected
     event_kinds: dict[str, int] = field(default_factory=dict)  # all event kinds seen
     judge_tier: str = "none"  # "llm" | "embedding" | "none"
     judge_degraded: int = 0  # candidates that fell back a tier
