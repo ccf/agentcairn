@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-06-17
+
 ### Changed
 - The DuckDB index default is now **vault-scoped**: `~/.cache/agentcairn/indexes/<vault_key>.duckdb`,
   derived from the vault. A scratch/test vault can no longer write into your production index.
