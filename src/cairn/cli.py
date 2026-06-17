@@ -114,15 +114,6 @@ def main(
     """agentcairn — local-first agent memory."""
 
 
-def _default_index() -> Path:
-    # Honor CAIRN_INDEX (expanding a leading "~") so the CLI, hooks, and MCP
-    # server all target the same index when it's customized via env/user_config.
-    env = cairn_env().get("CAIRN_INDEX")
-    if env:
-        return Path(env).expanduser()
-    return Path.home() / ".cache" / "agentcairn" / "index.duckdb"
-
-
 def _resolve_harnesses(harness_opt: str | None, env: Mapping[str, str]) -> list[str] | None:
     """Resolve which harnesses to ingest. --harness flag wins, else
     CAIRN_HARNESSES, else None (auto-detect every present harness). A comma list
@@ -713,11 +704,17 @@ def doctor(
     index: Path = typer.Option(
         None, "--index", help="Index .duckdb path (default ~/.cache/agentcairn/index.duckdb)."
     ),
+    vault: Path = typer.Option(
+        None,
+        "--vault",
+        help="Vault dir; the index is derived from it (default: CAIRN_VAULT or ~/agentcairn).",
+    ),
 ) -> None:
     """Health-check the index: model/dim, row counts, embedding/chunk parity."""
     import duckdb
 
-    idx = index or _default_index()
+    vault_dir = paths.resolve_vault(vault)
+    idx = paths.index_for(index, vault_dir)
     if not idx.exists():
         typer.echo(f"no index at {idx} — run `cairn reindex <vault>` first")
         raise typer.Exit(1)
@@ -727,6 +724,7 @@ def doctor(
     embs = con.execute("SELECT count(*) FROM chunk_embeddings").fetchone()[0]
     model = get_meta(con, "embedding_model")
     dim = get_meta(con, "embedding_dim")
+    indexed_paths = [row[0] for row in con.execute("SELECT path FROM notes").fetchall()]
     con.close()
     typer.echo(f"index:  {idx}")
     typer.echo(f"model:  {model} (dim {dim})")
@@ -741,6 +739,18 @@ def doctor(
     if problems:
         for p in problems:
             typer.echo(f"PROBLEM: {p}")
+        raise typer.Exit(1)
+    # Drift: index vs on-disk vault. Dead paths or unindexed notes mean the index
+    # was built against a different/stale vault (the 2026-06-17 footgun).
+    indexed_missing = sum(1 for p in indexed_paths if p and not Path(p).exists())
+    on_disk = {str(p.resolve()) for p in vault_dir.rglob("*.md")} if vault_dir.exists() else set()
+    indexed_set = {str(Path(p).resolve()) for p in indexed_paths if p}
+    disk_unindexed = len(on_disk - indexed_set)
+    if indexed_missing or disk_unindexed:
+        typer.echo(
+            f"status: DRIFT — {indexed_missing} indexed note(s) missing on disk, "
+            f"{disk_unindexed} on-disk note(s) unindexed. Fix: cairn reindex {vault_dir}"
+        )
         raise typer.Exit(1)
     typer.echo("status: OK")
 
