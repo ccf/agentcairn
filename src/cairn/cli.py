@@ -174,9 +174,14 @@ def reindex(
 @app.command(name="index-status")
 def index_status(
     index: Path = typer.Option(None, "--index", help="Index .duckdb path."),
+    vault: Path = typer.Option(
+        None,
+        "--vault",
+        help="Vault dir; the index is derived from it (default: CAIRN_VAULT or ~/agentcairn).",
+    ),
 ) -> None:
     """Show index location, embedding model, and row counts."""
-    idx = index or _default_index()
+    idx = paths.index_for(index, paths.resolve_vault(vault))
     if not idx.exists():
         typer.echo(f"no index at {idx}")
         raise typer.Exit(1)
@@ -195,6 +200,11 @@ def index_status(
 def recall(
     query: str = typer.Argument(..., help="What to search for."),
     index: Path = typer.Option(None, "--index", help="Index .duckdb path."),
+    vault: Path = typer.Option(
+        None,
+        "--vault",
+        help="Vault dir; the index is derived from it (default: CAIRN_VAULT or ~/agentcairn).",
+    ),
     embedder: str = typer.Option(
         None,
         "--embedder",
@@ -220,7 +230,7 @@ def recall(
     (`CAIRN_RERANK=0` to disable).
     """
     embedder = embedder or cairn_env().get("CAIRN_EMBEDDER") or "fastembed"
-    idx = index or _default_index()
+    idx = paths.index_for(index, paths.resolve_vault(vault))
     if not idx.exists():
         typer.echo(f"no index at {idx} — run `cairn reindex <vault>` first")
         raise typer.Exit(1)
@@ -255,6 +265,11 @@ def recall(
 @app.command()
 def recent(
     index: Path = typer.Option(None, "--index", help="Index .duckdb path."),
+    vault: Path = typer.Option(
+        None,
+        "--vault",
+        help="Vault dir; the index is derived from it (default: CAIRN_VAULT or ~/agentcairn).",
+    ),
     project: str = typer.Option(
         None, "--project", help="Only notes whose path contains this substring."
     ),
@@ -262,7 +277,7 @@ def recent(
     as_json: bool = typer.Option(False, "--json", help="Emit JSON for machine parsing."),
 ) -> None:
     """Most-recently-modified notes (optionally filtered to a project path substring)."""
-    idx = index or _default_index()
+    idx = paths.index_for(index, paths.resolve_vault(vault))
     if not idx.exists():
         typer.echo(json.dumps({"notes": []}) if as_json else f"no index at {idx}")
         return
