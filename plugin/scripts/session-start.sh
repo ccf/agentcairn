@@ -1,11 +1,11 @@
 #!/bin/sh
-# args: $1 = vault path, $2 = index path. stdin = hook JSON (unused).
+# args: $1 = vault path, $2 = index path (accepted but ignored; index is vault-derived).
+# stdin = hook JSON (unused).
 # Emits SessionStart additionalContext with a compact recent-memory digest
 # (global / cross-project — see the using-agentcairn-memory skill).
 # Always exits 0 (never blocks/delays the session); no output when there's nothing.
 set -u
 VAULT=$(printf '%s' "${1:-$HOME/agentcairn}" | sed "s#^~#$HOME#")
-INDEX=$(printf '%s' "${2:-$HOME/.cache/agentcairn/index.duckdb}" | sed "s#^~#$HOME#")
 CAIRN="uvx --from agentcairn>=0.2 cairn"
 
 # Ensure the vault dir exists on every session (uvx-free, instant) so a
@@ -20,13 +20,17 @@ mkdir -p "$VAULT" 2>/dev/null || true
 # so it can't hold the hook's pipes open and block the caller on EOF), then
 # exit. By the next session the index exists and the cache is warm, so the fast
 # digest path below runs in well under a second.
-if [ ! -f "$INDEX" ]; then
+# We can't derive the vault-scoped index path in shell, so use a cheap proxy:
+# if neither the scoped-index dir nor the legacy index exist, it's a genuine
+# first run. After the first sweep, indexes/<key>.duckdb is created so the dir
+# exists and the fast digest path runs on every subsequent session.
+if [ ! -d "$HOME/.cache/agentcairn/indexes" ] && [ ! -f "$HOME/.cache/agentcairn/index.duckdb" ]; then
   ( $CAIRN init "$VAULT"; $CAIRN warm ) </dev/null >/dev/null 2>&1 &
   exit 0
 fi
 
 # Fetch recent memories as JSON (best-effort, cross-project).
-JSON=$($CAIRN recent --index "$INDEX" -n 5 --json 2>/dev/null || echo '{"notes":[]}')
+JSON=$($CAIRN recent --vault "$VAULT" -n 5 --json 2>/dev/null || echo '{"notes":[]}')
 
 # Format a compact digest; emit nothing if no notes.
 LINES=$(printf '%s' "$JSON" | python3 -c '
