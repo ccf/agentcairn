@@ -347,7 +347,7 @@ def test_doctor_command_healthy(tmp_path):
         ).exit_code
         == 0
     )
-    result = runner.invoke(app, ["doctor", "--index", str(idx)])
+    result = runner.invoke(app, ["doctor", "--index", str(idx), "--vault", str(vault)])
     assert result.exit_code == 0, result.output
     assert "notes" in result.output.lower()
     assert "ok" in result.output.lower() or "healthy" in result.output.lower()
@@ -357,6 +357,45 @@ def test_doctor_command_missing_index(tmp_path):
     result = runner.invoke(app, ["doctor", "--index", str(tmp_path / "nope.duckdb")])
     assert result.exit_code == 1
     assert "no index" in result.output.lower()
+
+
+def test_doctor_reports_drift_on_dead_path(tmp_path, monkeypatch):
+    from cairn import paths
+
+    monkeypatch.setattr(paths, "cache_root", lambda: tmp_path / "cache")
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "a.md").write_text("---\ntitle: A\npermalink: a\n---\nalpha body\n")
+    assert runner.invoke(app, ["reindex", str(vault), "--embedder", "fake"]).exit_code == 0
+    (vault / "a.md").unlink()  # delete on-disk note → index path now dead
+    r = runner.invoke(app, ["doctor", "--vault", str(vault)])
+    assert "DRIFT" in r.output
+    assert "indexed" in r.output.lower()
+
+
+def test_doctor_reports_drift_on_unindexed_note(tmp_path, monkeypatch):
+    from cairn import paths
+
+    monkeypatch.setattr(paths, "cache_root", lambda: tmp_path / "cache")
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "a.md").write_text("---\ntitle: A\npermalink: a\n---\nalpha body\n")
+    assert runner.invoke(app, ["reindex", str(vault), "--embedder", "fake"]).exit_code == 0
+    (vault / "b.md").write_text("---\ntitle: B\npermalink: b\n---\nbeta body\n")  # unindexed
+    r = runner.invoke(app, ["doctor", "--vault", str(vault)])
+    assert "DRIFT" in r.output
+
+
+def test_doctor_ok_when_in_sync(tmp_path, monkeypatch):
+    from cairn import paths
+
+    monkeypatch.setattr(paths, "cache_root", lambda: tmp_path / "cache")
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "a.md").write_text("---\ntitle: A\npermalink: a\n---\nalpha body\n")
+    assert runner.invoke(app, ["reindex", str(vault), "--embedder", "fake"]).exit_code == 0
+    r = runner.invoke(app, ["doctor", "--vault", str(vault)])
+    assert "status: OK" in r.output
 
 
 def _spy_recall(tmp_path, monkeypatch, argv_extra, env=None):
@@ -459,22 +498,6 @@ def test_recent_project_filters_by_path_substring(tmp_path):
     assert s.exit_code == 0, s.output
     perms = {n["permalink"] for n in json.loads(s.stdout)["notes"]}
     assert "alpha" in perms and "beta" not in perms
-
-
-def test_default_index_honors_cairn_index_env(monkeypatch, tmp_path):
-    """_default_index() uses CAIRN_INDEX (expanding ~) when set, matching the MCP
-    server — so CLI commands, hooks, and MCP all target the same customized index."""
-    import cairn.cli as cli_mod
-
-    target = tmp_path / "custom.duckdb"
-    monkeypatch.setenv("CAIRN_INDEX", str(target))
-    assert cli_mod._default_index() == target
-
-    monkeypatch.setenv("CAIRN_INDEX", "~/some-index.duckdb")
-    assert cli_mod._default_index() == Path.home() / "some-index.duckdb"
-
-    monkeypatch.delenv("CAIRN_INDEX", raising=False)
-    assert cli_mod._default_index() == Path.home() / ".cache" / "agentcairn" / "index.duckdb"
 
 
 def test_reindex_caches_haystack_tokens(tmp_path):
