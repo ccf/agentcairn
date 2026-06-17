@@ -56,3 +56,48 @@ def default_ledger(vault: Path | str) -> Path:
 
 def judged_cache(vault: Path | str) -> Path:
     return cache_root() / "ledgers" / f"{vault_key(vault)}.judged.jsonl"
+
+
+def migrate_legacy_index(env: Mapping[str, str] | None = None) -> Path | None:
+    """One-time best-effort: if the legacy global `<cache>/index.duckdb` exists and
+    CAIRN_INDEX is unset, infer its vault root from a stored note path and move it to
+    the derived `indexes/<key>.duckdb` slot. Returns the new path, or None if it did
+    nothing. Never raises — a missing/failed migration just means a lazy rebuild."""
+    if env is None:
+        env = cairn_env()
+    if env.get("CAIRN_INDEX"):
+        return None
+    legacy = cache_root() / "index.duckdb"
+    if not legacy.exists():
+        return None
+    try:
+        import duckdb
+
+        con = duckdb.connect(str(legacy), read_only=True)
+        row = con.execute(
+            "SELECT path FROM notes WHERE path LIKE '%/memories/%' LIMIT 1"
+        ).fetchone()
+        con.close()
+        if not row or not row[0]:
+            return None
+        vault_root = str(row[0]).split("/memories/")[0]
+        target = default_index(vault_root)
+        if target.exists():
+            return None  # derived slot already populated — leave legacy in place
+        target.parent.mkdir(parents=True, exist_ok=True)
+        legacy.rename(target)
+        return target
+    except Exception:
+        return None
+
+
+def index_for(
+    explicit: Path | str | None, vault: Path | str, env: Mapping[str, str] | None = None
+) -> Path:
+    """resolve_index + a one-time legacy rehome when falling back to the derived
+    default. Commands should call this instead of resolve_index directly."""
+    if env is None:
+        env = cairn_env()
+    if explicit is None and not env.get("CAIRN_INDEX"):
+        migrate_legacy_index(env)
+    return resolve_index(explicit, vault, env)

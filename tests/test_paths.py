@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 from pathlib import Path
 
+import duckdb
+
 from cairn import paths
 
 
@@ -48,3 +50,43 @@ def test_ledger_helpers_match_existing_scheme(tmp_path):
         paths.judged_cache(vault)
         == paths.cache_root() / "ledgers" / f"{paths.vault_key(vault)}.judged.jsonl"
     )
+
+
+def _make_index(path, note_path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    con = duckdb.connect(str(path))
+    con.execute("CREATE TABLE notes (permalink TEXT, path TEXT)")
+    con.execute("INSERT INTO notes VALUES ('a', ?)", [note_path])
+    con.close()
+
+
+def test_migrate_legacy_index_rehomes_by_inferred_vault(monkeypatch, tmp_path):
+    monkeypatch.setattr(paths, "cache_root", lambda: tmp_path / "cache")
+    legacy = tmp_path / "cache" / "index.duckdb"
+    vault_root = "/Users/x/somevault"
+    _make_index(legacy, f"{vault_root}/memories/a.md")
+    moved = paths.migrate_legacy_index(env={})
+    assert moved == paths.default_index(vault_root)
+    assert moved.exists() and not legacy.exists()
+
+
+def test_migrate_legacy_index_noops_when_cairn_index_set(monkeypatch, tmp_path):
+    monkeypatch.setattr(paths, "cache_root", lambda: tmp_path / "cache")
+    legacy = tmp_path / "cache" / "index.duckdb"
+    _make_index(legacy, "/Users/x/v/memories/a.md")
+    assert paths.migrate_legacy_index(env={"CAIRN_INDEX": "/somewhere/i.duckdb"}) is None
+    assert legacy.exists()  # untouched
+
+
+def test_migrate_legacy_index_noops_when_no_legacy(monkeypatch, tmp_path):
+    monkeypatch.setattr(paths, "cache_root", lambda: tmp_path / "cache")
+    assert paths.migrate_legacy_index(env={}) is None
+
+
+def test_index_for_triggers_migration(monkeypatch, tmp_path):
+    monkeypatch.setattr(paths, "cache_root", lambda: tmp_path / "cache")
+    legacy = tmp_path / "cache" / "index.duckdb"
+    vault_root = "/Users/x/v2"
+    _make_index(legacy, f"{vault_root}/memories/a.md")
+    got = paths.index_for(None, vault_root, env={})
+    assert got == paths.default_index(vault_root) and got.exists()
