@@ -1,5 +1,5 @@
 #!/bin/sh
-# args: $1 = vault path, $2 = index path (accepted but ignored; index is vault-derived).
+# args: $1 = vault path (index is vault-derived; no index arg is passed).
 # stdin = hook JSON (has "cwd").
 # Distills the just-ended session into the vault (incremental; dedup-ledger gated).
 # Always exits 0; never blocks teardown beyond the hook timeout.

@@ -1,5 +1,5 @@
 #!/bin/sh
-# args: $1 = vault path, $2 = index path (accepted but ignored; index is vault-derived).
+# args: $1 = vault path (index is vault-derived; no index arg is passed).
 # stdin = hook JSON (unused).
 # Emits SessionStart additionalContext with a compact recent-memory digest
 # (global / cross-project — see the using-agentcairn-memory skill).
