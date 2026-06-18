@@ -72,6 +72,7 @@ def test_build_context_missing_permalink(tmp_path):
     out = build_context_tool(str(idx), "nonexistent")
     assert out["root"] is None
     assert out["outgoing"] == [] and out["incoming"] == []
+    assert out["related"] == []
 
 
 def test_recent_tool_lists_notes(tmp_path):
@@ -593,3 +594,55 @@ def test_recall_tool_passes_pool_ge_fetch(tmp_path, monkeypatch):
     assert pool >= fetch, (
         f"pool={pool} < fetch={fetch}: recall_tool does not widen pool to match over-fetch"
     )
+
+
+# ---------------------------------------------------------------------------
+# Task 3: build_context includes semantic related neighbors
+# ---------------------------------------------------------------------------
+
+
+def test_build_context_includes_semantic_related(tmp_path):
+    from typer.testing import CliRunner
+
+    from cairn.cli import app
+    from cairn.mcp.tools import build_context_tool
+
+    v = tmp_path / "vault"
+    v.mkdir()
+    (v / "ram.md").write_text("---\ntitle: RAM\npermalink: ram\n---\nscale RAM to 4 gigabytes\n")
+    (v / "ram2.md").write_text(
+        "---\ntitle: RAM2\npermalink: ram2\n---\nincrease memory RAM 8 gigabytes\n"
+    )
+    idx = tmp_path / "i.duckdb"
+    assert (
+        CliRunner()
+        .invoke(app, ["reindex", str(v), "--index", str(idx), "--embedder", "fake"])
+        .exit_code
+        == 0
+    )
+
+    ctx = build_context_tool(str(idx), "ram")
+    assert ctx["root"]["permalink"] == "ram"
+    assert "related" in ctx
+    assert "ram2" in [r["permalink"] for r in ctx["related"]]  # semantic neighbor surfaced
+    assert ctx["outgoing"] == [] and ctx["incoming"] == []  # no user wikilinks -> still empty
+
+
+def test_build_context_missing_note_has_related_key(tmp_path):
+    from typer.testing import CliRunner
+
+    from cairn.cli import app
+    from cairn.mcp.tools import build_context_tool
+
+    v = tmp_path / "vault"
+    v.mkdir()
+    (v / "a.md").write_text("---\ntitle: A\npermalink: a\n---\nalpha\n")
+    idx = tmp_path / "i.duckdb"
+    assert (
+        CliRunner()
+        .invoke(app, ["reindex", str(v), "--index", str(idx), "--embedder", "fake"])
+        .exit_code
+        == 0
+    )
+    ctx = build_context_tool(str(idx), "nope")
+    assert ctx == {"root": None, "outgoing": [], "incoming": [], "related": []}
