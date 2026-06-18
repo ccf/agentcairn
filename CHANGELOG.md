@@ -5,6 +5,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+### Fixed
+- **Plugin recall outage from the 0.18 index migration.** The bundled plugin manifests still pinned
+  `CAIRN_INDEX` to the old global index path that 0.18 rehomed away, so the plugin MCP server failed
+  with `no index`. Removed `CAIRN_INDEX`/`index_path` from all plugin MCP manifests, hooks, and
+  userConfig, and bumped the plugin to 0.2.0; the index now derives from `CAIRN_VAULT`. Update the
+  plugin (`claude plugin update agentcairn`, and the Codex/Antigravity equivalents) to restore recall.
+
 ## [0.20.0] - 2026-06-18
 
 ### Added
