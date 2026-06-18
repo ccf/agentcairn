@@ -27,7 +27,7 @@ from cairn.ingest.dedup import DedupLedger
 from cairn.ingest.judge import _EMBED_BATCH, JudgedCache, resolve_judge
 from cairn.ingest.pipeline import ingest_transcripts
 from cairn.search import open_search, resolve_current_project, search
-from cairn.vault import parse_note
+from cairn.vault import parse_note, write_note
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
@@ -122,6 +122,30 @@ def _resolve_harnesses(harness_opt: str | None, env: Mapping[str, str]) -> list[
     if not raw or not raw.strip():
         return None
     return [h.strip() for h in raw.split(",") if h.strip()]
+
+
+def _relink_note(path: Path, desired: list[str], *, dry_run: bool = False) -> str:
+    """Set/clear a note's `related:` frontmatter to `desired` (a list of "[[permalink]]"
+    strings). Writes only when it differs from the current value. Returns one of
+    "linked" (set/changed), "cleared" (removed a stale list), or "unchanged". The tool
+    owns the `related:` field; body and other frontmatter are preserved via the
+    parse_note->write_note fixpoint."""
+    note = parse_note(path.read_text(encoding="utf-8"))
+    current = note.frontmatter.get("related")
+    if desired:
+        if current == desired:
+            return "unchanged"
+        note.frontmatter["related"] = desired
+        if not dry_run:
+            path.write_text(write_note(note), encoding="utf-8")
+        return "linked"
+    # desired is empty
+    if "related" in note.frontmatter:
+        if not dry_run:
+            del note.frontmatter["related"]
+            path.write_text(write_note(note), encoding="utf-8")
+        return "cleared"
+    return "unchanged"
 
 
 @app.command()

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import json
 import re
+import time
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -1781,3 +1782,61 @@ def test_ingest_report_reconciles_compaction_counts(tmp_path):
     assert "1 summaries" in r.output  # the promoted compaction is surfaced
     assert "1 compact_summary" in r.output  # 2 events − 1 promoted
     assert "2 compact_summary" not in r.output  # the old miscount is gone
+
+
+def test_relink_note_writes_related_when_changed(tmp_path):
+    from cairn.cli import _relink_note
+
+    p = tmp_path / "a.md"
+    p.write_text("---\ntitle: A\npermalink: a\n---\nalpha body\n")
+    status = _relink_note(p, ["[[b]]", "[[c]]"])
+    assert status == "linked"
+    text = p.read_text()
+    assert "related:" in text and "[[b]]" in text and "[[c]]" in text
+    assert "alpha body" in text  # body preserved
+
+
+def test_relink_note_unchanged_is_noop(tmp_path):
+    from cairn.cli import _relink_note
+
+    p = tmp_path / "a.md"
+    p.write_text("---\ntitle: A\npermalink: a\n---\nalpha body\n")
+    _relink_note(p, ["[[b]]"])  # first write
+    mtime1 = p.stat().st_mtime_ns
+    time.sleep(0.01)
+    status = _relink_note(p, ["[[b]]"])  # same desired -> no rewrite
+    assert status == "unchanged"
+    assert p.stat().st_mtime_ns == mtime1  # file untouched
+
+
+def test_relink_note_clears_stale_related(tmp_path):
+    from cairn.cli import _relink_note
+
+    p = tmp_path / "a.md"
+    p.write_text("---\ntitle: A\npermalink: a\nrelated:\n- '[[b]]'\n---\nalpha body\n")
+    status = _relink_note(p, [])  # no neighbors now -> clear
+    assert status == "cleared"
+    assert "related:" not in p.read_text()
+
+
+def test_relink_note_empty_and_absent_is_unchanged(tmp_path):
+    from cairn.cli import _relink_note
+
+    p = tmp_path / "a.md"
+    p.write_text("---\ntitle: A\npermalink: a\n---\nalpha body\n")
+    mtime1 = p.stat().st_mtime_ns
+    time.sleep(0.01)
+    assert _relink_note(p, []) == "unchanged"  # no related, none desired
+    assert p.stat().st_mtime_ns == mtime1
+
+
+def test_relink_note_dry_run_writes_nothing(tmp_path):
+    from cairn.cli import _relink_note
+
+    p = tmp_path / "a.md"
+    p.write_text("---\ntitle: A\npermalink: a\n---\nalpha body\n")
+    mtime1 = p.stat().st_mtime_ns
+    time.sleep(0.01)
+    assert _relink_note(p, ["[[b]]"], dry_run=True) == "linked"  # reports intent
+    assert p.stat().st_mtime_ns == mtime1  # but writes nothing
+    assert "related:" not in p.read_text()
