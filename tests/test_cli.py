@@ -1852,3 +1852,86 @@ def test_relink_note_dry_run_clear_writes_nothing(tmp_path):
     assert _relink_note(p, [], dry_run=True) == "cleared"  # reports intent
     assert p.stat().st_mtime_ns == mtime1  # but writes nothing
     assert "[[b]]" in p.read_text()  # stale value untouched
+
+
+# ---------------------------------------------------------------------------
+# cairn link
+# ---------------------------------------------------------------------------
+
+
+def _seed_vault_indexed(tmp_path, monkeypatch, notes):
+    """notes: list of (permalink, body). Build a vault + vault-scoped index (fake embedder)."""
+    from cairn import paths
+
+    monkeypatch.setattr(paths, "cache_root", lambda: tmp_path / "cache")
+    monkeypatch.delenv("CAIRN_INDEX", raising=False)
+    v = tmp_path / "vault"
+    v.mkdir()
+    for permalink, body in notes:
+        (v / f"{permalink}.md").write_text(
+            f"---\ntitle: {permalink}\npermalink: {permalink}\n---\n{body}\n"
+        )
+    assert runner.invoke(app, ["reindex", str(v), "--embedder", "fake"]).exit_code == 0
+    return v
+
+
+def test_link_writes_related_for_near_notes(tmp_path, monkeypatch):
+    v = _seed_vault_indexed(
+        tmp_path,
+        monkeypatch,
+        [
+            ("ram", "scale the RAM to 4 gigabytes for the build"),
+            ("ram2", "increase memory RAM to 8 gigabytes"),
+            ("coffee", "pour over coffee brewing beans"),
+        ],
+    )
+    r = runner.invoke(app, ["link", "--vault", str(v), "--top", "2", "--min-score", "0.0"])
+    assert r.exit_code == 0, r.output
+    ram = (v / "ram.md").read_text()
+    assert "related:" in ram and "[[ram2]]" in ram  # near neighbor linked
+    assert "[[ram]]" not in ram  # never links to self
+
+
+def test_link_is_idempotent(tmp_path, monkeypatch):
+    v = _seed_vault_indexed(
+        tmp_path,
+        monkeypatch,
+        [
+            ("ram", "scale the RAM to 4 gigabytes"),
+            ("ram2", "increase memory RAM to 8 gigabytes"),
+        ],
+    )
+    assert runner.invoke(app, ["link", "--vault", str(v), "--min-score", "0.0"]).exit_code == 0
+    mtimes = {p.name: p.stat().st_mtime_ns for p in v.glob("*.md")}
+    import time as _t
+
+    _t.sleep(0.01)
+    r = runner.invoke(app, ["link", "--vault", str(v), "--min-score", "0.0"])
+    assert r.exit_code == 0, r.output
+    assert {p.name: p.stat().st_mtime_ns for p in v.glob("*.md")} == mtimes  # nothing rewritten
+
+
+def test_link_dry_run_writes_nothing(tmp_path, monkeypatch):
+    v = _seed_vault_indexed(
+        tmp_path,
+        monkeypatch,
+        [
+            ("ram", "scale the RAM to 4 gigabytes"),
+            ("ram2", "increase memory RAM to 8 gigabytes"),
+        ],
+    )
+    r = runner.invoke(app, ["link", "--vault", str(v), "--min-score", "0.0", "--dry-run"])
+    assert r.exit_code == 0, r.output
+    assert all("related:" not in p.read_text() for p in v.glob("*.md"))  # nothing written
+
+
+def test_link_missing_index_exits_1(tmp_path, monkeypatch):
+    from cairn import paths
+
+    monkeypatch.setattr(paths, "cache_root", lambda: tmp_path / "cache")
+    monkeypatch.delenv("CAIRN_INDEX", raising=False)
+    v = tmp_path / "vault"
+    v.mkdir()
+    r = runner.invoke(app, ["link", "--vault", str(v)])
+    assert r.exit_code == 1
+    assert "no index" in r.output.lower()
