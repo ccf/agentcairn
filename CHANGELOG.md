@@ -5,6 +5,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+### Changed
+- Memory **permalinks/slugs derive from the distilled title** instead of the (often trivial)
+  trigger turn — readable filenames in the vault (existing notes unchanged).
+- `cairn ingest` now reports promoted compaction `summaries` in the headline and no longer
+  double-counts them under "skipped".
+
+### Added
+- `build_context` returns a `related` list of semantic-neighbor notes (cosine over indexed
+  vectors), so it's useful even for notes without `[[wikilinks]]`. User-authored wikilinks
+  still populate `outgoing`/`incoming`.
+
 ## [0.18.0] - 2026-06-17
 
 ### Changed
