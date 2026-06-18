@@ -27,6 +27,7 @@ from cairn.ingest.dedup import DedupLedger
 from cairn.ingest.judge import _EMBED_BATCH, JudgedCache, resolve_judge
 from cairn.ingest.pipeline import ingest_transcripts
 from cairn.search import open_search, resolve_current_project, search
+from cairn.search.engine import semantic_neighbors
 from cairn.vault import parse_note, write_note
 
 
@@ -793,6 +794,62 @@ def doctor(
         raise typer.Exit(1)
     ok = "status: OK" if coupled else "status: OK (index/vault decoupled — coverage check skipped)"
     typer.echo(ok)
+
+
+@app.command()
+def link(
+    vault: Path = typer.Option(
+        None,
+        "--vault",
+        help="Vault dir; the index is derived from it (default: CAIRN_VAULT or ~/agentcairn).",
+    ),
+    index: Path = typer.Option(
+        None,
+        "--index",
+        help="Index .duckdb path (default: derived from the vault).",
+    ),
+    top: int = typer.Option(5, "--top", help="Max neighbors to link per note."),
+    min_score: float = typer.Option(0.6, "--min-score", help="Minimum cosine to link a neighbor."),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Report what would change; write nothing."
+    ),
+) -> None:
+    """Write each note's top semantic neighbors into a `related:` frontmatter list of
+    [[wikilinks]] (populates the Obsidian graph). Opt-in and idempotent; re-run to refresh.
+    Reads the current index — run `cairn sweep`/`reindex` first for fresh results."""
+    vault_dir = paths.resolve_vault(vault)
+    idx = paths.index_for(index, vault_dir)
+    if not idx.exists():
+        typer.echo(f"no index at {idx} — run `cairn reindex <vault>` first")
+        raise typer.Exit(1)
+    con = open_search(str(idx))
+    linked = unchanged = cleared = errors = 0
+    try:
+        rows = con.execute(
+            "SELECT permalink, path FROM notes WHERE superseded_by IS NULL"
+        ).fetchall()
+        for permalink, path in rows:
+            if not path:
+                continue
+            try:
+                nbrs = semantic_neighbors(con, permalink, k=top, min_score=min_score)
+                desired = [f"[[{n['permalink']}]]" for n in nbrs]
+                status = _relink_note(Path(path), desired, dry_run=dry_run)
+            except Exception as exc:  # best-effort per note
+                errors += 1
+                typer.echo(f"  skip {permalink}: {exc}")
+                continue
+            if status == "linked":
+                linked += 1
+            elif status == "cleared":
+                cleared += 1
+            else:
+                unchanged += 1
+    finally:
+        con.close()
+    prefix = "[dry-run] " if dry_run else ""
+    suffix = f" · {errors} errors" if errors else ""
+    typer.echo(f"{prefix}linked {linked} · unchanged {unchanged} · cleared {cleared}{suffix}")
 
 
 @app.command()
