@@ -251,6 +251,20 @@ def test_session_start_first_run_warms_models():
     assert "$CAIRN warm" in text
 
 
+def test_hooks_pass_vault_not_index_path():
+    hooks = _json(PLUGIN / "hooks" / "hooks.json")
+    blob = json.dumps(hooks)
+    assert "${user_config.vault_path}" in blob
+    assert "index_path" not in blob  # the index is vault-derived; no index arg
+
+
+def test_plugin_manifest_drops_index_path_and_bumps_version():
+    man = _json(PLUGIN / ".claude-plugin" / "plugin.json")
+    assert "index_path" not in man["userConfig"]  # removed
+    assert "vault_path" in man["userConfig"]  # still present
+    assert man["version"] != "0.1.0"  # bumped so `claude plugin update` ships the fix
+
+
 def test_mcp_manifests_have_no_cairn_index():
     """The index is vault-derived; no plugin MCP manifest may pin CAIRN_INDEX."""
     for rel in (".mcp.json", ".mcp.codex.json", "mcp_config.json"):
