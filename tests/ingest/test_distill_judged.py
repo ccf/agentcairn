@@ -88,15 +88,28 @@ def test_distill_without_judgment_keeps_verbatim_format():
     assert "[verbatim]" not in note.body
 
 
-def test_dedup_identity_unchanged_by_judgment():
+def test_slug_stable_for_same_inputs():
+    """Permalink is stable: same text + same judgment → same slug every time.
+    When a judge title is present the slug derives from it (not the verbatim turn),
+    so a judged candidate will have a different permalink than an un-judged one.
+    (Dedup itself gates on content_hash(cand.text) in the pipeline, before
+    distillation runs, so the permalink never reaches the dedup check.)"""
     from cairn.ingest.dedup import content_hash
     from cairn.ingest.judge import Judgment
 
     text = "we decided to always do the thing"
     plain = ExtractiveDistiller().distill(_cand(text))
+    # No judgment: slug derived from verbatim text, hash suffix ensures uniqueness.
+    assert plain.permalink.endswith(content_hash(text)[:8])
+    assert plain.permalink.startswith("we-decided-to-always")
+
+    # With a judge title: slug now derives from the title, not the trigger turn.
     judged = ExtractiveDistiller().distill(
         _cand(text, judgment=Judgment(durability=0.9, title="T", distilled="D."), importance=0.9)
     )
-    # permalink (slug + content hash) is derived from the VERBATIM text only
-    assert plain.permalink == judged.permalink
-    assert content_hash(text) in plain.permalink or plain.permalink.endswith(content_hash(text)[:8])
+    assert judged.permalink.startswith("t-")  # title "T" slugified
+    # Stability: same inputs → same result.
+    judged2 = ExtractiveDistiller().distill(
+        _cand(text, judgment=Judgment(durability=0.9, title="T", distilled="D."), importance=0.9)
+    )
+    assert judged.permalink == judged2.permalink

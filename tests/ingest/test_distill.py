@@ -175,6 +175,49 @@ def test_supersession_timestamp_guard(tmp_path):
     assert "superseded_by: newest-perma" in p_new.read_text(encoding="utf-8")
 
 
+def test_slug_derives_from_judge_title_not_verbatim():
+    from pathlib import Path
+
+    from cairn.ingest.distill import ExtractiveDistiller
+    from cairn.ingest.judge import Judgment
+    from cairn.ingest.models import Candidate
+
+    cand = Candidate(
+        text="Is Node 22 being deprecated?",  # trivial trigger turn
+        session_id="s1",
+        cwd="/x",
+        git_branch=None,
+        timestamp="2026-06-17T00:00:00Z",
+        source_path=Path("/x/t.jsonl"),
+        judgment=Judgment(
+            durability=0.8,
+            title="agentcairn release ritual: CHANGELOG + GitHub Release at every tag",
+            distilled="The release ritual is bump version, promote CHANGELOG, tag, GH release.",
+        ),
+    )
+    note = ExtractiveDistiller().distill(cand)
+    assert note.permalink.startswith("agentcairn-release-ritual")  # slug from the title
+    assert "node-22" not in note.permalink
+
+
+def test_slug_falls_back_to_verbatim_without_judge_title():
+    from pathlib import Path
+
+    from cairn.ingest.distill import ExtractiveDistiller
+    from cairn.ingest.models import Candidate
+
+    cand = Candidate(
+        text="We decided to always rebase-merge the branch",
+        session_id="s1",
+        cwd="/x",
+        git_branch=None,
+        timestamp="2026-06-17T00:00:00Z",
+        source_path=Path("/x/t.jsonl"),
+    )
+    note = ExtractiveDistiller().distill(cand)  # no judgment → title is the verbatim
+    assert note.permalink.startswith("we-decided-to-always")
+
+
 def test_supersession_equal_timestamps_supersede(tmp_path):
     """Equal `created` timestamps still supersede (write-order tiebreak), so a
     same-second re-compaction leaves exactly one current summary per session."""

@@ -81,9 +81,9 @@ class ExtractiveDistiller:
                 f"- [verbatim] {candidate.text.strip()}\n"
             )
             return Note(permalink=slug, frontmatter=frontmatter, body=body)
-        slug = f"{_slugify(candidate.text)}-{h[:8]}"
         j = candidate.judgment
         title = (j.title if j and j.title else None) or _truncate_title(candidate.text)
+        slug = f"{_slugify(title)}-{h[:8]}"
         imp = candidate.importance if candidate.importance is not None else score(candidate.text)
         frontmatter = {
             "title": title,
