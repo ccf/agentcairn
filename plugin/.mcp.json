@@ -4,8 +4,7 @@
       "command": "uvx",
       "args": ["agentcairn"],
       "env": {
-        "CAIRN_VAULT": "${user_config.vault_path}",
-        "CAIRN_INDEX": "${user_config.index_path}"
+        "CAIRN_VAULT": "${user_config.vault_path}"
       }
     }
   }

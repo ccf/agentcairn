@@ -29,7 +29,7 @@ def test_codex_mcp_is_bare_map_with_vault_env():
     ac = mcp["agentcairn"]
     assert ac["command"] == "uvx" and ac["args"] == ["agentcairn"]
     assert ac["env"]["CAIRN_VAULT"] == "~/agentcairn"
-    assert ac["env"]["CAIRN_INDEX"] == "~/.cache/agentcairn/index.duckdb"
+    assert "CAIRN_INDEX" not in ac["env"]
 
 
 def test_codex_hooks_reference_existing_scripts():
@@ -62,7 +62,7 @@ def test_antigravity_mcp_config_is_wrapper_with_vault_env():
     ac = mcp["mcpServers"]["agentcairn"]
     assert ac["command"] == "uvx" and ac["args"] == ["agentcairn"]
     assert ac["env"]["CAIRN_VAULT"] == "~/agentcairn"
-    assert ac["env"]["CAIRN_INDEX"] == "~/.cache/agentcairn/index.duckdb"
+    assert "CAIRN_INDEX" not in ac["env"]
 
 
 def test_bundled_cursor_skill_matches_plugin_copy():

@@ -4,8 +4,7 @@
       "command": "uvx",
       "args": ["agentcairn"],
       "env": {
-        "CAIRN_VAULT": "~/agentcairn",
-        "CAIRN_INDEX": "~/.cache/agentcairn/index.duckdb"
+        "CAIRN_VAULT": "~/agentcairn"
       }
     }
   }

@@ -251,6 +251,15 @@ def test_session_start_first_run_warms_models():
     assert "$CAIRN warm" in text
 
 
+def test_mcp_manifests_have_no_cairn_index():
+    """The index is vault-derived; no plugin MCP manifest may pin CAIRN_INDEX."""
+    for rel in (".mcp.json", ".mcp.codex.json", "mcp_config.json"):
+        data = _json(PLUGIN / rel)
+        blob = json.dumps(data)
+        assert "CAIRN_INDEX" not in blob, f"{rel} still pins CAIRN_INDEX"
+        assert "CAIRN_VAULT" in blob, f"{rel} must still set CAIRN_VAULT"
+
+
 def test_session_start_no_savings_line_when_empty(tmp_path):
     bindir = tmp_path / "bin"
     bindir.mkdir()
