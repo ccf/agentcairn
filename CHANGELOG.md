@@ -5,6 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+### Added
+- `cairn link` — opt-in command that writes each note's top semantic neighbors into a `related:`
+  frontmatter list of `[[wikilinks]]`, populating the Obsidian graph (edges + backlinks). Idempotent
+  (writes only when a note's links change), one-directional (Obsidian backlinks show the reverse),
+  `--top`/`--min-score` tunable, `--dry-run` to preview. Reuses 0.19.0's `semantic_neighbors`.
+
 ## [0.19.0] - 2026-06-18
 
 ### Changed
