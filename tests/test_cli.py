@@ -1840,3 +1840,15 @@ def test_relink_note_dry_run_writes_nothing(tmp_path):
     assert _relink_note(p, ["[[b]]"], dry_run=True) == "linked"  # reports intent
     assert p.stat().st_mtime_ns == mtime1  # but writes nothing
     assert "related:" not in p.read_text()
+
+
+def test_relink_note_dry_run_clear_writes_nothing(tmp_path):
+    from cairn.cli import _relink_note
+
+    p = tmp_path / "a.md"
+    p.write_text("---\ntitle: A\npermalink: a\nrelated:\n- '[[b]]'\n---\nalpha body\n")
+    mtime1 = p.stat().st_mtime_ns
+    time.sleep(0.01)
+    assert _relink_note(p, [], dry_run=True) == "cleared"  # reports intent
+    assert p.stat().st_mtime_ns == mtime1  # but writes nothing
+    assert "[[b]]" in p.read_text()  # stale value untouched
