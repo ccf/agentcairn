@@ -459,6 +459,49 @@ def get_chunks(con: duckdb.DuckDBPyConnection, chunk_ids: list[str]) -> list[dic
     ]
 
 
+def semantic_neighbors(
+    con: duckdb.DuckDBPyConnection, permalink: str, *, k: int = 5, min_score: float = 0.0
+) -> list[dict]:
+    """Top-`k` semantically-nearest live notes to `permalink`, by cosine over the
+    note's own indexed chunk vectors (no re-embedding). Excludes the note itself and
+    superseded notes. Best-effort: any failure (no vectors, missing note, empty index)
+    → []. Reusable core for build_context's `related` and a future `cairn link`."""
+    try:
+        dim = _dim(con)
+        if dim <= 0:
+            return []
+        vecs = [
+            r[0]
+            for r in con.execute(
+                "SELECT ce.vec FROM chunk_embeddings ce "
+                "JOIN chunks c ON ce.chunk_id = c.chunk_id "
+                "WHERE c.note_permalink = ?",
+                [permalink],
+            ).fetchall()
+        ]
+        if not vecs:
+            return []
+        n = len(vecs)
+        centroid = [sum(col) / n for col in zip(*vecs, strict=False)]  # note-level mean vector
+        rows = con.execute(
+            f"SELECT n.permalink, n.title, "
+            f"max(array_cosine_similarity(ce.vec, ?::FLOAT[{dim}])) AS sim "
+            f"FROM chunk_embeddings ce "
+            f"JOIN chunks c ON ce.chunk_id = c.chunk_id "
+            f"JOIN notes n ON c.note_permalink = n.permalink "
+            f"WHERE n.permalink != ? AND n.superseded_by IS NULL "
+            f"GROUP BY n.permalink, n.title ORDER BY sim DESC LIMIT ?",
+            [centroid, permalink, k],
+        ).fetchall()
+        return [
+            {"permalink": r[0], "title": r[1], "score": round(float(r[2]), 4)}
+            for r in rows
+            if float(r[2]) >= min_score
+        ]
+    except Exception:
+        return []
+
+
 def get_note(con: duckdb.DuckDBPyConnection, permalink: str) -> dict | None:
     """Hydrate full note text and metadata by permalink."""
     row = con.execute(
