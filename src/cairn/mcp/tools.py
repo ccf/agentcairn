@@ -16,6 +16,7 @@ from cairn.ingest import write_derived_note
 from cairn.ingest.dedup import content_hash
 from cairn.ingest.redact import redact
 from cairn.search import get_note, open_search, resolve_current_project, search
+from cairn.search.engine import semantic_neighbors
 from cairn.temporal import validity_status
 from cairn.vault import Note
 
@@ -202,7 +203,7 @@ def build_context_tool(index_path: str, permalink: str) -> dict:
     try:
         root = get_note(con, permalink)
         if root is None:
-            return {"root": None, "outgoing": [], "incoming": []}
+            return {"root": None, "outgoing": [], "incoming": [], "related": []}
         root["validity"] = _validity_block(
             root.get("valid_from"),
             root.get("valid_until"),
@@ -245,9 +246,10 @@ def build_context_tool(index_path: str, permalink: str) -> dict:
             [permalink, title or permalink],
         ).fetchall()
         incoming = [{"permalink": r[0]} for r in in_rows if r[0] != permalink]
+        related = semantic_neighbors(con, permalink, k=5)
     finally:
         con.close()
-    return {"root": root, "outgoing": outgoing, "incoming": incoming}
+    return {"root": root, "outgoing": outgoing, "incoming": incoming, "related": related}
 
 
 def recent_tool(index_path: str, *, n: int = 10) -> dict:
