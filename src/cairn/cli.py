@@ -839,13 +839,21 @@ def ingest(
         dry_run=dry_run,
     )
     prefix = "[dry-run] " if dry_run else ""
+    summaries_part = f"{rep.summaries} summaries · " if rep.summaries else ""
     typer.echo(
-        f"{prefix}{rep.authored} authored · {rep.candidates} candidates · "
+        f"{prefix}{rep.authored} authored · {summaries_part}{rep.candidates} candidates · "
         f"{rep.redactions} redactions · {rep.deduped} deduped · "
         f"{rep.gated_out} gated · {len(rep.written)} written · judge: {rep.judge_tier}"
         + (f" ({rep.judge_degraded} degraded)" if rep.judge_degraded else "")
     )
     skipped = {k: v for k, v in rep.event_kinds.items() if k != "authored_user"}
+    # `compact_summary` events that were promoted to session-summary notes aren't skips.
+    if "compact_summary" in skipped:
+        remaining = skipped["compact_summary"] - rep.summaries
+        if remaining > 0:
+            skipped["compact_summary"] = remaining
+        else:
+            del skipped["compact_summary"]
     if skipped:
         breakdown = ", ".join(f"{v} {k}" for k, v in sorted(skipped.items(), key=lambda kv: -kv[1]))
         typer.echo(f"  skipped (non-authored): {breakdown}")

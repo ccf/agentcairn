@@ -1727,3 +1727,57 @@ def test_ingest_default_ledger_is_vault_scoped(tmp_path, monkeypatch):
     )
     assert r.exit_code == 0, r.output
     assert paths.default_ledger(vault).exists()  # vault-scoped ledger, not the global one
+
+
+def test_ingest_report_reconciles_compaction_counts(tmp_path):
+    """2 compaction-summary events in one session → 1 promoted (latest). Headline shows
+    `1 summaries`; the skipped line shows `1 compact_summary` (2 − 1), not 2."""
+    import json as _j
+
+    proj = tmp_path / "projects" / "-Users-x-proj"
+    proj.mkdir(parents=True)
+
+    def rec(text, ts, compact=False):
+        d = {
+            "type": "user",
+            "sessionId": "s",
+            "cwd": "/Users/x/proj",
+            "timestamp": ts,
+            "message": {"role": "user", "content": text},
+        }
+        if compact:
+            d["isCompactSummary"] = True
+        return _j.dumps(d)
+
+    (proj / "t.jsonl").write_text(
+        "\n".join(
+            [
+                rec("We decided to always rebase-merge the branch", "2026-06-17T00:00:00Z"),
+                rec("first compaction summary text", "2026-06-17T01:00:00Z", compact=True),
+                rec(
+                    "second (latest) compaction summary text", "2026-06-17T02:00:00Z", compact=True
+                ),
+            ]
+        )
+        + "\n"
+    )
+    vault = tmp_path / "vault"
+    r = runner.invoke(
+        app,
+        [
+            "ingest",
+            "--vault",
+            str(vault),
+            "--transcripts-dir",
+            str(tmp_path / "projects"),
+            "--harness",
+            "claude-code",
+            "--ledger",
+            str(tmp_path / "led.sha256"),
+        ],
+        env={"CAIRN_JUDGE": "none"},
+    )
+    assert r.exit_code == 0, r.output
+    assert "1 summaries" in r.output  # the promoted compaction is surfaced
+    assert "1 compact_summary" in r.output  # 2 events − 1 promoted
+    assert "2 compact_summary" not in r.output  # the old miscount is gone
