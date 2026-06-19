@@ -9,8 +9,31 @@ const description =
 // Host-neutral and functional: `cairn install --all` configures every detected
 // agent (this page's readers may use any). Bare `cairn install` only lists hosts.
 const cta = "cairn install --all";
+
+const faq = [
+  {
+    q: "How do I install the agentcairn Obsidian plugin?",
+    a: "In Obsidian, open Settings → Community plugins → Browse, search for \"agentcairn\", and install it (turn off Restricted mode first). It is read-only and reads only your vault's Markdown frontmatter.",
+  },
+  {
+    q: "Does the agentcairn plugin modify or write to my notes?",
+    a: "No. The plugin is read-only and local-only: it reads frontmatter via Obsidian's metadata cache, never your note bodies, never writes to the vault, and makes no network requests.",
+  },
+  {
+    q: "Can I use my Obsidian vault as memory for Claude Code, Codex, or Cursor?",
+    a: "Yes. agentcairn's CLI and MCP server store and recall memory from the same Markdown vault, and Claude Code and Codex install as plugins. The Obsidian plugin is the layer that lets you see and navigate that shared memory.",
+  },
+  {
+    q: "Why is the memory graph empty or just dots?",
+    a: "The graph is built from related: wikilinks between memory notes. Run `cairn link` in the vault to write those links from semantic neighbors, then reopen the Graph tab.",
+  },
+  {
+    q: "Is the agentcairn Obsidian plugin free and open source?",
+    a: "Yes. It is open source under the Apache-2.0 license, and free to install from the Obsidian community plugin store.",
+  },
+];
 ---
-<ContentPage title={title} description={description} cta={cta}>
+<ContentPage title={title} description={description} cta={cta} faq={faq}>
   <Section id="intro">
     <h1 class="font-serif text-[40px] leading-tight mb-6">Your AI agent's memory, in an Obsidian vault</h1>
     <Prose>
@@ -89,6 +112,17 @@ const cta = "cairn install --all";
         &middot;
         <a href="/alternatives" class="underline">How agentcairn compares</a>
       </p>
+    </Prose>
+  </Section>
+
+  <Section id="faq" eyebrow="FAQ">
+    <Prose>
+      {faq.map((f) => (
+        <div class="mb-6">
+          <h3 class="font-serif text-[22px] leading-snug mb-2">{f.q}</h3>
+          <p>{f.a}</p>
+        </div>
+      ))}
     </Prose>
   </Section>
 </ContentPage>
