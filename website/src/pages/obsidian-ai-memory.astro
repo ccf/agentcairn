@@ -46,7 +46,27 @@ const cta = "cairn install --all";
         is). You see what the agent knows, where it learned it, and whether it is
         still current.
       </p>
+      <p>
+        A memory graph wires related memories together — the
+        <code>related:</code> wikilinks <code>cairn link</code> writes — colored
+        by project, sized by importance, with superseded memories dimmed. Click a
+        node to open the note and read its provenance.
+      </p>
     </Prose>
+    <div class="mt-8 grid gap-6 sm:grid-cols-2">
+      <figure class="m-0">
+        <img src="/obsidian-graph.png" width="1280" height="752" loading="lazy"
+             class="w-full h-auto rounded-lg border border-[var(--color-border-faint)]"
+             alt="agentcairn Memory view in Obsidian: a memory graph with nodes colored by project, connected by related links, with a legend and a provenance panel." />
+        <figcaption class="mt-3 text-[13px] text-[var(--color-ink-muted)]">Memory graph — related memories wired together, colored by project, sized by importance.</figcaption>
+      </figure>
+      <figure class="m-0">
+        <img src="/obsidian-list.png" width="1280" height="752" loading="lazy"
+             class="w-full h-auto rounded-lg border border-[var(--color-border-faint)]"
+             alt="agentcairn Memory view list mode in Obsidian: memory notes with date, harness, project, and importance; a superseded note is dimmed with a badge." />
+        <figcaption class="mt-3 text-[13px] text-[var(--color-ink-muted)]">List view — filter by project, harness, or currency; superseded memories dimmed.</figcaption>
+      </figure>
+    </div>
   </Section>
 
   <Section id="sync" eyebrow="Stays in sync">
