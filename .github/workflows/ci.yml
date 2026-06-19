@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 # Mirrors the local pre-commit hooks: ruff-format check, ruff lint, pytest.
 jobs:
@@ -32,3 +33,25 @@ jobs:
         # The FastEmbed integration test is skipped unless CAIRN_RUN_INTEGRATION=1,
         # so CI runs the fast, offline suite (no model download).
         run: uv run pytest -q
+
+  recall-eval:
+    name: recall quality eval
+    # Quality ruler, not a hard gate: only run on pushes to the default branch
+    # (and on-demand via workflow_dispatch) to avoid a ~200 MB fastembed model
+    # download on every PR.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv (+ Python 3.12)
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Recall eval (gated, fastembed)
+        run: CAIRN_E2E=1 uv run pytest tests/e2e/test_recall_eval.py -q -s
