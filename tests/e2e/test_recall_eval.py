@@ -1,7 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
+import os
 from pathlib import Path
 
-from cairn.embed import FakeEmbedder
+import pytest
+
+from cairn.embed import FakeEmbedder, get_embedder
 from cairn.index import build_fts, index_vault, open_index
 from cairn.ingest.dedup import DedupLedger
 from cairn.ingest.events import EventKind, NormalizedEvent
@@ -58,3 +61,57 @@ def test_core_loop_offline(tmp_path):
     assert hits, "recall returned nothing for an ingested fact"
     blob = " ".join(h.snippet.lower() for h in hits)
     assert "duckdb" in blob
+
+
+_LABELS = [
+    ("what is the scope of cairn link for the Obsidian graph", "cairn-link-scope"),
+    ("how does the index avoid scratch-vault pollution", "vault-scoped-index"),
+    ("when does capture run relative to compaction", "precompact-capture"),
+]
+_SUMMARY = "session-summary-2026-06-18"
+
+
+@pytest.mark.skipif(
+    not os.environ.get("CAIRN_E2E"),
+    reason="set CAIRN_E2E=1 to run the real-embedder recall-quality eval",
+)
+def test_recall_quality(tmp_path):
+    fixtures = Path(__file__).parent / "fixtures" / "recall_eval"
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    for md in fixtures.glob("*.md"):
+        (vault / md.name).write_text(md.read_text())
+
+    try:
+        emb = get_embedder("fastembed")
+    except Exception as exc:  # model unavailable offline -> skip, never fail
+        pytest.skip(f"fastembed unavailable: {exc}")
+
+    idx = str(tmp_path / "i.duckdb")
+    con = open_index(idx, dim=emb.dim, model_id=emb.model_id)
+    index_vault(con, str(vault), emb)
+    build_fts(con)
+    con.close()
+
+    con = open_search(idx)
+    k = 10
+    hit_at_k = 0
+    rr_total = 0.0
+    failures = []
+    for query, expected in _LABELS:
+        hits = search(con, query, embedder=emb, k=k, rerank=True)
+        permalinks = [h.permalink for h in hits]
+        assert len(permalinks) == len(set(permalinks)), f"dup notes: {permalinks}"
+        if expected in permalinks:
+            hit_at_k += 1
+            rr_total += 1.0 / (permalinks.index(expected) + 1)
+        e_idx = permalinks.index(expected) if expected in permalinks else 10**6
+        s_idx = permalinks.index(_SUMMARY) if _SUMMARY in permalinks else 10**6
+        if not e_idx < s_idx:
+            failures.append((query, expected, permalinks))
+
+    recall_at_k = hit_at_k / len(_LABELS)
+    mrr = rr_total / len(_LABELS)
+    print(f"\n[recall-eval] recall@{k}={recall_at_k:.3f} MRR={mrr:.3f}")
+    assert not failures, f"atomic note did not outrank the session summary: {failures}"
+    assert recall_at_k == 1.0, f"recall@{k}={recall_at_k}"
