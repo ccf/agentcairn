@@ -12,7 +12,7 @@ jobs:
     name: format · lint · test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install uv (+ Python 3.12)
         uses: astral-sh/setup-uv@v7
@@ -42,7 +42,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install uv (+ Python 3.12)
         uses: astral-sh/setup-uv@v7
