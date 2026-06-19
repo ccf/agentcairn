@@ -144,3 +144,29 @@ def test_semantic_neighbors_missing_note_returns_empty(tmp_path):
         assert semantic_neighbors(con, "does-not-exist", k=5) == []
     finally:
         con.close()
+
+
+def test_recall_dedupes_by_note(tmp_path):
+    from cairn.embed import FakeEmbedder
+    from cairn.index import build_fts, index_vault, open_index
+    from cairn.search import open_search, search
+
+    emb = FakeEmbedder(dim=8)
+    v = tmp_path / "vault"
+    v.mkdir()
+    # Two headed sections => two chunks of the SAME note, both mentioning "alpha".
+    (v / "multi.md").write_text(
+        "---\ntitle: Multi\npermalink: multi\n---\n"
+        "## One\nalpha alpha beans.\n\n## Two\nalpha alpha brewing.\n"
+    )
+    (v / "other.md").write_text("---\ntitle: Other\npermalink: other\n---\nbeta gamma.\n")
+    idx = str(tmp_path / "i.duckdb")
+    con = open_index(idx, dim=emb.dim, model_id=emb.model_id)
+    index_vault(con, str(v), emb)
+    build_fts(con)
+    con.close()
+
+    con = open_search(idx)
+    hits = search(con, "alpha", embedder=emb, k=10)
+    permalinks = [h.permalink for h in hits]
+    assert permalinks.count("multi") == 1, f"note returned more than once: {permalinks}"

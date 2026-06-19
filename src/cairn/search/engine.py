@@ -298,6 +298,20 @@ def hybrid_search(
     ]
 
 
+def _dedupe_by_note(rows: list[dict]) -> list[dict]:
+    """Collapse multiple chunks of the same note into one result, keeping the
+    best-scoring chunk. ``rows`` must already be sorted best-first."""
+    seen: set[str] = set()
+    out: list[dict] = []
+    for r in rows:
+        pk = r["note_permalink"]
+        if pk in seen:
+            continue
+        seen.add(pk)
+        out.append(r)
+    return out
+
+
 def search(
     con: duckdb.DuckDBPyConnection,
     query: str,
@@ -335,7 +349,7 @@ def search(
             query,
             qvec,
             dim=embedder.dim,
-            limit=(max(20, k) if rerank else k),
+            limit=max(20, k),
             pool=pool,
             graph_boost=graph_boost,
             validity_aware=validity_aware,
@@ -347,7 +361,7 @@ def search(
         rows = bm25_only(
             con,
             query,
-            limit=(max(20, k) if rerank else k),
+            limit=max(20, k),
             pool=pool,
             graph_boost=graph_boost,
             validity_aware=validity_aware,
@@ -364,7 +378,7 @@ def search(
             c["chunk_id"]: c["text"] for c in get_chunks(con, [r["chunk_id"] for r in rows])
         }
         cands = [{**r, "text": text_by_id.get(r["chunk_id"], r["snippet"])} for r in rows]
-        ranked = rerank_candidates(query, cands, top_k=k)
+        ranked = rerank_candidates(query, cands, top_k=max(20, k))
         if current is not None:
             ranked = sorted(
                 (
@@ -419,8 +433,7 @@ def search(
             }
             for c in ranked
         ]
-    else:
-        rows = rows[:k]
+    rows = _dedupe_by_note(rows)[:k]
     return [
         Hit(
             chunk_id=r["chunk_id"],
