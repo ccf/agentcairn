@@ -258,6 +258,18 @@ def test_hooks_pass_vault_not_index_path():
     assert "index_path" not in blob  # the index is vault-derived; no index arg
 
 
+def test_precompact_hook_captures_long_sessions():
+    # Capture must not wait for SessionEnd: long/resumed sessions compact
+    # repeatedly, so PreCompact runs the same detached sweep at each boundary,
+    # before context is discarded. Without it, the whole session goes uncaptured
+    # until it formally ends (the 2026-06-19 dogfood gap).
+    hooks = _json(PLUGIN / "hooks" / "hooks.json")["hooks"]
+    assert "PreCompact" in hooks, "no PreCompact hook — long sessions won't be captured"
+    blob = json.dumps(hooks["PreCompact"])
+    assert "session-end.sh" in blob, "PreCompact should reuse the detached-sweep script"
+    assert "${user_config.vault_path}" in blob
+
+
 def test_plugin_manifest_drops_index_path_and_bumps_version():
     man = _json(PLUGIN / ".claude-plugin" / "plugin.json")
     assert "index_path" not in man["userConfig"]  # removed

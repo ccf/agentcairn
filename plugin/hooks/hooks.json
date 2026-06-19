@@ -11,6 +11,12 @@
         { "type": "command", "command": "sh",
           "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/session-end.sh", "${user_config.vault_path}"],
           "timeout": 120 } ] }
+    ],
+    "PreCompact": [
+      { "matcher": "*", "hooks": [
+        { "type": "command", "command": "sh",
+          "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/session-end.sh", "${user_config.vault_path}"],
+          "timeout": 30 } ] }
     ]
   }
 }

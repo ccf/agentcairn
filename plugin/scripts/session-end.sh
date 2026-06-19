@@ -1,8 +1,11 @@
 #!/bin/sh
 # args: $1 = vault path (index is vault-derived; no index arg is passed).
 # stdin = hook JSON (has "cwd").
-# Distills the just-ended session into the vault (incremental; dedup-ledger gated).
-# Always exits 0; never blocks teardown beyond the hook timeout.
+# Distills the current session into the vault (incremental; dedup-ledger gated).
+# Wired to both SessionEnd and PreCompact (hooks.json): PreCompact captures
+# long/resumed sessions at each compaction boundary, before context is discarded
+# — without it capture would only fire when a session formally ends.
+# Always exits 0; never blocks teardown/compaction beyond the hook timeout.
 set -u
 VAULT=$(printf '%s' "${1:-$HOME/agentcairn}" | sed "s#^~#$HOME#")
 CAIRN="uvx --from agentcairn>=0.2 cairn"
