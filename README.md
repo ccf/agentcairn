@@ -72,6 +72,7 @@ The plugin is the easiest path, but agentcairn is just a package — use it with
 uvx agentcairn                                       # on-demand MCP server for any MCP host
 cairn ingest --vault ~/vault                         # distill recent agent sessions into the vault
 cairn sweep  --vault ~/vault                          # ingest + reindex in one pass (cron-friendly)
+cairn schedule install --vault ~/vault                # run sweep automatically every 30 min (launchd on macOS, crontab on Linux)
 cairn recall "how did we fix the auth bug?"          # hybrid recall from the CLI
 cairn savings                                        # how much context recall has saved you
 cairn reindex ~/vault                                # rebuild the index from Markdown (always safe)
