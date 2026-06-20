@@ -7,6 +7,7 @@ import dataclasses
 import json
 import math
 import os
+import sys
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -98,6 +99,56 @@ class _DistilledNeighborIndex:
 app = typer.Typer(
     no_args_is_help=True, add_completion=False, help="agentcairn — local-first agent memory."
 )
+
+schedule_app = typer.Typer(
+    help="Manage a background schedule that runs `cairn sweep` periodically "
+    "(the host-agnostic capture backstop)."
+)
+app.add_typer(schedule_app, name="schedule")
+
+
+@schedule_app.command("install")
+def schedule_install(
+    interval: str = typer.Option("30m", "--interval", help="e.g. 30m, 1h, or minutes."),
+    vault: Path = typer.Option(None, "--vault"),
+    print_only: bool = typer.Option(False, "--print", help="Render only; write nothing."),
+) -> None:
+    from cairn import schedule
+    from cairn.paths import resolve_vault
+
+    mins = schedule.parse_interval(interval)
+    v = resolve_vault(vault)
+    log = str(schedule.log_path())
+    cairn = schedule.resolve_cairn()
+    if print_only:
+        rendered = (
+            schedule.render_plist(cairn, str(v), mins, log)
+            if sys.platform == "darwin"
+            else schedule.render_cron_line(cairn, str(v), mins, log)
+        )
+        typer.echo(rendered)
+        return
+    schedule.install(mins, v)
+    typer.echo(f"Scheduled `cairn sweep` every {mins}m for vault {v}.")
+
+
+@schedule_app.command("uninstall")
+def schedule_uninstall() -> None:
+    from cairn import schedule
+
+    typer.echo(
+        "Removed agentcairn schedule." if schedule.uninstall() else "No agentcairn schedule found."
+    )
+
+
+@schedule_app.command("status")
+def schedule_status() -> None:
+    from cairn import schedule
+
+    st = schedule.status()
+    typer.echo(
+        f"installed: runs `cairn sweep` every {st['interval_min']}m" if st else "not installed"
+    )
 
 
 def _version_callback(value: bool) -> None:
@@ -538,6 +589,12 @@ def install(
         except Exception as e:  # best-effort per host; continue under --all
             failures += 1
             typer.echo(f"✗ {h.label}: {e}")
+    if not print_only and failures < len(targets):
+        typer.echo(
+            "Tip: run `cairn schedule install` to capture sessions periodically in "
+            "the background. Useful for more timely ingestion of memories from "
+            "long-running sessions."
+        )
     if failures:
         raise typer.Exit(1)
 
