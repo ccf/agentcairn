@@ -16,6 +16,7 @@ _MCP_HOSTS = ["cursor", "claude-desktop", "vscode", "gemini"]
 def test_install_writes_mcp_config(host_id, tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
     host = get_host(host_id)
+    assert host is not None, f"unknown host: {host_id}"
     vault = tmp_path / "vault"
     res = runner.invoke(app, ["install", host_id, "--vault", str(vault)])
     assert res.exit_code == 0, res.output
@@ -41,10 +42,15 @@ def test_install_plugin_host_prints_command(host_id, tmp_path, monkeypatch):
     # so --print requires --source; use a dummy path that lets us see the rendered command.
     extra_args = []
     if host_id == "antigravity":
-        extra_args = ["--source", str(tmp_path / "agentcairn-plugin")]
+        source = str(tmp_path / "agentcairn-plugin")
+        extra_args = ["--source", source]
     res = runner.invoke(app, ["install", host_id, "--print"] + extra_args)
     assert res.exit_code == 0, res.output
-    # claude-code and codex always include "agentcairn@agentcairn" in their plugin_add argv.
-    # antigravity's plugin_add is ("plugin", "install", "{source}"), so we check for "agy".
-    expected = "agentcairn" if host_id != "antigravity" else "agy"
-    assert expected in res.output, f"{host_id}: expected {expected!r} in output: {res.output!r}"
+    if host_id == "antigravity":
+        # plugin_add is ("plugin", "install", "{source}"); assert the cli AND that
+        # the {source} substitution actually landed in the rendered command.
+        assert "agy plugin install" in res.output, res.output
+        assert source in res.output, f"antigravity: --source not substituted: {res.output!r}"
+    else:
+        # claude-code and codex hardcode "agentcairn@agentcairn" in their plugin_add argv.
+        assert "agentcairn" in res.output, f"{host_id}: missing in output: {res.output!r}"
