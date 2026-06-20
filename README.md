@@ -1,5 +1,11 @@
 # 🪨 agentcairn
 
+[![CI](https://github.com/ccf/agentcairn/actions/workflows/ci.yml/badge.svg)](https://github.com/ccf/agentcairn/actions/workflows/ci.yml)
+[![Security](https://github.com/ccf/agentcairn/actions/workflows/trivy.yml/badge.svg)](https://github.com/ccf/agentcairn/actions/workflows/trivy.yml)
+[![PyPI](https://img.shields.io/pypi/v/agentcairn)](https://pypi.org/project/agentcairn/)
+[![Python](https://img.shields.io/pypi/pyversions/agentcairn)](https://pypi.org/project/agentcairn/)
+[![License: Apache-2.0](https://img.shields.io/pypi/l/agentcairn)](https://github.com/ccf/agentcairn/blob/main/LICENSE)
+
 **Local-first memory for AI agents — that you can actually read, edit, and own.**
 
 > **cairn** &nbsp;/kɛən/&nbsp; · *noun* — a stack of stones raised to mark a trail or a place worth remembering, left for whoever comes next.
