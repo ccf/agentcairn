@@ -3,8 +3,15 @@
 
 from __future__ import annotations
 
+import re
 import shlex
+import shutil
+import subprocess
+import sys
+from pathlib import Path
 from xml.sax.saxutils import escape
+
+from cairn.paths import cache_root, resolve_vault
 
 PLIST_LABEL = "dev.agentcairn.sweep"
 CRON_MARKER = "# agentcairn-sweep"
@@ -60,3 +67,113 @@ def render_cron_line(cairn: str, vault: str, interval_min: int, log: str) -> str
         )
     cmd = f"{shlex.quote(cairn)} sweep --vault {shlex.quote(vault)} >> {shlex.quote(log)} 2>&1"
     return f"{sched} {cmd}  {CRON_MARKER}"
+
+
+# ---------------------------------------------------------------------------
+# Side-effecting backends: launchd (macOS) + crontab (Linux)
+# ---------------------------------------------------------------------------
+
+
+def _run(cmd: list[str], stdin: str | None = None) -> subprocess.CompletedProcess:
+    return subprocess.run(cmd, input=stdin, capture_output=True, text=True)
+
+
+def resolve_cairn() -> str:
+    """Absolute path to the `cairn` binary (launchd/cron have a minimal PATH)."""
+    return shutil.which("cairn") or sys.argv[0]
+
+
+def log_path() -> Path:
+    return cache_root() / "sweep.log"
+
+
+def _plist_path() -> Path:
+    return Path.home() / "Library" / "LaunchAgents" / f"{PLIST_LABEL}.plist"
+
+
+def _macos_install(interval_min: int, vault: Path, log: Path) -> None:
+    p = _plist_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    log.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(render_plist(resolve_cairn(), str(vault), interval_min, str(log)))
+    _run(["launchctl", "unload", str(p)])
+    _run(["launchctl", "load", str(p)])
+
+
+def _macos_uninstall() -> bool:
+    p = _plist_path()
+    if not p.exists():
+        return False
+    _run(["launchctl", "unload", str(p)])
+    p.unlink()
+    return True
+
+
+def _macos_status() -> dict | None:
+    p = _plist_path()
+    if not p.exists():
+        return None
+    m = re.search(r"<key>StartInterval</key>\s*<integer>(\d+)</integer>", p.read_text())
+    return {"interval_min": int(m.group(1)) // 60 if m else None, "path": str(p)}
+
+
+def _read_crontab() -> str:
+    r = _run(["crontab", "-l"])
+    return r.stdout if r.returncode == 0 else ""
+
+
+def _write_crontab(text: str) -> None:
+    _run(["crontab", "-"], stdin=text if text.endswith("\n") else text + "\n")
+
+
+def _linux_install(interval_min: int, vault: Path, log: Path) -> None:
+    log.parent.mkdir(parents=True, exist_ok=True)
+    line = render_cron_line(resolve_cairn(), str(vault), interval_min, str(log))
+    kept = [ln for ln in _read_crontab().splitlines() if CRON_MARKER not in ln]
+    kept.append(line)
+    _write_crontab("\n".join(kept))
+
+
+def _linux_uninstall() -> bool:
+    cur = _read_crontab().splitlines()
+    kept = [ln for ln in cur if CRON_MARKER not in ln]
+    if len(kept) == len(cur):
+        return False
+    _write_crontab("\n".join(kept))
+    return True
+
+
+def _linux_status() -> dict | None:
+    for ln in _read_crontab().splitlines():
+        if CRON_MARKER in ln:
+            sub = re.match(r"\*/(\d+) ", ln)
+            hr = re.match(r"0 \*/(\d+) ", ln)
+            iv = int(sub.group(1)) if sub else (int(hr.group(1)) * 60 if hr else None)
+            return {"interval_min": iv, "line": ln}
+    return None
+
+
+def _backend():
+    if sys.platform == "darwin":
+        return _macos_install, _macos_uninstall, _macos_status
+    if sys.platform.startswith("linux"):
+        return _linux_install, _linux_uninstall, _linux_status
+    raise RuntimeError(
+        f"scheduling isn't supported on {sys.platform} yet — run "
+        "`cairn schedule install --print` and add it to your scheduler manually"
+    )
+
+
+def install(interval_min: int, vault=None) -> None:
+    inst, _, _ = _backend()
+    inst(interval_min, resolve_vault(vault), log_path())
+
+
+def uninstall() -> bool:
+    _, un, _ = _backend()
+    return un()
+
+
+def status() -> dict | None:
+    _, _, st = _backend()
+    return st()

@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
+import sys
+
 import pytest
 
 from cairn import schedule
@@ -45,3 +47,78 @@ def test_render_cron_quotes_paths_and_rejects_bad_interval():
     assert "'/Users/x/my vault'" in line
     with pytest.raises(ValueError):
         schedule.render_cron_line("/c", "/v", 90, "/l")  # 90 not expressible in cron
+
+
+def _fake_run(records):
+    def run(cmd, stdin=None):
+        records.append((cmd, stdin))
+
+        class R:
+            returncode = 1 if cmd[:2] == ["crontab", "-l"] else 0
+            stdout = ""
+
+        return R()
+
+    return run
+
+
+def test_install_linux_writes_marked_cron(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    written = {}
+
+    def run(cmd, stdin=None):
+        class R:
+            returncode = 1 if cmd[:2] == ["crontab", "-l"] else 0
+            stdout = ""
+
+        if cmd == ["crontab", "-"]:
+            written["text"] = stdin
+        return R()
+
+    monkeypatch.setattr(schedule, "_run", run)
+    schedule.install(30, tmp_path / "vault")
+    assert "# agentcairn-sweep" in written["text"]
+    assert "*/30 * * * *" in written["text"]
+
+
+def test_install_linux_idempotent(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, "platform", "linux")
+    state = {"crontab": ""}
+
+    def run(cmd, stdin=None):
+        class R:
+            returncode = 0 if state["crontab"] else 1
+            stdout = state["crontab"]
+
+        if cmd == ["crontab", "-"]:
+            state["crontab"] = stdin
+        return R()
+
+    monkeypatch.setattr(schedule, "_run", run)
+    schedule.install(30, tmp_path / "v")
+    schedule.install(15, tmp_path / "v")
+    assert state["crontab"].count("# agentcairn-sweep") == 1
+    assert "*/15" in state["crontab"]
+
+
+def test_uninstall_absent_is_false(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(schedule, "_run", _fake_run([]))
+    assert schedule.uninstall() is False
+
+
+def test_install_macos_writes_plist(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(schedule, "_run", _fake_run([]))
+    schedule.install(30, tmp_path / "vault")
+    plist = tmp_path / "Library" / "LaunchAgents" / "dev.agentcairn.sweep.plist"
+    assert plist.exists() and "<integer>1800</integer>" in plist.read_text()
+    assert schedule.status()["interval_min"] == 30
+
+
+def test_unsupported_platform_raises(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, "platform", "win32")
+    with pytest.raises(RuntimeError):
+        schedule.install(30, tmp_path / "v")
