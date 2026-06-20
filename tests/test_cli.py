@@ -1986,3 +1986,21 @@ def test_schedule_install_uncronable_interval_clean_error(tmp_path, monkeypatch)
     assert "cron" in res.output.lower() or "interval" in res.output.lower()
     # No raw traceback leaked.
     assert "Traceback" not in res.output
+
+
+def test_schedule_install_unsupported_platform_clean_error(tmp_path, monkeypatch):
+    import sys
+
+    from cairn import schedule
+
+    monkeypatch.setattr(sys, "platform", "win32")
+    # resolve_cairn -> shutil.which behaves oddly under a faked win32 platform on
+    # non-Windows hosts; stub it so we reach schedule.install()'s real backend,
+    # which raises RuntimeError on an unsupported platform.
+    monkeypatch.setattr(schedule, "resolve_cairn", lambda: "/usr/local/bin/cairn")
+    res = runner.invoke(app, ["schedule", "install", "--vault", str(tmp_path / "v")])
+    assert res.exit_code != 0
+    combined = (res.stdout + (res.stderr if res.stderr_bytes else "")).lower()
+    assert "not supported" in combined or "error" in combined
+    assert "Traceback" not in res.stdout
+    assert res.exception is None or isinstance(res.exception, SystemExit)

@@ -135,6 +135,9 @@ def schedule_install(
         schedule.install(mins, v)
     except ValueError as e:
         raise typer.BadParameter(str(e), param_hint="--interval") from e
+    except RuntimeError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1) from e
     typer.echo(f"Scheduled `cairn sweep` every {mins}m for vault {v}.")
 
 
