@@ -17,7 +17,7 @@ def parse_interval(s: str) -> int:
     if s.endswith("h"):
         mins = int(float(s[:-1]) * 60)
     elif s.endswith("m"):
-        mins = int(s[:-1])
+        mins = int(float(s[:-1]))
     else:
         mins = int(s)
     if mins < MIN_INTERVAL_MIN:

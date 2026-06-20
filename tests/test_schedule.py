@@ -33,6 +33,11 @@ def test_render_cron_subhourly_and_hourly():
     assert schedule.render_cron_line("/c", "/v", 30, "/l").startswith("*/30 * * * * ")
     assert schedule.render_cron_line("/c", "/v", 120, "/l").startswith("0 */2 * * * ")
     assert schedule.render_cron_line("/c", "/v", 30, "/l").endswith("# agentcairn-sweep")
+    assert ">> /l 2>&1" in schedule.render_cron_line("/c", "/v", 30, "/l")
+
+
+def test_parse_interval_fractional_minutes():
+    assert schedule.parse_interval("90.0m") == 90
 
 
 def test_render_cron_quotes_paths_and_rejects_bad_interval():
