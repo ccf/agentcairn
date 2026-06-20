@@ -34,11 +34,11 @@ jobs:
         # so CI runs the fast, offline suite (no model download).
         run: uv run pytest -q
 
-  recall-eval:
-    name: recall quality eval
-    # Quality ruler, not a hard gate: only run on pushes to the default branch
-    # (and on-demand via workflow_dispatch) to avoid a ~200 MB fastembed model
-    # download on every PR.
+  e2e:
+    name: end-to-end (recall ruler + MCP stdio)
+    # Gated end-to-end suite: the recall-quality ruler plus the MCP-over-stdio
+    # contract test. Only run on pushes to the default branch (and on-demand via
+    # workflow_dispatch) to avoid a ~200 MB fastembed model download on every PR.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
@@ -53,5 +53,5 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      - name: Recall eval (gated, fastembed)
-        run: CAIRN_E2E=1 uv run pytest tests/e2e/test_recall_eval.py -q -s
+      - name: End-to-end tests (gated, fastembed + MCP stdio)
+        run: CAIRN_E2E=1 uv run pytest tests/e2e/ -q -s
