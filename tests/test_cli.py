@@ -1958,3 +1958,31 @@ def test_schedule_status_not_installed(tmp_path, monkeypatch):
     )
     res = runner.invoke(app, ["schedule", "status"])
     assert res.exit_code == 0 and "not installed" in res.output.lower()
+
+
+def test_schedule_install_print_resolves_relative_vault(tmp_path, monkeypatch):
+    import sys
+
+    monkeypatch.setattr(sys, "platform", "linux")
+    res = runner.invoke(app, ["schedule", "install", "--vault", "relvault", "--print"])
+    assert res.exit_code == 0
+    # The printed cron line must carry an absolute --vault path, not "relvault".
+    m = re.search(r"--vault\s+(\S+)", res.output)
+    assert m is not None
+    vault_arg = m.group(1).strip("'\"")
+    assert vault_arg.startswith("/"), f"vault not absolute: {vault_arg!r}"
+    assert "relvault" in vault_arg  # resolved, not replaced
+
+
+def test_schedule_install_uncronable_interval_clean_error(tmp_path, monkeypatch):
+    import sys
+
+    monkeypatch.setattr(sys, "platform", "linux")
+    # 90m can't be expressed in cron (not <60 and not a whole number of hours).
+    res = runner.invoke(
+        app, ["schedule", "install", "--interval", "90m", "--vault", str(tmp_path / "v")]
+    )
+    assert res.exit_code != 0
+    assert "cron" in res.output.lower() or "interval" in res.output.lower()
+    # No raw traceback leaked.
+    assert "Traceback" not in res.output
