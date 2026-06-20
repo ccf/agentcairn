@@ -6,6 +6,7 @@ export const site = {
   url: "https://agentcairn.dev",
   repo: "https://github.com/ccf/agentcairn",
   pypi: "https://pypi.org/project/agentcairn/",
+  obsidian: "https://community.obsidian.md/plugins/agentcairn",
   ogImageAlt: "agentcairn — local-first memory for AI agents",
   themeColor: "#ffffff",
 };
