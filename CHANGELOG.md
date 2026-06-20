@@ -5,6 +5,30 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-06-20
+
+### Added
+- **`cairn schedule install | uninstall | status`** — a managed per-OS scheduler (launchd on macOS,
+  user crontab on Linux) that runs `cairn sweep` periodically, so long-running and resumed sessions
+  (and non-Claude-Code hosts) get captured without hand-editing crontab. Opt-in and idempotent, with
+  `--interval` (e.g. `30m`/`1h`), `--vault`, and `--print`. `cairn install` now hints at it.
+
+### Changed
+- **Recall returns each note at most once.** Hybrid recall was chunk-level, so a single note could
+  appear several times and crowd out others; results are now de-duplicated by note (keeping the
+  best-scoring chunk), with the candidate pool widened so `k` unique notes are still returned.
+
+### Fixed
+- **Capture on compaction.** The Claude Code plugin now also captures on `PreCompact` (not only
+  `SessionEnd`), so long/resumed sessions are swept at each compaction boundary instead of waiting
+  for the session to formally end. Plugin bumped to 0.3.0 — `claude plugin update agentcairn`.
+
+### Internal
+- End-to-end test harness under `tests/e2e/`: an offline capture→index→recall smoke, a gated
+  recall-quality eval (the ruler for ranking tuning), an MCP-over-stdio tool-contract test, a per-host
+  `cairn install` matrix, and a Claude Code plugin-hook contract test. Added a Trivy filesystem
+  security scan (Security tab) and README badges.
+
 ## [0.20.1] - 2026-06-18
 
 ### Fixed
