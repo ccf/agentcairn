@@ -2004,3 +2004,18 @@ def test_schedule_install_unsupported_platform_clean_error(tmp_path, monkeypatch
     assert "not supported" in combined or "error" in combined
     assert "Traceback" not in res.stdout
     assert res.exception is None or isinstance(res.exception, SystemExit)
+
+
+def test_schedule_uninstall_runtime_error_clean(monkeypatch):
+    from cairn import schedule
+
+    def _boom() -> bool:
+        raise RuntimeError("crontab write failed")
+
+    monkeypatch.setattr(schedule, "uninstall", _boom)
+    res = runner.invoke(app, ["schedule", "uninstall"])
+    assert res.exit_code != 0
+    combined = (res.stdout + (res.stderr if res.stderr_bytes else "")).lower()
+    assert "error" in combined and "crontab write failed" in combined
+    assert "Traceback" not in res.stdout
+    assert res.exception is None or isinstance(res.exception, SystemExit)

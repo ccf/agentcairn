@@ -145,9 +145,12 @@ def schedule_install(
 def schedule_uninstall() -> None:
     from cairn import schedule
 
-    typer.echo(
-        "Removed agentcairn schedule." if schedule.uninstall() else "No agentcairn schedule found."
-    )
+    try:
+        removed = schedule.uninstall()
+    except RuntimeError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1) from e
+    typer.echo("Removed agentcairn schedule." if removed else "No agentcairn schedule found.")
 
 
 @schedule_app.command("status")
