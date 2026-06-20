@@ -733,7 +733,10 @@ def sweep(
         help="Dedup ledger path (default: ~/.cache/agentcairn/ledgers/<hash>.sha256).",
     ),
 ) -> None:
-    """Batch-ingest transcripts into the vault, then reindex (cron maintenance)."""
+    """Batch-ingest transcripts into the vault, then reindex (cron maintenance).
+
+    Run `cairn schedule install` to run this automatically on a schedule.
+    """
     embedder = embedder or cairn_env().get("CAIRN_EMBEDDER") or "fastembed"
     led_path = ledger if ledger is not None else paths.default_ledger(vault)
     led = DedupLedger(led_path)
