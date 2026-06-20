@@ -116,19 +116,25 @@ def schedule_install(
     from cairn import schedule
     from cairn.paths import resolve_vault
 
-    mins = schedule.parse_interval(interval)
-    v = resolve_vault(vault)
+    try:
+        mins = schedule.parse_interval(interval)
+    except ValueError as e:
+        raise typer.BadParameter(str(e), param_hint="--interval") from e
+    v = resolve_vault(vault).resolve()
     log = str(schedule.log_path())
     cairn = schedule.resolve_cairn()
-    if print_only:
-        rendered = (
-            schedule.render_plist(cairn, str(v), mins, log)
-            if sys.platform == "darwin"
-            else schedule.render_cron_line(cairn, str(v), mins, log)
-        )
-        typer.echo(rendered)
-        return
-    schedule.install(mins, v)
+    try:
+        if print_only:
+            rendered = (
+                schedule.render_plist(cairn, str(v), mins, log)
+                if sys.platform == "darwin"
+                else schedule.render_cron_line(cairn, str(v), mins, log)
+            )
+            typer.echo(rendered)
+            return
+        schedule.install(mins, v)
+    except ValueError as e:
+        raise typer.BadParameter(str(e), param_hint="--interval") from e
     typer.echo(f"Scheduled `cairn sweep` every {mins}m for vault {v}.")
 
 
