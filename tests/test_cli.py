@@ -1935,3 +1935,26 @@ def test_link_missing_index_exits_1(tmp_path, monkeypatch):
     r = runner.invoke(app, ["link", "--vault", str(v)])
     assert r.exit_code == 1
     assert "no index" in r.output.lower()
+
+
+def test_schedule_install_print_writes_nothing(tmp_path, monkeypatch):
+    import sys
+
+    monkeypatch.setattr(sys, "platform", "linux")
+    res = runner.invoke(
+        app, ["schedule", "install", "--interval", "30m", "--vault", str(tmp_path / "v"), "--print"]
+    )
+    assert res.exit_code == 0
+    assert "# agentcairn-sweep" in res.output and "*/30 * * * *" in res.output
+
+
+def test_schedule_status_not_installed(tmp_path, monkeypatch):
+    import sys
+
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(
+        "cairn.schedule._run",
+        lambda cmd, stdin=None: type("R", (), {"returncode": 1, "stdout": ""})(),
+    )
+    res = runner.invoke(app, ["schedule", "status"])
+    assert res.exit_code == 0 and "not installed" in res.output.lower()
