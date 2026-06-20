@@ -80,7 +80,7 @@ def _run(cmd: list[str], stdin: str | None = None) -> subprocess.CompletedProces
 
 def resolve_cairn() -> str:
     """Absolute path to the `cairn` binary (launchd/cron have a minimal PATH)."""
-    return shutil.which("cairn") or sys.argv[0]
+    return shutil.which("cairn") or str(Path(sys.argv[0]).resolve())
 
 
 def log_path() -> Path:
@@ -96,8 +96,10 @@ def _macos_install(interval_min: int, vault: Path, log: Path) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     log.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(render_plist(resolve_cairn(), str(vault), interval_min, str(log)))
-    _run(["launchctl", "unload", str(p)])
-    _run(["launchctl", "load", str(p)])
+    _run(["launchctl", "unload", str(p)])  # best-effort; ignore returncode
+    r = _run(["launchctl", "load", str(p)])
+    if r.returncode != 0:
+        raise RuntimeError(f"launchctl load failed: {r.stderr.strip()}")
 
 
 def _macos_uninstall() -> bool:
@@ -123,7 +125,9 @@ def _read_crontab() -> str:
 
 
 def _write_crontab(text: str) -> None:
-    _run(["crontab", "-"], stdin=text if text.endswith("\n") else text + "\n")
+    r = _run(["crontab", "-"], stdin=text if text.endswith("\n") else text + "\n")
+    if r.returncode != 0:
+        raise RuntimeError(f"crontab write failed: {r.stderr.strip()}")
 
 
 def _linux_install(interval_min: int, vault: Path, log: Path) -> None:
@@ -153,6 +157,10 @@ def _linux_status() -> dict | None:
     return None
 
 
+def _supported() -> bool:
+    return sys.platform == "darwin" or sys.platform.startswith("linux")
+
+
 def _backend():
     if sys.platform == "darwin":
         return _macos_install, _macos_uninstall, _macos_status
@@ -166,14 +174,18 @@ def _backend():
 
 def install(interval_min: int, vault=None) -> None:
     inst, _, _ = _backend()
-    inst(interval_min, resolve_vault(vault), log_path())
+    inst(interval_min, resolve_vault(vault).resolve(), log_path())
 
 
 def uninstall() -> bool:
+    if not _supported():
+        return False
     _, un, _ = _backend()
     return un()
 
 
 def status() -> dict | None:
+    if not _supported():
+        return None
     _, _, st = _backend()
     return st()
