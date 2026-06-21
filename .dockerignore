@@ -1,0 +1,17 @@
+# Keep the build context (and image) small — only src + packaging metadata are
+# needed to build the wheel via hatchling.
+.git
+.github
+.venv
+website
+docs
+benchmarks
+tests
+node_modules
+dist
+build
+*.duckdb
+__pycache__
+.pytest_cache
+.ruff_cache
+.mypy_cache
