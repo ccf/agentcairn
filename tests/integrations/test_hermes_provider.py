@@ -47,3 +47,35 @@ def test_prefetch_returns_a_saved_memory(provider):
 
 def test_prefetch_empty_vault_is_safe(provider):
     assert isinstance(provider.prefetch("anything"), str)
+
+
+def test_tool_schemas_declare_three_tools(provider):
+    names = {t["name"] for t in provider.get_tool_schemas()}
+    assert {"memory_save", "memory_recall", "memory_search"} <= names
+
+
+def test_memory_save_then_recall_finds_it(provider):
+    out = provider.handle_tool_call(
+        "memory_save", {"text": "Prefer tabs in Go.", "tags": ["style"]}
+    )
+    assert out.get("permalink") or out.get("path")
+    rec = provider.handle_tool_call("memory_recall", {"query": "Go formatting"})
+    assert any("Go" in str(n.get("text", "")) for n in rec.get("notes", []))
+
+
+def test_memory_search_returns_without_error(provider):
+    provider.handle_tool_call("memory_save", {"text": "Deploy with make ship."})
+    res = provider.handle_tool_call("memory_search", {"query": "deploy"})
+    # search_tool returns {"query": ..., "as_of": ..., "hits": [...]}
+    assert "hits" in res
+
+
+def test_redaction_on_save(provider):
+    provider.handle_tool_call(
+        "memory_save", {"text": "token sk-ant-api03-SECRETSECRETSECRET deploy"}
+    )
+    assert "SECRETSECRET" not in provider.prefetch("deploy")
+
+
+def test_unknown_tool_returns_error(provider):
+    assert "error" in provider.handle_tool_call("nope", {})

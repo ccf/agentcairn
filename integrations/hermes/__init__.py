@@ -92,14 +92,77 @@ class CairnMemoryProvider(_base()):
             _log(f"prefetch failed: {e}")
             return ""
 
-    def handle_tool_call(self, tool_name: str, args: dict, **kwargs):
-        # Minimal here; full tool surface in Task 3.
-        if tool_name == "memory_save":
-            from cairn.mcp.tools import remember_tool
+    def get_tool_schemas(self):
+        return [
+            {
+                "name": "memory_save",
+                "description": "Save a durable memory to the agentcairn vault.",
+                "parameters": {
+                    "type": "object",
+                    "required": ["text"],
+                    "properties": {
+                        "text": {"type": "string"},
+                        "title": {"type": "string"},
+                        "tags": {"type": "array", "items": {"type": "string"}},
+                    },
+                },
+            },
+            {
+                "name": "memory_recall",
+                "description": "Recall full memories relevant to a query.",
+                "parameters": {
+                    "type": "object",
+                    "required": ["query"],
+                    "properties": {
+                        "query": {"type": "string"},
+                        "k": {"type": "integer"},
+                    },
+                },
+            },
+            {
+                "name": "memory_search",
+                "description": "Search memories (compact id+snippet index).",
+                "parameters": {
+                    "type": "object",
+                    "required": ["query"],
+                    "properties": {
+                        "query": {"type": "string"},
+                        "k": {"type": "integer"},
+                    },
+                },
+            },
+        ]
 
-            out = remember_tool(
-                str(self._vault), args["text"], title=args.get("title"), tags=args.get("tags")
-            )
-            _reindex(self._vault, self._embedder)
-            return out
+    def handle_tool_call(self, tool_name: str, args: dict, **kwargs):
+        from cairn.mcp.tools import recall_tool, remember_tool, search_tool
+
+        try:
+            if tool_name == "memory_save":
+                out = remember_tool(
+                    str(self._vault),
+                    args["text"],
+                    title=args.get("title"),
+                    tags=args.get("tags"),
+                )
+                _reindex(self._vault, self._embedder)
+                return out
+            if tool_name == "memory_recall":
+                return recall_tool(
+                    self._index,
+                    args["query"],
+                    embedder=self._embedder,
+                    k=int(args.get("k", 5)),
+                    rerank=self._rerank,
+                )
+            if tool_name == "memory_search":
+                return search_tool(
+                    self._index,
+                    args["query"],
+                    embedder=self._embedder,
+                    k=int(args.get("k", 10)),
+                    rerank=self._rerank,
+                )
+        except Exception as e:
+            _log(f"tool {tool_name} failed: {e}")
+            return {"error": str(e)}
         return {"error": f"unknown tool {tool_name}"}
