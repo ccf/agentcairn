@@ -141,3 +141,19 @@ def test_saved_config_is_honored_on_initialize(tmp_path):
     p2 = mod.CairnMemoryProvider()
     p2.initialize("s", hermes_home=hhome)
     assert str(custom) in str(p2._vault)  # Hermes-set vault_path is honored
+
+
+def test_on_session_end_empty_falls_back_to_buffered_turns(provider):
+    # provider fixture initialized with session_id="sess-1"; buffer a durable fact
+    # under that real session id (no explicit session_id passed to sync_turn).
+    provider.sync_turn(
+        (
+            "Decision: we always deploy this repo using make ship instead of npm "
+            "publish, because the Makefile handles CI versioning. Never run npm "
+            "publish directly."
+        ),
+        "Understood, noted.",
+    )
+    provider.on_session_end([])  # empty -> must fall back to buffered turns
+    provider.shutdown()  # join the daemon capture thread
+    assert "make ship" in provider.prefetch("how do we deploy?")
