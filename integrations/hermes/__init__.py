@@ -121,6 +121,9 @@ class CairnMemoryProvider(_base()):
 
     def initialize(self, session_id: str, **kwargs) -> None:
         self._session_id = session_id
+        # Start each session clean: a prior session that never reached on_session_end
+        # (crash/restart) must not leak stale turns into this session's capture.
+        self._buffers.clear()
         self._hermes_home = kwargs.get("hermes_home", str(Path.home() / ".hermes"))
         self._cfg = self._load_config(self._hermes_home)
         self._vault, self._index, self._embedder = _resolve(self._cfg)
@@ -250,11 +253,16 @@ class CairnMemoryProvider(_base()):
             _log(f"capture failed (dropped): {e}")
 
     def on_session_end(self, messages) -> None:
-        # When Hermes hands us no messages, fall back to ALL buffered turns (sync_turn
-        # keys them under the real session id, not ""), then clear so a later end can't
-        # double-capture the same turns.
-        msgs = list(messages) if messages else [m for buf in self._buffers.values() for m in buf]
+        # Capture the UNION of Hermes-supplied messages and any buffered turns: a partial
+        # `messages` must not drop turns recorded via sync_turn, and an empty `messages`
+        # must fall back to the buffer. The DedupLedger (content_hash) collapses any
+        # overlap, so the union never double-writes. Clear buffers so a later end can't
+        # re-capture the same turns.
+        buffered = [m for buf in self._buffers.values() for m in buf]
+        msgs = list(messages) + buffered
         self._buffers.clear()
+        if not msgs:
+            return
         t = threading.Thread(
             target=self._capture,
             args=(msgs, getattr(self, "_session_id", "hermes")),

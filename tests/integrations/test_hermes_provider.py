@@ -157,3 +157,35 @@ def test_on_session_end_empty_falls_back_to_buffered_turns(provider):
     provider.on_session_end([])  # empty -> must fall back to buffered turns
     provider.shutdown()  # join the daemon capture thread
     assert "make ship" in provider.prefetch("how do we deploy?")
+
+
+_DURABLE = (
+    "Decision: we always deploy this repo using make ship instead of npm publish, "
+    "because the Makefile handles CI versioning. Never run npm publish directly."
+)
+
+
+def test_initialize_clears_stale_buffers(tmp_path, monkeypatch):
+    mod = load_plugin()
+
+    # Sanity: a durable fact buffered then flushed via on_session_end([]) IS recalled,
+    # so absence in the main assertion is due to buffer-clearing, not the importance gate.
+    monkeypatch.setenv("CAIRN_VAULT", str(tmp_path / "sanity_vault"))
+    sanity = mod.CairnMemoryProvider()
+    sanity.initialize("only", hermes_home=str(tmp_path / "hh_sanity"))
+    sanity.sync_turn(_DURABLE, "Understood, noted.", session_id="old")
+    sanity.on_session_end([])
+    sanity.shutdown()
+    assert "make ship" in sanity.prefetch("how do we deploy?")
+
+    # Main: buffer under "old", then re-initialize the SAME provider for "new".
+    # initialize() must clear the stale buffer so the later on_session_end([]) is a no-op.
+    monkeypatch.setenv("CAIRN_VAULT", str(tmp_path / "main_vault"))
+    p = mod.CairnMemoryProvider()
+    p.initialize("old", hermes_home=str(tmp_path / "hh_main"))
+    p.sync_turn(_DURABLE, "Understood, noted.", session_id="old")
+    p.initialize("new", hermes_home=str(tmp_path / "hh_main"))  # must clear stale buffer
+    assert p._buffers == {}
+    p.on_session_end([])  # empty + cleared buffer -> nothing captured
+    p.shutdown()
+    assert "make ship" not in p.prefetch("how do we deploy?")
