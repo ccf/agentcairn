@@ -34,19 +34,25 @@ def _resolve(cfg: dict):
     return vault, index, embedder
 
 
+# DuckDB is single-writer; serialize reindexes so the capture daemon thread and a
+# synchronous memory_save never run overlapping open_index/reconcile on one index file.
+_REINDEX_LOCK = threading.Lock()
+
+
 def _reindex(vault: Path, embedder: str) -> None:
     from cairn import paths
     from cairn.embed import get_embedder
     from cairn.index import open_index, reconcile
 
-    emb = get_embedder(embedder)
-    idx = paths.index_for(None, vault)
-    idx.parent.mkdir(parents=True, exist_ok=True)
-    con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
-    try:
-        reconcile(con, str(vault), emb)
-    finally:
-        con.close()
+    with _REINDEX_LOCK:
+        emb = get_embedder(embedder)
+        idx = paths.index_for(None, vault)
+        idx.parent.mkdir(parents=True, exist_ok=True)
+        con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
+        try:
+            reconcile(con, str(vault), emb)
+        finally:
+            con.close()
 
 
 class CairnMemoryProvider(_base()):
@@ -114,6 +120,7 @@ class CairnMemoryProvider(_base()):
             return {}
 
     def initialize(self, session_id: str, **kwargs) -> None:
+        self._session_id = session_id
         self._hermes_home = kwargs.get("hermes_home", str(Path.home() / ".hermes"))
         self._cfg = self._load_config(self._hermes_home)
         self._vault, self._index, self._embedder = _resolve(self._cfg)
@@ -224,7 +231,7 @@ class CairnMemoryProvider(_base()):
         return {"error": f"unknown tool {tool_name}"}
 
     def sync_turn(self, user: str, assistant: str, *, session_id: str = "") -> None:
-        buf = self._buffers.setdefault(session_id, [])
+        buf = self._buffers.setdefault(session_id or getattr(self, "_session_id", ""), [])
         if user:
             buf.append({"role": "user", "content": user})
         if assistant:
@@ -243,8 +250,16 @@ class CairnMemoryProvider(_base()):
             _log(f"capture failed (dropped): {e}")
 
     def on_session_end(self, messages) -> None:
-        msgs = list(messages) if messages else self._buffers.get("", [])
-        t = threading.Thread(target=self._capture, args=(msgs, "hermes"), daemon=True)
+        # When Hermes hands us no messages, fall back to ALL buffered turns (sync_turn
+        # keys them under the real session id, not ""), then clear so a later end can't
+        # double-capture the same turns.
+        msgs = list(messages) if messages else [m for buf in self._buffers.values() for m in buf]
+        self._buffers.clear()
+        t = threading.Thread(
+            target=self._capture,
+            args=(msgs, getattr(self, "_session_id", "hermes")),
+            daemon=True,
+        )
         t.start()
         self._threads = getattr(self, "_threads", [])
         self._threads.append(t)
