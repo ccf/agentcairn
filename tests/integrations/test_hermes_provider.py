@@ -119,3 +119,25 @@ def test_on_session_end_is_nonblocking_and_persists(provider):
 def test_sync_turn_buffers(provider):
     provider.sync_turn("hello", "hi there", session_id="s9")
     assert len(provider._buffers["s9"]) == 2
+
+
+def test_get_config_schema_declares_fields(provider):
+    keys = {f["key"] for f in provider.get_config_schema()}
+    assert {"vault_path", "embedder", "rerank"} <= keys
+
+
+def test_saved_config_is_honored_on_initialize(tmp_path):
+    import importlib.util
+    from pathlib import Path
+
+    PLUGIN = Path(__file__).resolve().parents[2] / "integrations" / "hermes" / "__init__.py"
+    spec = importlib.util.spec_from_file_location("cairn_hermes_plugin2", PLUGIN)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    custom = tmp_path / "custom_vault"
+    hhome = str(tmp_path / "hh")
+    p = mod.CairnMemoryProvider()
+    p.save_config({"vault_path": str(custom)}, hhome)
+    p2 = mod.CairnMemoryProvider()
+    p2.initialize("s", hermes_home=hhome)
+    assert str(custom) in str(p2._vault)  # Hermes-set vault_path is honored

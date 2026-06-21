@@ -42,7 +42,9 @@ Configure via Hermes's plugin config mechanism. All keys are optional.
 | `embedder` | `fastembed` | Embedding backend. `fastembed` (local, no key) or `ollama`. |
 | `rerank` | `false` | Enable cross-encoder reranking on recall results for higher precision. |
 
-**No secrets are required by default.** Storage is local. If you want LLM-assisted distillation at session end (higher-quality notes), set `CAIRN_JUDGE=anthropic` and provide `ANTHROPIC_API_KEY` — but the plugin works without it.
+**No secrets are required by default.** Storage is local. Session-end auto-capture uses agentcairn's **local extractive distiller** — fast, fully local, no API key required — with the same importance gate and redaction pipeline as normal agentcairn capture.
+
+The optional LLM judge (`CAIRN_JUDGE=anthropic` + `ANTHROPIC_API_KEY`) applies to the normal `cairn sweep`/`ingest` CLI path over your shared vault, not to this plugin's in-process session-end capture.
 
 ## Verify
 
