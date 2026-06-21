@@ -69,10 +69,56 @@ class CairnMemoryProvider(_base()):
         except Exception:
             return False
 
+    def get_config_schema(self):
+        return [
+            {
+                "key": "vault_path",
+                "required": False,
+                "secret": False,
+                "description": (
+                    "agentcairn vault path (default: $CAIRN_VAULT or ~/agentcairn"
+                    " — shared with your other agents)."
+                ),
+            },
+            {
+                "key": "embedder",
+                "required": False,
+                "secret": False,
+                "description": "Embedder: 'fastembed' (default, local) or 'ollama'.",
+            },
+            {
+                "key": "rerank",
+                "required": False,
+                "secret": False,
+                "description": "Rerank recalled memories (true/false).",
+            },
+        ]
+
+    def _config_path(self, hermes_home: str) -> Path:
+        return Path(hermes_home) / "agentcairn" / "config.json"
+
+    def save_config(self, values: dict, hermes_home: str) -> None:
+        import json
+
+        p = self._config_path(hermes_home)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps({k: v for k, v in values.items() if v is not None}))
+
+    def _load_config(self, hermes_home: str) -> dict:
+        import json
+
+        p = self._config_path(hermes_home)
+        try:
+            return json.loads(p.read_text()) if p.exists() else {}
+        except Exception:
+            return {}
+
     def initialize(self, session_id: str, **kwargs) -> None:
         self._hermes_home = kwargs.get("hermes_home", str(Path.home() / ".hermes"))
+        self._cfg = self._load_config(self._hermes_home)
         self._vault, self._index, self._embedder = _resolve(self._cfg)
-        self._rerank = bool(self._cfg.get("rerank", False))
+        self._rerank = self._cfg.get("rerank") in (True, "true", "True", "1", "yes")
+        self._k = int(self._cfg.get("k", 5))
         self._vault.mkdir(parents=True, exist_ok=True)
 
     def system_prompt_block(self) -> str:
@@ -85,7 +131,13 @@ class CairnMemoryProvider(_base()):
         try:
             from cairn.mcp.tools import recall_tool
 
-            res = recall_tool(self._index, query, embedder=self._embedder, k=5, rerank=self._rerank)
+            res = recall_tool(
+                self._index,
+                query,
+                embedder=self._embedder,
+                k=getattr(self, "_k", 5),
+                rerank=self._rerank,
+            )
             notes = res.get("notes") or []
             chunks = [str(n.get("text") or "") for n in notes]
             chunks = [c for c in chunks if c]
@@ -155,7 +207,7 @@ class CairnMemoryProvider(_base()):
                     self._index,
                     args["query"],
                     embedder=self._embedder,
-                    k=int(args.get("k", 5)),
+                    k=int(args.get("k", getattr(self, "_k", 5))),
                     rerank=self._rerank,
                 )
             if tool_name == "memory_search":
