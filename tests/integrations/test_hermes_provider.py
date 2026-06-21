@@ -79,3 +79,43 @@ def test_redaction_on_save(provider):
 
 def test_unknown_tool_returns_error(provider):
     assert "error" in provider.handle_tool_call("nope", {})
+
+
+def test_session_end_distills_user_facts_then_recall_finds_them(provider):
+    msgs = [
+        {
+            "role": "user",
+            "content": (
+                "Decision: we always deploy this repo using make ship instead of "
+                "npm publish, because the Makefile handles CI versioning. Never run "
+                "npm publish directly."
+            ),
+        },
+        {"role": "assistant", "content": "Understood, noted."},
+    ]
+    provider._capture(msgs, "sess-1")  # run capture inline (no daemon thread)
+    assert "make ship" in provider.prefetch("how do we deploy?")
+
+
+def test_capture_failure_is_swallowed(provider, monkeypatch):
+    import cairn.ingest as ci
+
+    monkeypatch.setattr(
+        ci, "ingest_transcript", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
+    provider._capture([{"role": "user", "content": "x"}], "s")  # must NOT raise
+
+
+def test_on_session_end_is_nonblocking_and_persists(provider):
+    content = (
+        "The production region is always us-east-1; we should never switch this "
+        "service to us-west-2 for latency reasons."
+    )
+    provider.on_session_end([{"role": "user", "content": content}])
+    provider.shutdown()  # joins the daemon thread
+    assert "us-east-1" in provider.prefetch("which region is prod?")
+
+
+def test_sync_turn_buffers(provider):
+    provider.sync_turn("hello", "hi there", session_id="s9")
+    assert len(provider._buffers["s9"]) == 2

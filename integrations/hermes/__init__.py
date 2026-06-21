@@ -4,6 +4,7 @@ Install: copy this dir to ~/.hermes/plugins/memory/agentcairn and `pip install a
 from __future__ import annotations
 
 import sys
+import threading
 from pathlib import Path
 
 
@@ -57,6 +58,9 @@ class CairnMemoryProvider(_base()):
         self._index: str | None = None
         self._embedder = "fastembed"
         self._rerank = False
+        # Per-session turn buffers. GIL-protected; sync_turn is assumed to be called
+        # serially per session (no caller-level threading) so list.append needs no lock.
+        self._buffers: dict[str, list[dict]] = {}
 
     def is_available(self) -> bool:
         try:
@@ -166,3 +170,33 @@ class CairnMemoryProvider(_base()):
             _log(f"tool {tool_name} failed: {e}")
             return {"error": str(e)}
         return {"error": f"unknown tool {tool_name}"}
+
+    def sync_turn(self, user: str, assistant: str, *, session_id: str = "") -> None:
+        buf = self._buffers.setdefault(session_id, [])
+        if user:
+            buf.append({"role": "user", "content": user})
+        if assistant:
+            buf.append({"role": "assistant", "content": assistant})
+
+    def _capture(self, messages: list[dict], session_id: str) -> None:
+        try:
+            import cairn.ingest as ci
+
+            t = ci.transcript_from_messages(messages, session_id=session_id)
+            ledger_path = Path(self._hermes_home) / "agentcairn" / "dedup.jsonl"
+            ledger = ci.DedupLedger(ledger_path)
+            ci.ingest_transcript(t, vault_root=self._vault, ledger=ledger, subdir="memories")
+            _reindex(self._vault, self._embedder)
+        except Exception as e:
+            _log(f"capture failed (dropped): {e}")
+
+    def on_session_end(self, messages) -> None:
+        msgs = list(messages) if messages else self._buffers.get("", [])
+        t = threading.Thread(target=self._capture, args=(msgs, "hermes"), daemon=True)
+        t.start()
+        self._threads = getattr(self, "_threads", [])
+        self._threads.append(t)
+
+    def shutdown(self) -> None:
+        for t in getattr(self, "_threads", []):
+            t.join(timeout=30)
