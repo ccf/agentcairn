@@ -34,25 +34,28 @@ def _resolve(cfg: dict):
     return vault, index, embedder
 
 
-# DuckDB is single-writer; serialize reindexes so the capture daemon thread and a
-# synchronous memory_save never run overlapping open_index/reconcile on one index file.
-_REINDEX_LOCK = threading.Lock()
+# Single lock serializing ALL vault writes (ingest + reindex). The two writers — the
+# _capture daemon thread and a synchronous memory_save — must not race the dedup ledger
+# or run overlapping open_index/reconcile (DuckDB is single-writer). Each writer holds
+# this lock around its whole write+reindex, so _reindex below must stay lock-free to
+# avoid a re-entrant deadlock; the only callers (_capture, memory_save) already hold it.
+_WRITE_LOCK = threading.Lock()
 
 
 def _reindex(vault: Path, embedder: str) -> None:
+    # Raw reindex — caller MUST hold _WRITE_LOCK.
     from cairn import paths
     from cairn.embed import get_embedder
     from cairn.index import open_index, reconcile
 
-    with _REINDEX_LOCK:
-        emb = get_embedder(embedder)
-        idx = paths.index_for(None, vault)
-        idx.parent.mkdir(parents=True, exist_ok=True)
-        con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
-        try:
-            reconcile(con, str(vault), emb)
-        finally:
-            con.close()
+    emb = get_embedder(embedder)
+    idx = paths.index_for(None, vault)
+    idx.parent.mkdir(parents=True, exist_ok=True)
+    con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
+    try:
+        reconcile(con, str(vault), emb)
+    finally:
+        con.close()
 
 
 class CairnMemoryProvider(_base()):
@@ -106,9 +109,13 @@ class CairnMemoryProvider(_base()):
     def save_config(self, values: dict, hermes_home: str) -> None:
         import json
 
+        clean = {k: v for k, v in values.items() if v is not None}
         p = self._config_path(hermes_home)
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps({k: v for k, v in values.items() if v is not None}))
+        p.write_text(json.dumps(clean))
+        # Reflect the change in-memory too, so is_available()/_resolve (which read _cfg)
+        # see the new vault_path/embedder/rerank immediately without a re-initialize.
+        self._cfg = {**self._cfg, **clean}
 
     def _load_config(self, hermes_home: str) -> dict:
         import json
@@ -204,13 +211,14 @@ class CairnMemoryProvider(_base()):
 
         try:
             if tool_name == "memory_save":
-                out = remember_tool(
-                    str(self._vault),
-                    args["text"],
-                    title=args.get("title"),
-                    tags=args.get("tags"),
-                )
-                _reindex(self._vault, self._embedder)
+                with _WRITE_LOCK:
+                    out = remember_tool(
+                        str(self._vault),
+                        args["text"],
+                        title=args.get("title"),
+                        tags=args.get("tags"),
+                    )
+                    _reindex(self._vault, self._embedder)
                 return out
             if tool_name == "memory_recall":
                 return recall_tool(
@@ -243,12 +251,18 @@ class CairnMemoryProvider(_base()):
     def _capture(self, messages: list[dict], session_id: str) -> None:
         try:
             import cairn.ingest as ci
+            from cairn import paths
 
-            t = ci.transcript_from_messages(messages, session_id=session_id)
-            ledger_path = Path(self._hermes_home) / "agentcairn" / "dedup.jsonl"
-            ledger = ci.DedupLedger(ledger_path)
-            ci.ingest_transcript(t, vault_root=self._vault, ledger=ledger, subdir="memories")
-            _reindex(self._vault, self._embedder)
+            # Key the dedup ledger by the resolved vault, not just hermes_home. Otherwise a
+            # changed vault_path keeps skipping already-seen content hashes and durable
+            # turns never reach the new vault.
+            vkey = paths.vault_key(self._vault)
+            ledger_path = Path(self._hermes_home) / "agentcairn" / f"dedup-{vkey}.jsonl"
+            with _WRITE_LOCK:
+                t = ci.transcript_from_messages(messages, session_id=session_id)
+                ledger = ci.DedupLedger(ledger_path)
+                ci.ingest_transcript(t, vault_root=self._vault, ledger=ledger, subdir="memories")
+                _reindex(self._vault, self._embedder)
         except Exception as e:
             _log(f"capture failed (dropped): {e}")
 
@@ -258,8 +272,11 @@ class CairnMemoryProvider(_base()):
         # must fall back to the buffer. The DedupLedger (content_hash) collapses any
         # overlap, so the union never double-writes. Clear buffers so a later end can't
         # re-capture the same turns.
+        # Guard list(messages): Hermes may pass None/non-iterable, and this runs outside
+        # _capture's fail-safe wrapper — a TypeError here would escape into Hermes.
+        incoming = list(messages) if isinstance(messages, (list, tuple)) else []
         buffered = [m for buf in self._buffers.values() for m in buf]
-        msgs = list(messages) + buffered
+        msgs = incoming + buffered
         self._buffers.clear()
         if not msgs:
             return
