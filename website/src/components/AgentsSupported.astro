@@ -3,20 +3,24 @@ import Section from "./Section.astro";
 import { agents } from "../lib/content";
 
 // Render inline `code` spans and [label](href) markdown links into safe HTML.
+// Tokenize on code spans first, then apply the link regex ONLY to the
+// non-code segments — so markdown-link syntax inside a code span is left intact.
 function inline(s: string) {
   return s
-    .replace(
-      /`(.+?)`/g,
-      (_m, c) =>
-        `<code class="font-mono text-[0.85em]">${c
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")}</code>`,
+    .split(/(`[^`]+`)/)
+    .map((seg) =>
+      seg.startsWith("`") && seg.endsWith("`")
+        ? `<code class="font-mono text-[0.85em]">${seg
+            .slice(1, -1)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")}</code>`
+        : seg.replace(
+            /\[(.+?)\]\((.+?)\)/g,
+            (_m, label, href) => `<a href="${href}" class="underline">${label}</a>`,
+          ),
     )
-    .replace(
-      /\[(.+?)\]\((.+?)\)/g,
-      (_m, label, href) => `<a href="${href}" class="underline">${label}</a>`,
-    );
+    .join("");
 }
 ---
 <Section id="hosts" eyebrow={agents.eyebrow} eyebrowHeading={false}>
