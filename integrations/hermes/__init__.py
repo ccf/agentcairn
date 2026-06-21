@@ -113,9 +113,17 @@ class CairnMemoryProvider(_base()):
         p = self._config_path(hermes_home)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps(clean))
-        # Reflect the change in-memory too, so is_available()/_resolve (which read _cfg)
-        # see the new vault_path/embedder/rerank immediately without a re-initialize.
+        # Reflect the change in-memory AND re-resolve the cached vault/index/embedder,
+        # so writes + recall (which use the cached paths, not _cfg) honor a mid-session
+        # config change immediately — not just is_available().
         self._cfg = {**self._cfg, **clean}
+        self._apply_cfg()
+
+    def _apply_cfg(self) -> None:
+        """Resolve the cached vault/index/embedder/rerank/k from the current _cfg."""
+        self._vault, self._index, self._embedder = _resolve(self._cfg)
+        self._rerank = self._cfg.get("rerank") in (True, "true", "True", "1", "yes")
+        self._k = int(self._cfg.get("k", 5))
 
     def _load_config(self, hermes_home: str) -> dict:
         import json
@@ -133,9 +141,7 @@ class CairnMemoryProvider(_base()):
         self._buffers.clear()
         self._hermes_home = kwargs.get("hermes_home", str(Path.home() / ".hermes"))
         self._cfg = self._load_config(self._hermes_home)
-        self._vault, self._index, self._embedder = _resolve(self._cfg)
-        self._rerank = self._cfg.get("rerank") in (True, "true", "True", "1", "yes")
-        self._k = int(self._cfg.get("k", 5))
+        self._apply_cfg()
         self._vault.mkdir(parents=True, exist_ok=True)
 
     def system_prompt_block(self) -> str:

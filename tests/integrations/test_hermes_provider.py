@@ -194,10 +194,11 @@ def test_initialize_clears_stale_buffers(tmp_path, monkeypatch):
 def test_save_config_updates_cfg_so_is_available_sees_new_vault(provider, tmp_path):
     new_vault = tmp_path / "switched_vault"
     provider.save_config({"vault_path": str(new_vault)}, hermes_home=str(tmp_path / "hh_cfg"))
-    # _cfg merge means is_available()/_resolve pick up the new vault without re-init.
+    # save_config updates _cfg AND re-resolves the cached vault immediately — writes/recall
+    # must honor the new vault without needing a re-initialize or an is_available() call.
     assert provider._cfg.get("vault_path") == str(new_vault)
+    assert str(new_vault) in str(provider._vault)  # cached vault updated by save_config itself
     assert provider.is_available() is True
-    assert str(new_vault) in str(provider._vault)
 
 
 def test_on_session_end_none_is_failsafe(provider):
