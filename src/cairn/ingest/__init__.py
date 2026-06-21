@@ -3,6 +3,7 @@
 from cairn.ingest.dedup import DedupLedger, content_hash
 from cairn.ingest.distill import Distiller, ExtractiveDistiller, write_derived_note
 from cairn.ingest.events import EventKind, NormalizedEvent
+from cairn.ingest.from_messages import transcript_from_messages
 from cairn.ingest.harness import TranscriptRef, get_adapter, present_harnesses
 from cairn.ingest.judge import Judgment, resolve_judge
 from cairn.ingest.locate import encode_cwd, find_transcripts, parse_transcript
@@ -37,5 +38,6 @@ __all__ = [
     "present_harnesses",
     "redact",
     "resolve_judge",
+    "transcript_from_messages",
     "write_derived_note",
 ]
