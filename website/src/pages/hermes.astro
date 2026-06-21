@@ -1,0 +1,150 @@
+---
+import ContentPage from "../layouts/ContentPage.astro";
+import Section from "../components/Section.astro";
+import Prose from "../components/Prose.astro";
+
+const title = "agentcairn for Hermes Agent — vault-native memory provider";
+const description =
+  "Give Hermes Agent local-first, vault-native memory: plain-Markdown memories you own, in the same vault as your Claude Code, Codex, and Cursor agents.";
+
+const faq = [
+  {
+    q: "What is the agentcairn Hermes memory provider?",
+    a: "It is an agentcairn plugin that implements the Hermes MemoryProvider API, giving Hermes Agent durable memory backed by your own plain-Markdown Obsidian vault — local-first, with the files as the source of truth rather than a cloud database.",
+  },
+  {
+    q: "Does Hermes memory share a vault with my other agents?",
+    a: "Yes. It writes to the same CAIRN_VAULT used by the Claude Code, Codex, and Cursor plugins, so a fact your Hermes agent learns is recalled by your other agents, and vice versa — one unified brain across every tool.",
+  },
+  {
+    q: "How do I install agentcairn into Hermes?",
+    a: "Install agentcairn into Hermes's Python environment (pip install agentcairn), copy integrations/hermes into ~/.hermes/plugins/memory/agentcairn, then run `hermes memory setup agentcairn`. All config keys are optional and default to a local, no-key setup.",
+  },
+  {
+    q: "Does the Hermes provider need a cloud API key?",
+    a: "No. Storage is local files, embeddings run locally via FastEmbed by default, and session-end capture uses agentcairn's local extractive distiller — no API key required. An optional Anthropic judge applies only to the separate `cairn sweep` CLI path over the shared vault.",
+  },
+  {
+    q: "What happens if memory capture fails during a Hermes session?",
+    a: "Capture is fail-safe: an error during session-end logs a warning to stderr and is silently dropped. It never raises into Hermes, so a capture problem can't crash your agent.",
+  },
+];
+---
+<ContentPage title={title} description={description} faq={faq}>
+  <Section id="intro">
+    <h1 class="font-serif text-[40px] leading-tight mb-6">agentcairn for Hermes Agent</h1>
+    <Prose>
+      <p>
+        agentcairn is a native
+        <a href="https://github.com/hermesagent/hermes" class="underline">Hermes Agent</a>
+        <code>MemoryProvider</code>: durable, local-first memory for Hermes,
+        backed by your own plain-Markdown vault — the same vault your Claude
+        Code, Codex, and Cursor agents already use.
+      </p>
+    </Prose>
+  </Section>
+
+  <Section id="why" eyebrow="Why it's different">
+    <Prose>
+      <p>
+        It is the only Hermes memory provider that is <strong>vault-native and
+        human-editable</strong>. Memories are plain Markdown files with YAML
+        frontmatter and <code>[[wikilinks]]</code> — open them in Obsidian, fix a
+        wrong fact by hand, drop in your own notes, and the agent picks it all up
+        on the next session. The vault is the source of truth, not a one-way
+        export from a database.
+      </p>
+      <ul class="list-disc pl-6 space-y-2">
+        <li>
+          <strong>Local-first by default.</strong> No cloud account, no network
+          call, no always-on server. The only storage is files on your disk.
+        </li>
+        <li>
+          <strong>Own your data.</strong> Apache-2.0, plain Markdown, nothing
+          trapped in a proprietary store — your memory survives a model upgrade,
+          an index rebuild, or uninstalling the tool.
+        </li>
+        <li>
+          <strong>One brain across agents.</strong> It writes to the same
+          <code>CAIRN_VAULT</code> as the Claude Code, Codex, and Cursor plugins,
+          so memory follows you across tools instead of fragmenting per-agent.
+        </li>
+        <li>
+          <strong>Secret-redacted, non-lossy.</strong> Regex + entropy +
+          URL-credential redaction runs before any text reaches the vault, and
+          distillation only adds derived notes — it never drops a fact.
+        </li>
+      </ul>
+    </Prose>
+  </Section>
+
+  <Section id="how" eyebrow="How it works">
+    <Prose>
+      <p>
+        agentcairn hooks into the Hermes memory lifecycle so recall and capture
+        happen automatically, with explicit tools for curated operations:
+      </p>
+      <ul class="list-disc pl-6 space-y-2">
+        <li>
+          <strong>Auto-recall every turn.</strong> At the start of each turn
+          (<code>prefetch</code>), agentcairn runs a hybrid BM25 + semantic vector
+          recall against your vault and injects the relevant memories into context.
+        </li>
+        <li>
+          <strong>Session-end distill.</strong> Turns are buffered with no I/O on
+          the hot path, then distilled into durable vault notes on a daemon thread
+          when the session ends — the same importance gate and redaction pipeline
+          as agentcairn's normal capture.
+        </li>
+        <li>
+          <strong>Curated tools.</strong> <code>memory_save</code>,
+          <code>memory_recall</code>, and <code>memory_search</code> are exposed
+          as Hermes tools for on-demand, agent-driven memory operations.
+        </li>
+      </ul>
+    </Prose>
+  </Section>
+
+  <Section id="install" eyebrow="Install">
+    <Prose>
+      <p>
+        The provider ships in
+        <a href="https://github.com/ccf/agentcairn/tree/main/integrations/hermes" class="underline"><code>integrations/hermes/</code></a>.
+        Install agentcairn into Hermes's Python environment, copy the plugin into
+        your Hermes plugins directory, and register it:
+      </p>
+    </Prose>
+    <pre class="prose-measure font-mono text-[13px] leading-[1.7] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 overflow-x-auto mt-6" tabindex="0">{[
+      "pip install agentcairn",
+      "cp -r integrations/hermes ~/.hermes/plugins/memory/agentcairn",
+      "hermes memory setup agentcairn",
+    ].join("\n")}</pre>
+    <Prose>
+      <p class="mt-6">
+        All config keys are optional. By default it uses
+        <code>~/agentcairn</code> (or <code>$CAIRN_VAULT</code>), local FastEmbed
+        embeddings, and no secrets. See the
+        <a href="https://github.com/ccf/agentcairn/tree/main/integrations/hermes" class="underline">integration README</a>
+        for the full config table.
+      </p>
+      <p>
+        <a href="/agent-memory" class="underline">What is agent memory?</a>
+        &middot;
+        <a href="/obsidian-ai-memory" class="underline">Read your memory in Obsidian</a>
+        &middot;
+        <a href="/alternatives" class="underline">How agentcairn compares</a>
+      </p>
+    </Prose>
+  </Section>
+
+  <Section id="faq" eyebrow="FAQ">
+    <Prose>
+      {faq.map((f) => (
+        <div class="mb-6">
+          <h3 class="font-serif text-[22px] leading-snug mb-2">{f.q}</h3>
+          <p>{f.a}</p>
+        </div>
+      ))}
+    </Prose>
+  </Section>
+</ContentPage>

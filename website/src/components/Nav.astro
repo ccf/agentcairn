@@ -1,9 +1,11 @@
 ---
-import { nav } from "../lib/content";
+import { nav, navGuides } from "../lib/content";
 ---
-<nav class="mx-auto flex max-w-[var(--container-frame)] items-center justify-between px-8 py-6 border-b border-[var(--color-border-faint)]">
-  <a href="/" class="font-sans font-medium tracking-tight text-[16px]">🪨 agentcairn</a>
-  <div class="font-mono text-[13px] text-[var(--color-ink-muted)] flex gap-6">
+<nav class="mx-auto flex max-w-[var(--container-frame)] items-center justify-between gap-6 px-8 py-6 border-b border-[var(--color-border-faint)]">
+  <a href="/" class="font-sans font-medium tracking-tight text-[16px] shrink-0">🪨 agentcairn</a>
+  <div class="font-mono text-[13px] text-[var(--color-ink-muted)] flex flex-wrap justify-end gap-x-6 gap-y-2">
     {nav.map((n) => <a href={n.href} class="hover:text-[var(--color-ink)]">{n.label}</a>)}
+    <span class="text-[var(--color-border)] select-none" aria-hidden="true">·</span>
+    {navGuides.map((n) => <a href={n.href} class="hover:text-[var(--color-ink)]">{n.label}</a>)}
   </div>
 </nav>

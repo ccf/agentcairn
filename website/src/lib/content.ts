@@ -11,11 +11,22 @@ export const site = {
   themeColor: "#ffffff",
 };
 
+// Homepage section anchors. Prefixed with "/" so they also resolve from
+// sub-pages (e.g. /hermes → /#how), not only from the homepage.
 export const nav = [
-  { label: "How it works", href: "#how" },
-  { label: "Benchmarks", href: "#measured" },
-  { label: "Quickstart", href: "#quickstart" },
-  { label: "Any host", href: "#hosts" },
+  { label: "How it works", href: "/#how" },
+  { label: "Benchmarks", href: "/#measured" },
+  { label: "Quickstart", href: "/#quickstart" },
+  { label: "Any host", href: "/#hosts" },
+];
+
+// Guide / niche pages surfaced in the top nav (and footer). Helps users find
+// them and gives the niche pages internal-link equity for SEO.
+export const navGuides = [
+  { label: "Agent memory", href: "/agent-memory" },
+  { label: "Obsidian", href: "/obsidian-ai-memory" },
+  { label: "Hermes", href: "/hermes" },
+  { label: "Alternatives", href: "/alternatives" },
   { label: "GitHub", href: site.repo },
 ];
 
@@ -38,6 +49,7 @@ export const footer = {
   guides: [
     { label: "What is agent memory?", href: "/agent-memory" },
     { label: "AI memory in Obsidian", href: "/obsidian-ai-memory" },
+    { label: "agentcairn for Hermes", href: "/hermes" },
     { label: "vs Mem0, Letta, Zep, basic-memory", href: "/alternatives" },
   ],
 };
@@ -120,7 +132,9 @@ export const agents = {
     "start, capture at session end). Antigravity has no plugin hooks, so capture runs out-of-band " +
     "via `cairn sweep`. Every other MCP host gets the same recall/search/`remember` tools via the " +
     "portable server; `cairn install` wires it in non-destructively (your other servers are " +
-    "preserved, the original backed up to `<config>.bak`). One global `~/agentcairn` vault, " +
+    "preserved, the original backed up to `<config>.bak`). [Hermes Agent](/hermes) gets a native " +
+    "agentcairn `MemoryProvider`, and the [agentcairn-obsidian](https://github.com/ccf/agentcairn-obsidian) " +
+    "plugin lets you read and navigate that memory inside Obsidian. One global `~/agentcairn` vault, " +
     "shared across every host.",
   rows: [
     { host: "Claude Code", support: "Plugin", setup: "cairn install claude-code", ambient: "full" },
@@ -130,6 +144,7 @@ export const agents = {
     { host: "VS Code (Copilot)", support: "MCP server", setup: "cairn install vscode", ambient: "none" },
     { host: "Gemini CLI", support: "MCP server", setup: "cairn install gemini", ambient: "none" },
     { host: "Antigravity", support: "Plugin + ingest", setup: "cairn install antigravity", ambient: "partial" },
+    { host: "Hermes Agent", support: "MemoryProvider plugin", setup: "see integrations/hermes/", ambient: "full" },
   ],
   install: [
     "cairn install                 # detect installed agents + preview (writes nothing)",
@@ -152,6 +167,19 @@ export const agents = {
     "`~/.cursor/skills/` alongside writing `~/.cursor/mcp.json`. Gemini CLI ingest " +
     "is not supported — Google is sunsetting it (2026-06-18) in favour of Antigravity; " +
     "`cairn install gemini` (MCP wiring) still works for Gemini-based MCP hosts.",
+  obsidian: {
+    body:
+      "Because the vault is plain Markdown, you can read what every agent remembers in " +
+      "[Obsidian](https://obsidian.md): the [agentcairn-obsidian](https://github.com/ccf/agentcairn-obsidian) " +
+      "plugin (on the community store) adds a vault-native Memory view — a filterable list with provenance " +
+      "and currency, plus a d3-force memory graph of `related:` links, colored by project and sized by " +
+      "importance.",
+    image: "/obsidian-graph.png",
+    imageAlt:
+      "agentcairn Memory view in Obsidian: a memory graph with nodes colored by project, connected by related links, with a legend and a provenance panel.",
+    caption:
+      "The agentcairn-obsidian Memory view — your agents' memory as a navigable graph, colored by project.",
+  },
 };
 export const trust = [
   { k: "Redaction before write", v: "regex + entropy + URL-credential" },

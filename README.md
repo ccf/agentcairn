@@ -20,7 +20,9 @@ Most agent-memory systems make a database or cloud store the source of truth and
 - **♻️ The index is disposable.** DuckDB is a rebuildable cache (`cairn reindex`). Your memory survives a model upgrade, a corrupted index, a schema change, or uninstalling the tool — **zero data loss**, because the truth is just files on disk.
 - **🧠 Non-lossy by construction.** The full note is always retained. Distillation only *adds* derived notes that link back to the source — it never silently drops facts it didn't think to extract at write time.
 - **🔒 Redaction before every write.** Secrets are scrubbed (regex + entropy + URL-credential detection) before anything — body, title, or tags — reaches the plaintext vault. We write files you can read, so we treat a leaked credential as the worst failure mode.
-- **🕸️ A free, deterministic knowledge graph.** Your `[[wikilinks]]` and frontmatter *are* the graph — no LLM extraction, no hallucinated entities.
+- **🕸️ A free, deterministic knowledge graph.** Your `[[wikilinks]]` and frontmatter *are* the graph — no LLM extraction, no hallucinated entities. `cairn link` writes each note's top semantic neighbors into a `related:` frontmatter list (deterministic, opt-in) so the graph lights up in Obsidian.
+- **🔮 Read your memory in Obsidian.** The companion [agentcairn-obsidian](https://github.com/ccf/agentcairn-obsidian) plugin (on the Obsidian community store) adds a vault-native **Memory view**: a filterable list of notes with provenance and currency, plus a d3-force **memory graph** of `related:` links — colored by project, sized by importance, superseded notes dimmed. **0.4.0** adds a **facet-hub graph** ("group by" project / harness / tag → hub nodes) so you can see your memory's shape at a glance.
+- **🤖 Works across every agent you use.** Plugins for Claude Code, Codex, and Antigravity; an MCP server + skill for Cursor and any other MCP host; and a native [Hermes](https://github.com/hermesagent/hermes) `MemoryProvider` ([`integrations/hermes/`](integrations/hermes/)) — all sharing the *same* vault, so your memory follows you across agents instead of fragmenting per-tool. `cairn sweep` auto-detects and ingests Claude Code, Codex, Antigravity, and Cursor sessions; `cairn schedule install` keeps it running on a managed launchd/crontab job as a host-agnostic capture backstop.
 - **🪶 Daemonless, zero external DB.** One embedded DuckDB file does semantic vector search, BM25 full-text, and graph traversal. No always-on server, no Neo4j/Postgres/Qdrant, no required cloud key — just a `cairn` CLI and an on-demand MCP server.
 - **🔍 Honestly measured.** A reproducible LongMemEval-S + LoCoMo harness ships in [`benchmarks/`](benchmarks/) — with real numbers, ablations, and explicit caveats instead of one cherry-picked headline (see below).
 
@@ -79,11 +81,15 @@ uvx agentcairn                                       # on-demand MCP server for 
 cairn ingest --vault ~/vault                         # distill recent agent sessions into the vault
 cairn sweep  --vault ~/vault                          # ingest + reindex in one pass (cron-friendly)
 cairn schedule install --vault ~/vault                # run sweep automatically every 30 min (launchd on macOS, crontab on Linux)
+cairn schedule status                                 # show the managed job's state (cairn schedule uninstall to remove)
+cairn link   --vault ~/vault                          # write related: neighbors into frontmatter (populates the Obsidian graph)
 cairn recall "how did we fix the auth bug?"          # hybrid recall from the CLI
 cairn savings                                        # how much context recall has saved you
 cairn reindex ~/vault                                # rebuild the index from Markdown (always safe)
 cairn doctor                                         # health-check the index
 ```
+
+`cairn schedule install/status/uninstall` manages a launchd (macOS) or crontab (Linux) job that runs `cairn sweep` periodically — a host-agnostic capture backstop so memory keeps flowing even for hosts without ambient hooks.
 
 ### Configuration
 
@@ -186,16 +192,6 @@ Estimate (~4 chars/token), not a billed cost; "haystack" = the full indexed hist
 ### QA accuracy
 
 QA-accuracy numbers (LLM-judged) are available too, but use an Anthropic judge rather than the papers' GPT-4o, so they are **not comparable to published leaderboards** — valid for relative ablation signal only. See [`benchmarks/README.md`](benchmarks/README.md) for how to run it and how to read the numbers.
-
-## Roadmap
-
-- **v1 — done.** The core loop: transcript ingestion → redaction → Markdown → rebuildable DuckDB index → hybrid recall; MCP server + CLI; secret redaction; local embeddings; reproducible benchmark harness.
-- **v1.1 — next, prioritized by the benchmark above:**
-  - ✅ **Reranker on by default** — the largest measured retrieval lever; `CAIRN_RERANK=0` to disable. *(shipped)*
-  - **Ollama embedding tier** — ✅ local models via `CAIRN_EMBEDDER=ollama` (`CAIRN_EMBED_MODEL`/`OLLAMA_HOST`); cloud (OpenAI/Voyage) still pending.
-  - ✅ **Bi-temporal validity** — frontmatter `valid_from`/`valid_until`/`superseded_by`; recall soft-demotes superseded/expired facts (non-lossy — never hidden) and annotates each result's currency + an `as_of` anchor, so the *current* fact wins and the agent can reason over time. *(shipped)*
-  - In-memory HNSW for large-vault retrieval latency.
-- **v2** — ◐ **Obsidian plugin** ([agentcairn-obsidian](https://github.com/ccf/agentcairn-obsidian)) — a vault-native Memory view (list + provenance + currency + graph) for reading/navigating your memory in Obsidian; *(MVP shipped; semantic recall stays in the CLI/MCP)*. MotherDuck cloud sync, optional LLM entity extraction still pending.
 
 ## Development
 

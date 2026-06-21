@@ -1,19 +1,29 @@
 ---
 import Section from "./Section.astro";
 import { agents } from "../lib/content";
----
-<Section id="hosts" eyebrow={agents.eyebrow} eyebrowHeading={false}>
-  <h2 class="font-sans font-medium text-[24px] md:text-[28px] tracking-[-0.015em] max-w-[26ch] mb-4">{agents.h2}</h2>
-  <p
-    class="prose-measure font-serif text-[16px] leading-[1.55] text-[var(--color-ink-muted)]"
-    set:html={agents.body.replace(
+
+// Render inline `code` spans and [label](href) markdown links into safe HTML.
+function inline(s: string) {
+  return s
+    .replace(
       /`(.+?)`/g,
       (_m, c) =>
         `<code class="font-mono text-[0.85em]">${c
           .replace(/&/g, "&amp;")
           .replace(/</g, "&lt;")
           .replace(/>/g, "&gt;")}</code>`,
-    )}
+    )
+    .replace(
+      /\[(.+?)\]\((.+?)\)/g,
+      (_m, label, href) => `<a href="${href}" class="underline">${label}</a>`,
+    );
+}
+---
+<Section id="hosts" eyebrow={agents.eyebrow} eyebrowHeading={false}>
+  <h2 class="font-sans font-medium text-[24px] md:text-[28px] tracking-[-0.015em] max-w-[26ch] mb-4">{agents.h2}</h2>
+  <p
+    class="prose-measure font-serif text-[16px] leading-[1.55] text-[var(--color-ink-muted)]"
+    set:html={inline(agents.body)}
   />
   <div class="prose-measure mt-6 overflow-x-auto" tabindex="0" role="region" aria-label="Supported agents">
     <table class="w-full border-collapse font-mono text-[13px]">
@@ -37,4 +47,15 @@ import { agents } from "../lib/content";
   </div>
   <pre class="prose-measure font-mono text-[13px] leading-[1.7] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 overflow-x-auto mt-6" tabindex="0">{agents.install.join("\n")}</pre>
   <p class="prose-measure font-serif text-[14px] text-[var(--color-ink-faint)] mt-3">{agents.note}</p>
+
+  <p
+    class="prose-measure font-serif text-[16px] leading-[1.55] text-[var(--color-ink-muted)] mt-10"
+    set:html={inline(agents.obsidian.body)}
+  />
+  <figure class="prose-measure m-0 mt-6">
+    <img src={agents.obsidian.image} width="1280" height="752" loading="lazy"
+         class="w-full h-auto rounded-lg border border-[var(--color-border-faint)]"
+         alt={agents.obsidian.imageAlt} />
+    <figcaption class="mt-3 font-serif text-[14px] text-[var(--color-ink-faint)]">{agents.obsidian.caption}</figcaption>
+  </figure>
 </Section>
