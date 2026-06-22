@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 
 import cairn.config as cfg
-from cairn.config import ollama_config, parse_bool, resolve_rerank
+from cairn.config import ollama_config, openai_config, parse_bool, resolve_rerank, voyage_config
 
 
 @pytest.mark.parametrize("val", ["1", "true", "TRUE", "yes", "on", "On"])
@@ -151,3 +151,20 @@ def test_consolidate_knob_default_on_and_disablable():
     assert cfg.resolve_consolidate({"CAIRN_CONSOLIDATE": "false"}) is False
     assert cfg.resolve_consolidate({"CAIRN_CONSOLIDATE": "0"}) is False
     assert cfg.resolve_consolidate({"CAIRN_CONSOLIDATE": "true"}) is True
+
+
+def test_voyage_config_defaults_and_env():
+    assert voyage_config({}) == ("voyage-3", None)
+    assert voyage_config({"CAIRN_EMBED_MODEL": "voyage-3-large", "VOYAGE_API_KEY": "k"}) == (
+        "voyage-3-large",
+        "k",
+    )
+
+
+def test_openai_config_defaults_and_env():
+    assert openai_config({}) == ("text-embedding-3-small", None, "https://api.openai.com/v1")
+    assert openai_config({"OPENAI_API_KEY": "k", "OPENAI_BASE_URL": "https://x/v1"}) == (
+        "text-embedding-3-small",
+        "k",
+        "https://x/v1",
+    )
