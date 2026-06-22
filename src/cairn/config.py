@@ -55,7 +55,10 @@ KNOBS: tuple[Knob, ...] = (
         "DuckDB index path (rebuildable cache).",
     ),
     Knob(
-        "embedder", "CAIRN_EMBEDDER", "fastembed", "Embedding provider: fastembed | ollama | fake."
+        "embedder",
+        "CAIRN_EMBEDDER",
+        "fastembed",
+        "Embedding provider: fastembed | ollama | voyage | openai | fake.",
     ),
     Knob(
         "embed_model",
