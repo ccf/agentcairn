@@ -328,6 +328,36 @@ def test_opencode_plugin_install_copies_files(tmp_path, monkeypatch):
     assert (opencode_cfg_dir / "commands" / "remember.md").exists()
 
 
+def test_opencode_plugin_install_no_vault_keeps_placeholder(tmp_path):
+    """Without --vault the installed plugin keeps the __CAIRN_VAULT__ placeholder."""
+    from cairn.hosts.opencode import install_opencode_plugin
+
+    opencode_cfg_dir = tmp_path / ".config" / "opencode"
+    opencode_cfg_dir.mkdir(parents=True)
+
+    install_opencode_plugin(opencode_cfg_dir)
+
+    plugin_text = (opencode_cfg_dir / "plugin" / "agentcairn.ts").read_text(encoding="utf-8")
+    assert "__CAIRN_VAULT__" in plugin_text
+
+
+def test_opencode_plugin_install_with_vault_substitutes_path(tmp_path):
+    """With vault= the installed plugin has the real vault path, not the placeholder."""
+    from cairn.hosts.opencode import install_opencode_plugin
+
+    opencode_cfg_dir = tmp_path / ".config" / "opencode"
+    opencode_cfg_dir.mkdir(parents=True)
+    vault_path = str(tmp_path / "myvault")
+
+    install_opencode_plugin(opencode_cfg_dir, vault=vault_path)
+
+    plugin_text = (opencode_cfg_dir / "plugin" / "agentcairn.ts").read_text(encoding="utf-8")
+    assert vault_path in plugin_text
+    assert "__CAIRN_VAULT__" not in plugin_text
+    # Commands are always copied verbatim (no substitution)
+    assert (opencode_cfg_dir / "commands" / "recall.md").exists()
+
+
 def test_opencode_plugin_install_idempotent(tmp_path):
     """Re-running install_opencode_plugin doesn't error or create duplicates."""
     from cairn.hosts.opencode import install_opencode_plugin
@@ -375,7 +405,8 @@ def test_opencode_install_command_full_flow(tmp_path, monkeypatch):
     from cairn.cli import app
 
     runner = CliRunner()
-    result = runner.invoke(app, ["install", "opencode", "--vault", str(tmp_path / "vault")])
+    vault_path = str(tmp_path / "vault")
+    result = runner.invoke(app, ["install", "opencode", "--vault", vault_path])
     assert result.exit_code == 0, result.output
 
     # MCP block written
@@ -383,6 +414,12 @@ def test_opencode_install_command_full_flow(tmp_path, monkeypatch):
     assert "agentcairn" in data.get("mcp", {})
 
     # Plugin and commands installed
-    assert (opencode_cfg_dir / "plugin" / "agentcairn.ts").exists()
+    plugin_ts = opencode_cfg_dir / "plugin" / "agentcairn.ts"
+    assert plugin_ts.exists()
     assert (opencode_cfg_dir / "commands" / "recall.md").exists()
     assert (opencode_cfg_dir / "commands" / "remember.md").exists()
+
+    # Vault path was substituted into the installed plugin
+    plugin_text = plugin_ts.read_text(encoding="utf-8")
+    assert vault_path in plugin_text
+    assert "__CAIRN_VAULT__" not in plugin_text

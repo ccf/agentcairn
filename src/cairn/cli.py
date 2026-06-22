@@ -614,7 +614,7 @@ def install(
                 if h.id == "opencode":
                     from cairn.hosts.opencode import install_opencode_plugin
 
-                    note = install_opencode_plugin(h.config_path().parent, dry=print_only)
+                    note = install_opencode_plugin(h.config_path().parent, vault=v, dry=print_only)
                     typer.echo(f"  {note}")
                 if h.kind != "plugin":
                     from cairn.hosts.plugins import migrate_stale_cairn_index

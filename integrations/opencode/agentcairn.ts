@@ -9,6 +9,14 @@ import type { Plugin } from "@opencode-ai/plugin";
 import { execFile } from "node:child_process";
 
 // ---------------------------------------------------------------------------
+// Vault configuration — substituted by `cairn install opencode --vault <path>`.
+// When the placeholder is intact (manual install or no --vault given) the
+// plugin inherits the process environment unchanged (default vault behaviour).
+// ---------------------------------------------------------------------------
+
+const CAIRN_VAULT = "__CAIRN_VAULT__";
+
+// ---------------------------------------------------------------------------
 // Pure helpers — isolated so they can be tested without any hook wiring
 // ---------------------------------------------------------------------------
 
@@ -41,8 +49,15 @@ export function formatMemoryBlock(
 // ---------------------------------------------------------------------------
 
 function cairn(args: string[]): Promise<string> {
+  // If CAIRN_VAULT was substituted by the installer, force it into the child
+  // env so recall and sweep use the same vault as the MCP server.  If the
+  // placeholder is still intact (manual/no-vault install), inherit process.env
+  // unchanged so the default vault resolution applies.
+  const env = CAIRN_VAULT.startsWith("__")
+    ? process.env
+    : { ...process.env, CAIRN_VAULT };
   return new Promise((resolve) => {
-    execFile("cairn", args, { timeout: 30_000 }, (err, stdout) => {
+    execFile("cairn", args, { env, timeout: 30_000 }, (err, stdout) => {
       if (err) {
         // Fail-safe: a missing / erroring cairn binary must never crash OpenCode.
         console.error("[agentcairn]", err.message);
@@ -53,6 +68,15 @@ function cairn(args: string[]): Promise<string> {
     });
   });
 }
+
+// ---------------------------------------------------------------------------
+// Session-keyed query buffer.
+// Keyed by sessionID so interleaved/sequential sessions never overwrite each
+// other's recall query.  Updated by chat.message; consumed by
+// experimental.chat.system.transform; cleaned up by the event hook.
+// ---------------------------------------------------------------------------
+
+const queries = new Map<string, string>();
 
 // ---------------------------------------------------------------------------
 // Plugin
@@ -85,7 +109,7 @@ export const agentcairn: Plugin = async (_ctx) => ({
   // a separate chat.message hook that buffers the latest user text.
   // ------------------------------------------------------------------
   "experimental.chat.system.transform": async (
-    _input: { sessionID?: string; model: unknown },
+    input: { sessionID?: string; model: unknown },
     output: { system: string[] },
   ) => {
     // NOTE: system.transform fires before the LLM call but does not itself
@@ -93,9 +117,9 @@ export const agentcairn: Plugin = async (_ctx) => ({
     // buffer populated by the chat.message hook below.  On the very first
     // turn the buffer is empty and we skip injection gracefully.
     try {
-      const query = latestQuery;
-      if (!query) return;
-      const raw = await cairn(buildRecallArgs(query));
+      const q = queries.get(input.sessionID ?? "") ?? "";
+      if (!q) return;
+      const raw = await cairn(buildRecallArgs(q));
       const block = formatMemoryBlock(raw ? JSON.parse(raw) : []);
       if (block) output.system.push(block);
     } catch (e) {
@@ -117,7 +141,7 @@ export const agentcairn: Plugin = async (_ctx) => ({
   // Parts with type === "text" carry the user's visible text.
   // ------------------------------------------------------------------
   "chat.message": async (
-    _input: unknown,
+    input: { sessionID?: string },
     output: { message: unknown; parts: Array<{ type: string; text?: string }> },
   ) => {
     try {
@@ -125,7 +149,8 @@ export const agentcairn: Plugin = async (_ctx) => ({
         .filter((p) => p.type === "text" && p.text)
         .map((p) => p.text ?? "");
       if (textParts.length) {
-        latestQuery = textParts.join(" ").slice(0, 512); // cap to avoid huge CLI args
+        const sid = input.sessionID ?? "";
+        queries.set(sid, textParts.join(" ").slice(0, 512)); // cap to avoid huge CLI args
       }
     } catch (_) {
       // ignore — buffer update is best-effort
@@ -140,20 +165,28 @@ export const agentcairn: Plugin = async (_ctx) => ({
   // Both are dispatched through the generic `event` hook (not top-level keys).
   //
   // Hook shape:
-  //   event?(input: { event: { type: string; properties: unknown } }): Promise<void>
+  //   event?(input: { event: { type: string; properties: { sessionID?: string } } }): Promise<void>
   //
   // cairn sweep is fire-and-forget (non-blocking, best-effort).
   // ------------------------------------------------------------------
-  event: async ({ event }: { event: { type: string } }) => {
+  event: async ({
+    event,
+  }: {
+    event: { type: string; properties?: { sessionID?: string } };
+  }) => {
     if (
       event.type === "session.idle" ||
       event.type === "session.compacted"
     ) {
+      // Best-effort cleanup: remove the query buffer for this session so it
+      // doesn't linger in memory after the session ends.
+      try {
+        const sid = event.properties?.sessionID ?? "";
+        if (sid) queries.delete(sid);
+      } catch (_) {
+        // ignore — cleanup is best-effort
+      }
       void cairn(["sweep"]); // non-blocking, fire-and-forget
     }
   },
 });
-
-// Module-level query buffer (one per plugin instance / OpenCode process).
-// Updated by chat.message; consumed by experimental.chat.system.transform.
-let latestQuery = "";

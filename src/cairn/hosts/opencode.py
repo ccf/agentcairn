@@ -19,7 +19,12 @@ def _opencode_asset(rel: str) -> str:
     return res.read_text(encoding="utf-8")
 
 
-def install_opencode_plugin(opencode_cfg_dir: Path, *, dry: bool = False) -> str:
+_VAULT_PLACEHOLDER = "__CAIRN_VAULT__"
+
+
+def install_opencode_plugin(
+    opencode_cfg_dir: Path, *, vault: str | None = None, dry: bool = False
+) -> str:
     """Copy the agentcairn plugin + slash commands into the OpenCode config directory.
 
     ``opencode_cfg_dir`` is the directory that contains opencode.json (i.e.
@@ -27,6 +32,12 @@ def install_opencode_plugin(opencode_cfg_dir: Path, *, dry: bool = False) -> str
       <opencode_cfg_dir>/plugin/agentcairn.ts
       <opencode_cfg_dir>/commands/recall.md
       <opencode_cfg_dir>/commands/remember.md
+
+    When ``vault`` is provided, the ``__CAIRN_VAULT__`` placeholder in the
+    plugin source is replaced with the resolved vault path so that ``cairn``
+    child processes (recall, sweep) use the same vault as the MCP server.  If
+    ``vault`` is None the placeholder is left intact and the plugin inherits
+    ``CAIRN_VAULT`` from the environment (default behaviour, unchanged).
 
     Idempotent: overwriting our own files is safe.  dry=True returns a
     descriptive note and writes nothing.
@@ -42,10 +53,14 @@ def install_opencode_plugin(opencode_cfg_dir: Path, *, dry: bool = False) -> str
             f"  would install command → {remember_dest}"
         )
 
+    plugin_text = _opencode_asset("agentcairn.ts")
+    if vault is not None:
+        plugin_text = plugin_text.replace(_VAULT_PLACEHOLDER, vault)
+
     plugin_dest.parent.mkdir(parents=True, exist_ok=True)
     recall_dest.parent.mkdir(parents=True, exist_ok=True)
 
-    atomic_write(plugin_dest, _opencode_asset("agentcairn.ts"))
+    atomic_write(plugin_dest, plugin_text)
     atomic_write(recall_dest, _opencode_asset("commands/recall.md"))
     atomic_write(remember_dest, _opencode_asset("commands/remember.md"))
 
