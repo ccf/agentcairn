@@ -22,7 +22,7 @@ const faq = [
   },
   {
     q: "Does the Hermes provider need a cloud API key?",
-    a: "No. Storage is local files, embeddings run locally via FastEmbed by default, and session-end capture uses agentcairn's local extractive distiller — no API key required. An optional Anthropic judge applies only to the separate `cairn sweep` CLI path over the shared vault.",
+    a: "No. Storage is local files, embeddings run locally via FastEmbed by default, and session-end capture uses agentcairn's local extractive distiller — no API key required. An optional Anthropic judge applies only to the separate `cairn sweep` CLI path over the shared vault. Two opt-in cloud embedders (`CAIRN_EMBEDDER=voyage` or `=openai`) are available for higher recall quality; with either enabled, note text and recall queries are sent to the provider.",
   },
   {
     q: "What happens if memory capture fails during a Hermes session?",
@@ -123,7 +123,11 @@ const faq = [
       <p class="mt-6">
         All config keys are optional. By default it uses
         <code>~/agentcairn</code> (or <code>$CAIRN_VAULT</code>), local FastEmbed
-        embeddings, and no secrets. See the
+        embeddings, and no secrets. For higher recall quality, set
+        <code>CAIRN_EMBEDDER=voyage</code> (requires <code>VOYAGE_API_KEY</code>)
+        or <code>CAIRN_EMBEDDER=openai</code> (requires <code>OPENAI_API_KEY</code>)
+        — these are opt-in cloud tiers; with either enabled, note text and recall
+        queries leave your machine. See the
         <a href="https://github.com/ccf/agentcairn/tree/main/integrations/hermes" class="underline">integration README</a>
         for the full config table.
       </p>
