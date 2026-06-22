@@ -509,7 +509,7 @@ def install(
     host: str = typer.Argument(
         None,
         help="Host id: claude-code / codex / antigravity (plugins) · cursor / claude-desktop / "
-        "vscode / gemini (mcp).",
+        "vscode / gemini / opencode (mcp).",
     ),
     all_hosts: bool = typer.Option(False, "--all", help="Configure every detected host."),
     print_only: bool = typer.Option(
@@ -530,7 +530,7 @@ def install(
     """Install agentcairn into another agent: the plugin for plugin hosts
     (Claude Code, Codex, Antigravity), or the MCP server config for MCP hosts (Cursor, …)."""
     from cairn.hosts import HOSTS, detected_hosts, get_host
-    from cairn.hosts.entry import mcp_entry
+    from cairn.hosts.entry import mcp_entry, opencode_mcp_entry
     from cairn.hosts.plugins import (
         install_plugin,
         migrate_antigravity_mcp_block,
@@ -601,7 +601,7 @@ def install(
                     if note:
                         typer.echo(f"  {note}")
             else:
-                entry = mcp_entry(v)
+                entry = opencode_mcp_entry(v) if h.id == "opencode" else mcp_entry(v)
                 out = write_host(h, entry, dry=print_only)
                 if print_only:
                     typer.echo(f"# {h.label} ({h.config_path()})")

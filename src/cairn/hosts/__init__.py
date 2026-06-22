@@ -105,6 +105,13 @@ HOSTS: list[Host] = [
         marketplace_add=("plugin", "marketplace", "add", "{source}"),
         plugin_add=("plugin", "install", "agentcairn@agentcairn"),
     ),
+    Host(
+        "opencode",
+        "OpenCode",
+        "json",
+        "~/.config/opencode/opencode.json",
+        root_key="mcp",  # OpenCode uses top-level "mcp" (not "mcpServers")
+    ),
 ]
 
 _BY_ID = {h.id: h for h in HOSTS}
