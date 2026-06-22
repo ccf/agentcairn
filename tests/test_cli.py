@@ -163,6 +163,42 @@ def test_recall_command(tmp_path):
     assert "a" in s.output  # the permalink shows up in results
 
 
+def test_recall_json_flag(tmp_path):
+    """--json emits a JSON list; each item has permalink, title, text, score."""
+    import json as _json
+
+    v = tmp_path / "vault"
+    v.mkdir()
+    (v / "a.md").write_text("---\ntitle: Apple Brewing\npermalink: a\n---\nalpha apple brewing\n")
+    idx = tmp_path / "i.duckdb"
+    r = runner.invoke(app, ["reindex", str(v), "--index", str(idx), "--embedder", "fake"])
+    assert r.exit_code == 0, r.output
+    s = runner.invoke(
+        app,
+        [
+            "recall",
+            "apple brewing",
+            "--index",
+            str(idx),
+            "--embedder",
+            "fake",
+            "--no-rerank",
+            "--json",
+        ],  # noqa: E501
+    )
+    assert s.exit_code == 0, s.output
+    data = _json.loads(s.output)
+    assert isinstance(data, list)
+    assert len(data) >= 1
+    permalinks = [item["permalink"] for item in data]
+    assert "a" in permalinks
+    first = data[0]
+    assert "permalink" in first
+    assert "title" in first
+    assert "text" in first
+    assert "score" in first
+
+
 def test_cli_recall_marks_cross_project(tmp_path, monkeypatch):
     v = tmp_path / "vault"
     v.mkdir()

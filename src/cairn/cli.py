@@ -303,6 +303,9 @@ def recall(
     scope: str = typer.Option(
         "all", "--scope", help="'all' (boost, non-lossy) or 'project' (hard-filter)."
     ),
+    json_out: bool = typer.Option(
+        False, "--json", help="Emit results as JSON (for tooling/plugins)."
+    ),
 ) -> None:
     """Hybrid recall over the index (semantic + BM25 + graph-boost).
 
@@ -334,6 +337,22 @@ def recall(
         usage.record("recall", full=full, recalled=recalled, k=k)
     except Exception:
         pass
+    if json_out:
+        typer.echo(
+            json.dumps(
+                [
+                    {
+                        "permalink": h.permalink,
+                        "title": h.heading_path,
+                        "text": h.snippet,
+                        "score": h.score,
+                    }
+                    for h in hits
+                ],
+                ensure_ascii=False,
+            )
+        )
+        return
     if not hits:
         typer.echo("(no results)")
         return
