@@ -163,6 +163,9 @@ def cairn_env(env: Mapping[str, str] | None = None) -> Mapping[str, str]:
 _DEFAULT_OLLAMA_MODEL = "nomic-embed-text"
 _DEFAULT_OLLAMA_HOST = "http://localhost:11434"
 _DEFAULT_FASTEMBED_MODEL = "nomic-ai/nomic-embed-text-v1.5"
+_DEFAULT_VOYAGE_MODEL = "voyage-3"
+_DEFAULT_OPENAI_MODEL = "text-embedding-3-small"
+_DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
 
 
 def fastembed_model(env: Mapping[str, str] | None = None) -> str:
@@ -182,6 +185,25 @@ def ollama_config(env: Mapping[str, str] | None = None) -> tuple[str, str]:
     model = env.get("CAIRN_EMBED_MODEL") or _DEFAULT_OLLAMA_MODEL
     host = env.get("OLLAMA_HOST") or _DEFAULT_OLLAMA_HOST
     return model, host
+
+
+def voyage_config(env: Mapping[str, str] | None = None) -> tuple[str, str | None]:
+    """Resolve (model, api_key) for the Voyage embedder.
+    model ← CAIRN_EMBED_MODEL or 'voyage-3'; api_key ← VOYAGE_API_KEY."""
+    if env is None:
+        env = cairn_env()
+    return env.get("CAIRN_EMBED_MODEL") or _DEFAULT_VOYAGE_MODEL, env.get("VOYAGE_API_KEY")
+
+
+def openai_config(env: Mapping[str, str] | None = None) -> tuple[str, str | None, str]:
+    """Resolve (model, api_key, base_url) for the OpenAI embedder.
+    model ← CAIRN_EMBED_MODEL or 'text-embedding-3-small'; api_key ← OPENAI_API_KEY;
+    base_url ← OPENAI_BASE_URL or api.openai.com (allows OpenAI-compatible endpoints)."""
+    if env is None:
+        env = cairn_env()
+    model = env.get("CAIRN_EMBED_MODEL") or _DEFAULT_OPENAI_MODEL
+    base = env.get("OPENAI_BASE_URL") or _DEFAULT_OPENAI_BASE_URL
+    return model, env.get("OPENAI_API_KEY"), base
 
 
 def resolve_rerank(explicit: bool | None = None, env: Mapping[str, str] | None = None) -> bool:
