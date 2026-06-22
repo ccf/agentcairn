@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
+import json
 import os
 from pathlib import Path
 
@@ -8,6 +9,7 @@ from cairn.embed import FakeEmbedder, get_embedder
 from cairn.index import build_fts, index_vault, open_index
 from cairn.ingest.dedup import DedupLedger
 from cairn.ingest.events import EventKind, NormalizedEvent
+from cairn.ingest.locate import find_transcripts, parse_transcript
 from cairn.ingest.models import Transcript
 from cairn.ingest.pipeline import ingest_transcript
 from cairn.search import open_search, search
@@ -61,6 +63,70 @@ def test_core_loop_offline(tmp_path):
     assert hits, "recall returned nothing for an ingested fact"
     blob = " ".join(h.snippet.lower() for h in hits)
     assert "duckdb" in blob
+
+
+def test_opencode_adapter_core_loop_offline(tmp_path, monkeypatch):
+    """OpenCode adapter → locate → parse → ingest → index → recall, offline (fake embedder).
+    Guards that the OpenCode storage layout is correctly traversed end-to-end."""
+    # Build a minimal OpenCode storage fixture
+    storage = tmp_path / "storage"
+    msg_dir = storage / "message" / "sess1"
+    msg_dir.mkdir(parents=True)
+    (msg_dir / "msg1.json").write_text(
+        json.dumps({"role": "user", "time": {"created": 1}}),
+        encoding="utf-8",
+    )
+    part_dir = storage / "part" / "msg1"
+    part_dir.mkdir(parents=True)
+    (part_dir / "p1.json").write_text(
+        json.dumps(
+            {
+                "type": "text",
+                "text": (
+                    "We decided to deploy only with make ship, never npm publish directly,"
+                    " because the Makefile enforces the pre-flight checks we always need."
+                ),
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("OPENCODE_DATA_DIR", str(tmp_path))
+
+    # Locate via harness="opencode" — must find our session
+    refs = find_transcripts(harness="opencode")
+    assert refs, "find_transcripts(harness='opencode') returned nothing"
+    assert any(r.path.name == "sess1" for r in refs), "sess1 not found in refs"
+
+    # Auto-detect (harness=None) must also include the opencode session
+    auto_refs = find_transcripts(harness=None)
+    assert any(r.harness == "opencode" and r.path.name == "sess1" for r in auto_refs), (
+        "auto-detect did not include the opencode sess1 session"
+    )
+
+    # Parse the transcript
+    ref = next(r for r in refs if r.path.name == "sess1")
+    transcript = parse_transcript(ref, harness="opencode")
+    assert transcript.events, "parsed transcript has no events"
+
+    # Ingest → index → recall
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    ledger = DedupLedger(tmp_path / "led.sha256")
+    report = ingest_transcript(transcript, vault_root=vault, ledger=ledger)
+    assert report.written, "ingest wrote no notes"
+
+    emb = FakeEmbedder(dim=8)
+    idx = str(tmp_path / "i.duckdb")
+    con = open_index(idx, dim=emb.dim, model_id=emb.model_id)
+    index_vault(con, str(vault), emb)
+    build_fts(con)
+    con.close()
+
+    con = open_search(idx)
+    hits = search(con, "how do we deploy", embedder=emb, k=10)
+    assert hits, "recall returned nothing for an ingested fact"
+    blob = " ".join(h.snippet.lower() for h in hits)
+    assert "make ship" in blob, f"expected 'make ship' in recall output, got: {blob!r}"
 
 
 _LABELS = [
