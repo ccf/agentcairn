@@ -80,11 +80,13 @@ def _bootstrap_registry() -> None:
     from cairn.ingest.harness.claude_code import ClaudeCodeAdapter
     from cairn.ingest.harness.codex import CodexAdapter
     from cairn.ingest.harness.cursor import CursorAdapter
+    from cairn.ingest.harness.opencode import OpenCodeAdapter
 
     _register(ClaudeCodeAdapter())
     _register(CodexAdapter())
     _register(AntigravityAdapter())
     _register(CursorAdapter())
+    _register(OpenCodeAdapter())
 
 
 _bootstrap_registry()
