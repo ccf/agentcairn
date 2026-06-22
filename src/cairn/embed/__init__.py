@@ -6,7 +6,8 @@ from cairn.embed.fake import FakeEmbedder
 def get_embedder(name: str = "fastembed") -> Embedder:
     """Return an Embedder by name. 'fake' for tests; 'fastembed' (default) for real use
     (model ← CAIRN_EMBED_MODEL or nomic-embed-text-v1.5); 'ollama' for a local Ollama server
-    (CAIRN_EMBED_MODEL/OLLAMA_HOST)."""
+    (CAIRN_EMBED_MODEL/OLLAMA_HOST); 'voyage' for Voyage AI cloud embeddings
+    (CAIRN_EMBED_MODEL/VOYAGE_API_KEY)."""
     if name == "fake":
         return FakeEmbedder()
     if name == "fastembed":
@@ -19,6 +20,11 @@ def get_embedder(name: str = "fastembed") -> Embedder:
         from cairn.embed.ollama_embedder import OllamaEmbedder
 
         return OllamaEmbedder(*ollama_config())
+    if name == "voyage":
+        from cairn.config import voyage_config
+        from cairn.embed.voyage_embedder import VoyageEmbedder
+
+        return VoyageEmbedder(*voyage_config())
     raise ValueError(f"unknown embedder: {name!r}")
 
 
@@ -31,6 +37,10 @@ def __getattr__(name: str) -> object:
         from cairn.embed.ollama_embedder import OllamaEmbedder
 
         return OllamaEmbedder
+    if name == "VoyageEmbedder":
+        from cairn.embed.voyage_embedder import VoyageEmbedder
+
+        return VoyageEmbedder
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
