@@ -125,7 +125,7 @@ export const cli = [
 
 export const agents = {
   eyebrow: "Use it in any MCP host",
-  h2: "First-class in Claude Code, Codex, and Antigravity. Portable everywhere else.",
+  h2: "First-class in Claude Code, Codex, Hermes, and Antigravity. Portable everywhere else.",
   body:
     "Claude Code, Codex, and Antigravity get a first-class plugin — a bundled MCP server, " +
     "a memory skill, and (on Claude Code and Codex) ambient session hooks (recall at session " +
@@ -140,11 +140,10 @@ export const agents = {
     { host: "Claude Code", support: "Plugin", setup: "cairn install claude-code", ambient: "full" },
     { host: "Codex", support: "Plugin", setup: "cairn install codex", ambient: "partial" },
     { host: "Cursor", support: "MCP server + skill + ingest", setup: "cairn install cursor", ambient: "partial" },
-    { host: "Claude Desktop", support: "MCP server", setup: "cairn install claude-desktop", ambient: "none" },
-    { host: "VS Code (Copilot)", support: "MCP server", setup: "cairn install vscode", ambient: "none" },
-    { host: "Gemini CLI", support: "MCP server", setup: "cairn install gemini", ambient: "none" },
-    { host: "Antigravity", support: "Plugin + ingest", setup: "cairn install antigravity", ambient: "partial" },
     { host: "Hermes Agent", support: "MemoryProvider plugin", setup: "see integrations/hermes/", ambient: "full" },
+    { host: "Antigravity", support: "Plugin + ingest", setup: "cairn install antigravity", ambient: "partial" },
+    { host: "VS Code (Copilot)", support: "MCP server", setup: "cairn install vscode", ambient: "none" },
+    { host: "Claude Desktop", support: "MCP server", setup: "cairn install claude-desktop", ambient: "none" },
   ],
   install: [
     "cairn install                 # detect installed agents + preview (writes nothing)",
@@ -164,9 +163,7 @@ export const agents = {
     "plugin hooks either — `cairn sweep` ingests sessions out-of-band from Cursor's global " +
     "`state.vscdb` SQLite store (`cursorDiskKV` user bubbles); Cursor remains an MCP host (not a " +
     "plugin host), but `cairn install cursor` also installs the `using-agentcairn-memory` skill to " +
-    "`~/.cursor/skills/` alongside writing `~/.cursor/mcp.json`. Gemini CLI ingest " +
-    "is not supported — Google is sunsetting it (2026-06-18) in favour of Antigravity; " +
-    "`cairn install gemini` (MCP wiring) still works for Gemini-based MCP hosts.",
+    "`~/.cursor/skills/` alongside writing `~/.cursor/mcp.json`.",
   obsidian: {
     body:
       "Because the vault is plain Markdown, you can read what every agent remembers in " +

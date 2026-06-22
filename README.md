@@ -22,7 +22,7 @@ Most agent-memory systems make a database or cloud store the source of truth and
 - **🔒 Redaction before every write.** Secrets are scrubbed (regex + entropy + URL-credential detection) before anything — body, title, or tags — reaches the plaintext vault. We write files you can read, so we treat a leaked credential as the worst failure mode.
 - **🕸️ A free, deterministic knowledge graph.** Your `[[wikilinks]]` and frontmatter *are* the graph — no LLM extraction, no hallucinated entities. `cairn link` writes each note's top semantic neighbors into a `related:` frontmatter list (deterministic, opt-in) so the graph lights up in Obsidian.
 - **🔮 Read your memory in Obsidian.** The companion [agentcairn-obsidian](https://github.com/ccf/agentcairn-obsidian) plugin (on the Obsidian community store) adds a vault-native **Memory view**: a filterable list of notes with provenance and currency, plus a d3-force **memory graph** of `related:` links — colored by project, sized by importance, superseded notes dimmed. **0.4.0** adds a **facet-hub graph** ("group by" project / harness / tag → hub nodes) so you can see your memory's shape at a glance.
-- **🤖 Works across every agent you use.** Plugins for Claude Code, Codex, and Antigravity; an MCP server + skill for Cursor and any other MCP host; and a native [Hermes](https://github.com/hermesagent/hermes) `MemoryProvider` ([`integrations/hermes/`](integrations/hermes/)) — all sharing the *same* vault, so your memory follows you across agents instead of fragmenting per-tool. `cairn sweep` auto-detects and ingests Claude Code, Codex, Antigravity, and Cursor sessions; `cairn schedule install` keeps it running on a managed launchd/crontab job as a host-agnostic capture backstop.
+- **🤖 Works across every agent you use.** Plugins for Claude Code, Codex, and Antigravity; an MCP server + skill for Cursor and any other MCP host; and a native [Hermes](https://github.com/NousResearch/hermes-agent) `MemoryProvider` ([`integrations/hermes/`](integrations/hermes/)) — all sharing the *same* vault, so your memory follows you across agents instead of fragmenting per-tool. `cairn sweep` auto-detects and ingests Claude Code, Codex, Antigravity, and Cursor sessions; `cairn schedule install` keeps it running on a managed launchd/crontab job as a host-agnostic capture backstop.
 - **🪶 Daemonless, zero external DB.** One embedded DuckDB file does semantic vector search, BM25 full-text, and graph traversal. No always-on server, no Neo4j/Postgres/Qdrant, no required cloud key — just a `cairn` CLI and an on-demand MCP server.
 - **🔍 Honestly measured.** A reproducible LongMemEval-S + LoCoMo harness ships in [`benchmarks/`](benchmarks/) — with real numbers, ablations, and explicit caveats instead of one cherry-picked headline (see below).
 
@@ -116,17 +116,15 @@ agentcairn works at two levels. **Plugin hosts** (Claude Code, Codex, and Antigr
 | **Claude Code** | 🟢 Plugin | `cairn install claude-code` | ✅ recall-at-start + capture-at-end |
 | **Codex** | 🟢 Plugin | `cairn install codex` | ◐ recall/`remember` live; ambient hooks bundled (verifying) [^codex-hooks] |
 | Cursor | 🔌 MCP server + skill + ingest | `cairn install cursor` | ◐ `cairn sweep` auto-detects transcripts [^cursor-sweep] |
-| Claude Desktop | 🔌 MCP server | `cairn install claude-desktop` | — |
-| VS Code (Copilot) | 🔌 MCP server | `cairn install vscode` | — |
-| Gemini CLI [^gemini-ingest] | 🔌 MCP server | `cairn install gemini` | — |
+| **Hermes Agent** | 🟢 MemoryProvider plugin | see [`integrations/hermes/`](integrations/hermes/) | ✅ recall-every-turn + capture-at-session-end |
 | **Antigravity** | 🟢 Plugin + ingest | `cairn install antigravity` | ◐ `cairn sweep` auto-detects transcripts [^antigravity-sweep] |
+| VS Code (Copilot) | 🔌 MCP server | `cairn install vscode` | — |
+| Claude Desktop | 🔌 MCP server | `cairn install claude-desktop` | — |
 | Any other MCP host | 🔌 MCP server | `uvx agentcairn` (paste the `cairn install … --print` snippet) | — |
 
 [^codex-hooks]: The Codex plugin installs and its bundled MCP server (recall/search/`remember`) is verified live in Codex. The ambient session hooks (recall-at-start, capture-at-end) ship in the plugin and use Codex's documented hooks schema, but their on-Codex behaviour isn't yet confirmed end-to-end; capture also happens out-of-band via `cairn sweep` regardless.
 [^antigravity-sweep]: The Antigravity plugin bundles the MCP server + memory skill; `cairn install antigravity --source <dir>` installs it via `agy plugin install` and removes any stale `mcpServers.agentcairn` entry from `~/.gemini/config/mcp_config.json`. Note: `agy plugin install` takes a **local directory** or a registered marketplace (not a git repo), so point `--source` at a cloned checkout's `plugin/` dir for now. Antigravity has no recognized plugin hooks, so ambient capture is out-of-band via `cairn sweep` (path: `~/.gemini/antigravity-cli/brain/<uuid>/.system_generated/logs/transcript.jsonl`).
 [^cursor-sweep]: Cursor has no plugin hooks, so ambient capture is out-of-band via `cairn sweep` (source: Cursor's global `globalStorage/state.vscdb` SQLite database, `cursorDiskKV` table, user "bubbles"). Cursor remains an MCP host for output (`cairn install cursor` → `~/.cursor/mcp.json`); there is no Cursor plugin. `cairn install cursor` also installs the `using-agentcairn-memory` skill (recall/remember guidance) to `~/.cursor/skills/using-agentcairn-memory/SKILL.md`.
-[^gemini-ingest]: Gemini CLI (consumer) transcript ingestion is **not supported** — Google is sunsetting the Gemini CLI (consumer cutoff 2026-06-18) in favour of Antigravity CLI, which agentcairn ingests instead. `cairn install gemini` (MCP server wiring) remains valid for any Gemini-based host that speaks MCP.
-
 `cairn install` routes by host kind automatically:
 
 ```bash
