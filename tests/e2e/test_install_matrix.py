@@ -44,7 +44,9 @@ def test_install_opencode_installs_plugin_and_commands(tmp_path, monkeypatch):
     plugin_file = base / "plugin" / "agentcairn.ts"
     assert plugin_file.exists(), f"plugin not written at {plugin_file}"
     plugin_text = plugin_file.read_text()
-    assert str(vault) in plugin_text, "vault path not substituted in plugin"
+    # `cairn install` bakes the EXPANDED+RESOLVED vault path (.expanduser().resolve()),
+    # which can differ from the raw tmp_path (e.g. /var → /private/var on macOS).
+    assert str(vault.resolve()) in plugin_text, "resolved vault path not substituted in plugin"
     assert "__CAIRN_VAULT__" not in plugin_text, "placeholder not replaced"
 
     assert (base / "commands" / "recall.md").exists(), "recall.md not written"
