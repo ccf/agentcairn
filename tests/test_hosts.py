@@ -242,3 +242,70 @@ def test_install_skill_overwrites_existing(tmp_path):
     install_skill(tmp_path, dry=False)
     assert dest.read_text(encoding="utf-8") == cursor_skill_text()
     assert not (tmp_path / "using-agentcairn-memory" / "SKILL.md.bak").exists()
+
+
+# ── OpenCode host ──────────────────────────────────────────────────────────
+
+
+def test_opencode_entry_shape():
+    """opencode_mcp_entry produces {type,command,enabled} with env under 'environment'."""
+    from cairn.hosts.entry import opencode_mcp_entry
+
+    e = opencode_mcp_entry("/home/u/agentcairn")
+    assert e["type"] == "local"
+    assert e["command"] == ["uvx", "agentcairn"]
+    assert e["enabled"] is True
+    # CAIRN_VAULT must flow through
+    assert e["environment"] == {"CAIRN_VAULT": "/home/u/agentcairn"}
+
+
+def test_opencode_writer_uses_mcp_block_local_shape(tmp_path, monkeypatch):
+    """write_host for opencode lands under data['mcp'], NOT 'mcpServers', with local shape."""
+    import json
+
+    from cairn.hosts import get_host
+    from cairn.hosts.entry import opencode_mcp_entry
+    from cairn.hosts.writers import write_json_mcp
+
+    h = get_host("opencode")
+    assert h is not None, "opencode host must be registered"
+    assert h.root_key == "mcp"
+
+    # Point the host's config path at a temp file; call write_json_mcp directly
+    # with the host's root_key (same path write_host would take for a json host).
+
+    cfg = tmp_path / "opencode.json"
+    entry = opencode_mcp_entry("/v")
+    write_json_mcp(cfg, entry, root_key=h.root_key)
+    data = json.loads(cfg.read_text())
+
+    assert "mcpServers" not in data
+    ac = data["mcp"]["agentcairn"]
+    assert ac["type"] == "local"
+    assert ac["command"] == ["uvx", "agentcairn"]
+    assert ac["enabled"] is True
+    assert ac["environment"] == {"CAIRN_VAULT": "/v"}
+
+
+def test_opencode_install_idempotent_and_preserves_others(tmp_path):
+    """Re-running yields ONE agentcairn entry; pre-existing mcp.other survives; .bak made."""
+    import json
+
+    from cairn.hosts.entry import opencode_mcp_entry
+    from cairn.hosts.writers import write_json_mcp
+
+    cfg = tmp_path / "opencode.json"
+    cfg.write_text(
+        json.dumps({"mcp": {"other": {"type": "local", "command": ["other"], "enabled": True}}})
+    )
+    entry = opencode_mcp_entry("/v")
+
+    # First write
+    write_json_mcp(cfg, entry, root_key="mcp")
+    # Second write (idempotency)
+    write_json_mcp(cfg, entry, root_key="mcp")
+
+    data = json.loads(cfg.read_text())
+    assert list(data["mcp"]).count("agentcairn") == 1  # exactly one entry
+    assert data["mcp"]["other"]["command"] == ["other"]  # pre-existing server preserved
+    assert (cfg.with_name("opencode.json.bak")).exists()  # backup created
