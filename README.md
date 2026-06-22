@@ -116,6 +116,7 @@ agentcairn works at two levels. **Plugin hosts** (Claude Code, Codex, and Antigr
 | **Claude Code** | 🟢 Plugin | `cairn install claude-code` | ✅ recall-at-start + capture-at-end |
 | **Codex** | 🟢 Plugin | `cairn install codex` | ◐ recall/`remember` live; ambient hooks bundled (verifying) [^codex-hooks] |
 | Cursor | 🔌 MCP server + skill + ingest | `cairn install cursor` | ◐ `cairn sweep` auto-detects transcripts [^cursor-sweep] |
+| **OpenCode** | 🟢 Plugin + MCP + ingest | `cairn install opencode` | ✅ recall-every-turn + capture [^opencode-plugin] |
 | **Hermes Agent** | 🟢 MemoryProvider plugin | see [`integrations/hermes/`](integrations/hermes/) | ✅ recall-every-turn + capture-at-session-end |
 | **Antigravity** | 🟢 Plugin + ingest | `cairn install antigravity` | ◐ `cairn sweep` auto-detects transcripts [^antigravity-sweep] |
 | VS Code (Copilot) | 🔌 MCP server | `cairn install vscode` | — |
@@ -125,6 +126,7 @@ agentcairn works at two levels. **Plugin hosts** (Claude Code, Codex, and Antigr
 [^codex-hooks]: The Codex plugin installs and its bundled MCP server (recall/search/`remember`) is verified live in Codex. The ambient session hooks (recall-at-start, capture-at-end) ship in the plugin and use Codex's documented hooks schema, but their on-Codex behaviour isn't yet confirmed end-to-end; capture also happens out-of-band via `cairn sweep` regardless.
 [^antigravity-sweep]: The Antigravity plugin bundles the MCP server + memory skill; `cairn install antigravity --source <dir>` installs it via `agy plugin install` and removes any stale `mcpServers.agentcairn` entry from `~/.gemini/config/mcp_config.json`. Note: `agy plugin install` takes a **local directory** or a registered marketplace (not a git repo), so point `--source` at a cloned checkout's `plugin/` dir for now. Antigravity has no recognized plugin hooks, so ambient capture is out-of-band via `cairn sweep` (path: `~/.gemini/antigravity-cli/brain/<uuid>/.system_generated/logs/transcript.jsonl`).
 [^cursor-sweep]: Cursor has no plugin hooks, so ambient capture is out-of-band via `cairn sweep` (source: Cursor's global `globalStorage/state.vscdb` SQLite database, `cursorDiskKV` table, user "bubbles"). Cursor remains an MCP host for output (`cairn install cursor` → `~/.cursor/mcp.json`); there is no Cursor plugin. `cairn install cursor` also installs the `using-agentcairn-memory` skill (recall/remember guidance) to `~/.cursor/skills/using-agentcairn-memory/SKILL.md`.
+[^opencode-plugin]: `cairn install opencode` writes the MCP server entry into `~/.config/opencode/opencode.json` (under the `mcp` key), copies the ambient plugin (`agentcairn.ts` → `~/.config/opencode/plugin/`) that injects recall into every system prompt via `experimental.chat.system.transform` and captures on `session.idle`/`session.compacted` events, and installs `/recall` + `/remember` slash commands to `~/.config/opencode/commands/`. Ingest is via `cairn sweep` (OpenCode session transcripts).
 `cairn install` routes by host kind automatically:
 
 ```bash

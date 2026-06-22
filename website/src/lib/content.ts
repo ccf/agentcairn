@@ -125,7 +125,7 @@ export const cli = [
 
 export const agents = {
   eyebrow: "Use it in any MCP host",
-  h2: "First-class in Claude Code, Codex, Hermes, and Antigravity. Portable everywhere else.",
+  h2: "First-class in Claude Code, Codex, OpenCode, Hermes, and Antigravity. Portable everywhere else.",
   body:
     "Claude Code, Codex, and Antigravity get a first-class plugin — a bundled MCP server, " +
     "a memory skill, and (on Claude Code and Codex) ambient session hooks (recall at session " +
@@ -140,6 +140,7 @@ export const agents = {
     { host: "Claude Code", support: "Plugin", setup: "cairn install claude-code", ambient: "full" },
     { host: "Codex", support: "Plugin", setup: "cairn install codex", ambient: "partial" },
     { host: "Cursor", support: "MCP server + skill + ingest", setup: "cairn install cursor", ambient: "partial" },
+    { host: "OpenCode", support: "Plugin + MCP + ingest", setup: "cairn install opencode", ambient: "full" },
     { host: "Hermes Agent", support: "MemoryProvider plugin", setup: "see integrations/hermes/", ambient: "full" },
     { host: "Antigravity", support: "Plugin + ingest", setup: "cairn install antigravity", ambient: "partial" },
     { host: "VS Code (Copilot)", support: "MCP server", setup: "cairn install vscode", ambient: "none" },

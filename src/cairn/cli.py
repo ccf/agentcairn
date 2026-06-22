@@ -611,6 +611,11 @@ def install(
                 if h.skill_dir is not None:
                     note = install_skill(Path(h.skill_dir).expanduser(), dry=print_only)
                     typer.echo(f"  {note}")
+                if h.id == "opencode":
+                    from cairn.hosts.opencode import install_opencode_plugin
+
+                    note = install_opencode_plugin(h.config_path().parent, dry=print_only)
+                    typer.echo(f"  {note}")
                 if h.kind != "plugin":
                     from cairn.hosts.plugins import migrate_stale_cairn_index
 

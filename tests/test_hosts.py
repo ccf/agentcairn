@@ -309,3 +309,80 @@ def test_opencode_install_idempotent_and_preserves_others(tmp_path):
     assert list(data["mcp"]).count("agentcairn") == 1  # exactly one entry
     assert data["mcp"]["other"]["command"] == ["other"]  # pre-existing server preserved
     assert (cfg.with_name("opencode.json.bak")).exists()  # backup created
+
+
+# ── OpenCode plugin + commands install ─────────────────────────────────────
+
+
+def test_opencode_plugin_install_copies_files(tmp_path, monkeypatch):
+    """cairn install opencode copies plugin + commands + writes mcp block."""
+    from cairn.hosts.opencode import install_opencode_plugin
+
+    opencode_cfg_dir = tmp_path / ".config" / "opencode"
+    opencode_cfg_dir.mkdir(parents=True)
+
+    install_opencode_plugin(opencode_cfg_dir)
+
+    assert (opencode_cfg_dir / "plugin" / "agentcairn.ts").exists()
+    assert (opencode_cfg_dir / "commands" / "recall.md").exists()
+    assert (opencode_cfg_dir / "commands" / "remember.md").exists()
+
+
+def test_opencode_plugin_install_idempotent(tmp_path):
+    """Re-running install_opencode_plugin doesn't error or create duplicates."""
+    from cairn.hosts.opencode import install_opencode_plugin
+
+    opencode_cfg_dir = tmp_path / ".config" / "opencode"
+    opencode_cfg_dir.mkdir(parents=True)
+
+    install_opencode_plugin(opencode_cfg_dir)
+    install_opencode_plugin(opencode_cfg_dir)  # second call must not raise
+
+    assert (opencode_cfg_dir / "plugin" / "agentcairn.ts").exists()
+    assert (opencode_cfg_dir / "commands" / "recall.md").exists()
+    assert (opencode_cfg_dir / "commands" / "remember.md").exists()
+
+
+def test_opencode_plugin_install_dry_run(tmp_path):
+    """dry=True returns a note listing files and writes nothing."""
+    from cairn.hosts.opencode import install_opencode_plugin
+
+    opencode_cfg_dir = tmp_path / ".config" / "opencode"
+    opencode_cfg_dir.mkdir(parents=True)
+
+    note = install_opencode_plugin(opencode_cfg_dir, dry=True)
+
+    assert "agentcairn.ts" in note
+    assert not (opencode_cfg_dir / "plugin" / "agentcairn.ts").exists()
+
+
+def test_opencode_install_command_full_flow(tmp_path, monkeypatch):
+    """cairn install opencode end-to-end: mcp block + plugin + commands all land."""
+    import json
+
+    import cairn.hosts as hosts
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(hosts.shutil, "which", lambda _c: None)
+
+    opencode_cfg_dir = tmp_path / ".config" / "opencode"
+    opencode_cfg_dir.mkdir(parents=True)
+    cfg_file = opencode_cfg_dir / "opencode.json"
+    cfg_file.write_text(json.dumps({}))
+
+    from typer.testing import CliRunner
+
+    from cairn.cli import app
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["install", "opencode", "--vault", str(tmp_path / "vault")])
+    assert result.exit_code == 0, result.output
+
+    # MCP block written
+    data = json.loads(cfg_file.read_text())
+    assert "agentcairn" in data.get("mcp", {})
+
+    # Plugin and commands installed
+    assert (opencode_cfg_dir / "plugin" / "agentcairn.ts").exists()
+    assert (opencode_cfg_dir / "commands" / "recall.md").exists()
+    assert (opencode_cfg_dir / "commands" / "remember.md").exists()
