@@ -70,6 +70,7 @@ A lean `@opencode-ai/plugin` (TypeScript; OpenCode loads `.ts` directly from its
 - npm-package distribution of the plugin (ship in-repo + copy-install for v1).
 - OpenCode `type:remote` MCP (we wire the local stdio server).
 - Project-scoped `opencode.json` (write the global `~/.config/opencode/opencode.json`).
+- **Project attribution for OpenCode memories** (deferred): the adapter does not yet map an OpenCode session → its `projectID` (from `session/<projectID>/<sid>.json`), so ingested OpenCode memories carry `project=None` and are not project-boosted/filtered by recall. Wire it once the `session.json` `projectID`/cwd schema is confirmed against a real install (manual-QA item).
 
 ## Definition of done
 

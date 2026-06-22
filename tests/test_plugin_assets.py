@@ -71,3 +71,13 @@ def test_bundled_cursor_skill_matches_plugin_copy():
     pkg_copy = ROOT / "src" / "cairn" / "assets" / "using-agentcairn-memory" / "SKILL.md"
     plugin_copy = PLUGIN / "skills" / "using-agentcairn-memory" / "SKILL.md"
     assert pkg_copy.read_bytes() == plugin_copy.read_bytes()
+
+
+def test_bundled_opencode_assets_match_integrations_copy():
+    # `cairn install opencode` installs the package-data copy under
+    # src/cairn/assets/opencode/; it must stay byte-identical to the canonical
+    # integrations/opencode/ source so the two never silently drift.
+    pkg = ROOT / "src" / "cairn" / "assets" / "opencode"
+    src = ROOT / "integrations" / "opencode"
+    for rel in ("agentcairn.ts", "commands/recall.md", "commands/remember.md"):
+        assert (pkg / rel).read_bytes() == (src / rel).read_bytes(), rel

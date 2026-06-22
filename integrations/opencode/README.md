@@ -24,22 +24,22 @@ cairn --version
 Set `CAIRN_VAULT` (or accept the default `~/agentcairn`) and ensure the OpenCode harness is registered:
 
 ```bash
-cairn install opencode   # wired in Task 5 — sets up this plugin in ~/.config/opencode/plugins/
+cairn install opencode   # installs this plugin + slash commands into ~/.config/opencode/, and writes the MCP server into opencode.json
 ```
 
-Until `cairn install opencode` is wired, install manually:
+`cairn install opencode` does everything below. To install manually instead:
 
 ```bash
-# Copy plugin to the global plugins directory
-mkdir -p ~/.config/opencode/plugins
-cp /path/to/integrations/opencode/agentcairn.ts ~/.config/opencode/plugins/agentcairn.ts
+# Copy the plugin into OpenCode's plugin directory (auto-loaded at startup)
+mkdir -p ~/.config/opencode/plugin
+cp /path/to/integrations/opencode/agentcairn.ts ~/.config/opencode/plugin/agentcairn.ts
 ```
 
-Then reference it in `~/.config/opencode/opencode.json`:
+(Optionally reference it explicitly in `~/.config/opencode/opencode.json`:)
 
 ```json
 {
-  "plugin": ["~/.config/opencode/plugins/agentcairn.ts"]
+  "plugin": ["~/.config/opencode/plugin/agentcairn.ts"]
 }
 ```
 
