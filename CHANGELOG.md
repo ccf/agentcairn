@@ -5,6 +5,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.22.1] - 2026-06-23
+
+### Fixed
+- **OpenCode ingest now works against real OpenCode** (1.17.5+). The adapter read sessions from a
+  `storage/message/*.json` file tree that current OpenCode doesn't use — it stores sessions in a
+  **WAL-mode SQLite DB** (`~/.local/share/opencode/opencode.db`, `message`/`part` tables). Rewrote the
+  adapter to read that DB (read-only, WAL-aware `mode=ro`, fail-closed), so `cairn sweep` (and the
+  plugin's `session.idle` → sweep) ingest OpenCode sessions. Verified end-to-end on a live install:
+  recall/remember MCP tools, ambient plugin hooks, and sweep-capture all confirmed working.
+- OpenCode memories now carry **project attribution** (from the session's `directory`).
+
 ## [0.22.0] - 2026-06-23
 
 ### Added
