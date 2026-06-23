@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import json
 import os
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -67,44 +68,57 @@ def test_core_loop_offline(tmp_path):
 
 def test_opencode_adapter_core_loop_offline(tmp_path, monkeypatch):
     """OpenCode adapter → locate → parse → ingest → index → recall, offline (fake embedder).
-    Guards that the OpenCode storage layout is correctly traversed end-to-end."""
-    # Build a minimal OpenCode storage fixture
-    storage = tmp_path / "storage"
-    msg_dir = storage / "message" / "sess1"
-    msg_dir.mkdir(parents=True)
-    (msg_dir / "msg1.json").write_text(
-        json.dumps({"role": "user", "time": {"created": 1}}),
-        encoding="utf-8",
+    Guards that the OpenCode SQLite DB is correctly read end-to-end."""
+    # Build a minimal opencode.db fixture
+    db_path = tmp_path / "opencode.db"
+    con = sqlite3.connect(str(db_path))
+    con.executescript("""
+        CREATE TABLE session (id TEXT, project_id TEXT, directory TEXT);
+        CREATE TABLE message (id TEXT, session_id TEXT, time_created INTEGER,
+                              time_updated INTEGER, data TEXT);
+        CREATE TABLE part (id TEXT, message_id TEXT, session_id TEXT,
+                           time_created INTEGER, data TEXT);
+    """)
+    con.execute("INSERT INTO session VALUES (?,?,?)", ("sess1", "proj1", str(tmp_path)))
+    con.execute(
+        "INSERT INTO message VALUES (?,?,?,?,?)",
+        ("msg1", "sess1", 1, 1, json.dumps({"role": "user", "time": {"created": 1}})),
     )
-    part_dir = storage / "part" / "msg1"
-    part_dir.mkdir(parents=True)
-    (part_dir / "p1.json").write_text(
-        json.dumps(
-            {
-                "type": "text",
-                "text": (
-                    "We decided to deploy only with make ship, never npm publish directly,"
-                    " because the Makefile enforces the pre-flight checks we always need."
-                ),
-            }
+    con.execute(
+        "INSERT INTO part VALUES (?,?,?,?,?)",
+        (
+            "part1",
+            "msg1",
+            "sess1",
+            1,
+            json.dumps(
+                {
+                    "type": "text",
+                    "text": (
+                        "We decided to deploy only with make ship, never npm publish directly,"
+                        " because the Makefile enforces the pre-flight checks we always need."
+                    ),
+                }
+            ),
         ),
-        encoding="utf-8",
     )
+    con.commit()
+    con.close()
     monkeypatch.setenv("OPENCODE_DATA_DIR", str(tmp_path))
 
-    # Locate via harness="opencode" — must find our session
+    # Locate via harness="opencode" — must find our db
     refs = find_transcripts(harness="opencode")
     assert refs, "find_transcripts(harness='opencode') returned nothing"
-    assert any(r.path.name == "sess1" for r in refs), "sess1 not found in refs"
+    assert any(r.path.name == "opencode.db" for r in refs), "opencode.db not found in refs"
 
-    # Auto-detect (harness=None) must also include the opencode session
+    # Auto-detect (harness=None) must also include the opencode db
     auto_refs = find_transcripts(harness=None)
-    assert any(r.harness == "opencode" and r.path.name == "sess1" for r in auto_refs), (
-        "auto-detect did not include the opencode sess1 session"
+    assert any(r.harness == "opencode" and r.path.name == "opencode.db" for r in auto_refs), (
+        "auto-detect did not include the opencode.db"
     )
 
     # Parse the transcript
-    ref = next(r for r in refs if r.path.name == "sess1")
+    ref = next(r for r in refs if r.path.name == "opencode.db")
     transcript = parse_transcript(ref, harness="opencode")
     assert transcript.events, "parsed transcript has no events"
 
