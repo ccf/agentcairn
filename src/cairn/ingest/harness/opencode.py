@@ -1,48 +1,48 @@
 # SPDX-License-Identifier: Apache-2.0
-"""OpenCode adapter: $OPENCODE_DATA_DIR (or ~/.local/share/opencode)/storage.
-A session = message/<sessionID>/; each message/<mid>.json joins its text parts
-from part/<mid>/*.json. Positive-ID, fail-closed: only a user message's text
-parts are authored prose."""
+"""OpenCode adapter: reads sessions from a WAL-mode SQLite DB at
+$OPENCODE_DATA_DIR/opencode.db (or ~/.local/share/opencode/opencode.db).
+
+Schema (OpenCode 1.17.5+):
+  session(id, project_id, directory)
+  message(id, session_id, time_created, time_updated, data TEXT)
+  part(id, message_id, session_id, time_created, data TEXT)
+
+message.data and part.data are JSON blobs. Text parts have type=="text".
+Positive-ID, fail-closed: only a user message with non-empty text parts
+is AUTHORED_USER."""
 
 from __future__ import annotations
 
 import json
 import os
+import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
+from urllib.request import pathname2url
 
 from cairn.ingest.events import EventKind, NormalizedEvent, project_from_cwd
 from cairn.ingest.harness import ParseCtx
 from cairn.ingest.sanitize import sanitize_text
 
+_MSG_SESSION_SQL = """
+    SELECT m.id, m.session_id, m.data, s.directory
+    FROM message m
+    LEFT JOIN session s ON m.session_id = s.id
+    ORDER BY m.session_id, m.time_created
+"""
+
+_PART_SQL = "SELECT data FROM part WHERE message_id=? ORDER BY time_created"
+
 
 def _roots() -> list[Path]:
     raw = os.environ.get("OPENCODE_DATA_DIR")
     if raw:
-        bases = [Path(p) for p in raw.split(",")]
-    else:
-        bases = [Path.home() / ".local" / "share" / "opencode"]
-    return [b / "storage" for b in bases]
+        return [Path(p) for p in raw.split(",")]
+    return [Path.home() / ".local" / "share" / "opencode"]
 
 
-def _load(p: Path) -> dict | None:
-    try:
-        d = json.loads(p.read_text(encoding="utf-8"))
-        return d if isinstance(d, dict) else None
-    except (OSError, json.JSONDecodeError, ValueError):
-        return None
-
-
-def _message_text(storage: Path, mid: str) -> str:
-    pdir = storage / "part" / mid
-    if not pdir.is_dir():
-        return ""
-    chunks: list[str] = []
-    for pf in sorted(pdir.glob("*.json")):
-        part = _load(pf)
-        if part and part.get("type") == "text" and isinstance(part.get("text"), str):
-            chunks.append(part["text"])
-    return sanitize_text("".join(chunks)).strip()
+def _db_for_base(base: Path) -> Path:
+    return base / "opencode.db"
 
 
 class OpenCodeAdapter:
@@ -52,26 +52,50 @@ class OpenCodeAdapter:
         return _roots()[0]
 
     def is_present(self) -> bool:
-        return any((r / "message").is_dir() for r in _roots())
+        return any(_db_for_base(b).is_file() for b in _roots())
 
     def find(self, *, root: Path | None, project: str | None) -> list[Path]:
-        roots = [Path(root)] if root is not None else _roots()
+        if root is not None:
+            bases = [Path(root)]
+        else:
+            bases = _roots()
         out: list[Path] = []
-        for storage in roots:
-            mdir = storage / "message"
-            if mdir.is_dir():
-                out.extend(d for d in sorted(mdir.iterdir()) if d.is_dir())
+        for base in bases:
+            db = _db_for_base(base)
+            if db.is_file():
+                out.append(db)
         return out
 
     def iter_raw(self, path: Path) -> Iterator[dict]:
-        storage = path.parent.parent  # storage/message/<sid> -> storage
-        for mf in sorted(path.glob("*.json")):
-            msg = _load(mf)
-            if msg is None:
-                continue
-            msg["_text"] = _message_text(storage, mf.stem)
-            msg["_session_id"] = path.name
-            yield msg
+        # WAL-mode requires mode=ro (NOT immutable=1 — immutable ignores the WAL)
+        try:
+            con = sqlite3.connect(f"file:{pathname2url(str(path))}?mode=ro", uri=True)
+        except sqlite3.Error:
+            return  # unreadable DB → no rows
+        try:
+            try:
+                cur = con.execute(_MSG_SESSION_SQL)
+            except sqlite3.Error:
+                return  # missing table / old schema → no rows
+            for msg_id, session_id, data_json, directory in cur:
+                # Parse message JSON — skip malformed rows
+                try:
+                    msg_data = json.loads(data_json)
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    continue
+                if not isinstance(msg_data, dict):
+                    continue
+
+                # Fetch and join text parts
+                text = _collect_text(con, msg_id)
+
+                row = dict(msg_data)
+                row["_text"] = text
+                row["_session_id"] = session_id
+                row["_cwd"] = directory  # may be None if LEFT JOIN found nothing
+                yield row
+        finally:
+            con.close()
 
     def classify(self, raw: dict) -> EventKind:
         role = raw.get("role")
@@ -87,14 +111,34 @@ class OpenCodeAdapter:
             return None
         time_obj = raw.get("time")
         ts = time_obj.get("created") if isinstance(time_obj, dict) else None
+        cwd = raw.get("_cwd")
         return NormalizedEvent(
             kind=kind,
             role=raw.get("role") or "user",
             text=text,
             timestamp=str(ts) if ts is not None else None,
-            session_id=raw.get("_session_id") or ctx.path.name,
-            project=project_from_cwd(None),
+            session_id=raw.get("_session_id") or ctx.path.stem,
+            project=project_from_cwd(cwd if isinstance(cwd, str) else None),
             git_branch=None,
             source_path=ctx.path,
             harness=self.name,
         )
+
+
+def _collect_text(con: sqlite3.Connection, msg_id: str) -> str:
+    """Fetch all text parts for a message and return sanitized concatenation."""
+    try:
+        cur = con.execute(_PART_SQL, (msg_id,))
+    except sqlite3.Error:
+        return ""
+    chunks: list[str] = []
+    for (data_json,) in cur:
+        try:
+            part = json.loads(data_json)
+        except (json.JSONDecodeError, ValueError, TypeError):
+            continue  # malformed part → skip
+        if not isinstance(part, dict):
+            continue
+        if part.get("type") == "text" and isinstance(part.get("text"), str):
+            chunks.append(part["text"])
+    return sanitize_text("".join(chunks)).strip()
