@@ -55,6 +55,9 @@ class OpenCodeAdapter:
         return any(_db_for_base(b).is_file() for b in _roots())
 
     def find(self, *, root: Path | None, project: str | None) -> list[Path]:
+        # `project` is intentionally ignored (like CursorAdapter): per-session
+        # project is only known post-parse (from session.directory in to_event),
+        # so it cannot be used to filter at find time.
         if root is not None:
             bases = [Path(root)]
         else:
@@ -126,7 +129,11 @@ class OpenCodeAdapter:
 
 
 def _collect_text(con: sqlite3.Connection, msg_id: str) -> str:
-    """Fetch all text parts for a message and return sanitized concatenation."""
+    """Fetch all text parts for a message and return sanitized concatenation.
+
+    Uses its own cursor over the connection shared with iter_raw's outer cursor;
+    SQLite supports multiple independent cursors on a single connection.
+    """
     try:
         cur = con.execute(_PART_SQL, (msg_id,))
     except sqlite3.Error:

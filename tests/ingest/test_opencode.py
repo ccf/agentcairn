@@ -340,3 +340,11 @@ def test_malformed_row_skipped(tmp_path):
     # malformed row skipped, only good_msg survives
     assert len(rows) == 1
     assert rows[0]["_text"] == "hello"
+
+
+def test_iter_raw_nonexistent_db_yields_nothing(tmp_path):
+    # A nonexistent / unreadable DB must yield no rows and never raise (fail-closed).
+    from cairn.ingest.harness.opencode import OpenCodeAdapter
+
+    a = OpenCodeAdapter()
+    assert list(a.iter_raw(tmp_path / "nope" / "opencode.db")) == []
