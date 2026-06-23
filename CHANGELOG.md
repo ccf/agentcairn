@@ -5,6 +5,34 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-06-23
+
+### Added
+- **First-class OpenCode support** ([opencode.ai](https://opencode.ai)). `cairn sweep` auto-detects and
+  distills OpenCode sessions (a new `OpenCodeAdapter` over `~/.local/share/opencode/storage`,
+  positive-ID + fail-closed); `cairn install opencode` writes the MCP server into `opencode.json`'s
+  `mcp` block, installs `recall`/`remember` slash commands, and drops a lean ambient TS plugin
+  (`integrations/opencode/`) that does recall-at-start + capture-at-end as a thin shell over the
+  `cairn` CLI. *(The OpenCode-side schema/plugin-API was inspected from source; verify in a live
+  OpenCode session — capture/recall degrade safely if an assumption is off.)*
+- **Cloud embedding tier (opt-in)** — `CAIRN_EMBEDDER=voyage` (default `voyage-3`) or `=openai`
+  (`text-embedding-3-small`) for higher recall quality, keys from `VOYAGE_API_KEY` / `OPENAI_API_KEY`
+  (+ `OPENAI_BASE_URL`). stdlib-only (no SDK dep), fail-closed (never returns zero vectors). Local
+  `fastembed` stays the default; with the cloud tier on, your already-redacted note text + queries
+  reach the provider (opt-in, like `CAIRN_JUDGE=anthropic`). Switching tiers re-embeds the vault.
+- **Hermes Agent support** — agentcairn as a native Hermes `MemoryProvider` (`integrations/hermes/`):
+  auto-recall + session-end distillation + curated `memory_save`/`recall`/`search` tools, sharing the
+  same vault as your other agents.
+- **`cairn recall --json`** — machine-readable recall output for tooling/plugins.
+- A `Dockerfile` for the MCP server (used by directory listings, e.g. Glama).
+
+### Changed
+- Supported-agents tables reordered; **Hermes** added, **Gemini CLI** dropped (deprecated). Website +
+  README refreshed (Obsidian integration, `cairn link`, `cairn schedule`, top nav, `/hermes` page);
+  the long-form Roadmap moved out of the README.
+- README/repo hardening: Trivy filesystem security scan + status badges; bumped vulnerable transitive
+  deps (`starlette`, `cryptography`, `pydantic-settings`).
+
 ## [0.21.0] - 2026-06-20
 
 ### Added
