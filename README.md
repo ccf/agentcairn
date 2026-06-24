@@ -74,10 +74,17 @@ flowchart LR
 
 ## Using it directly
 
-The plugin is the easiest path, but agentcairn is just a package — use it without Claude Code via the on-demand MCP server (for any MCP host) or the `cairn` CLI:
+The plugin is the easiest path, but agentcairn is just a Python package — use it as a standalone CLI and/or an on-demand MCP server, no Claude Code required.
+
+**Install the CLI** — puts both `cairn` (the CLI) and `agentcairn` (the MCP server) on your `PATH`:
 
 ```bash
-uvx agentcairn                                       # on-demand MCP server for any MCP host
+uv tool install agentcairn          # or: pipx install agentcairn   (or: pip install agentcairn)
+```
+
+Then run the `cairn` CLI directly:
+
+```bash
 cairn ingest --vault ~/vault                         # distill recent agent sessions into the vault
 cairn sweep  --vault ~/vault                          # ingest + reindex in one pass (cron-friendly)
 cairn schedule install --vault ~/vault                # run sweep automatically every 30 min (launchd on macOS, crontab on Linux)
@@ -87,6 +94,13 @@ cairn recall "how did we fix the auth bug?"          # hybrid recall from the CL
 cairn savings                                        # how much context recall has saved you
 cairn reindex ~/vault                                # rebuild the index from Markdown (always safe)
 cairn doctor                                         # health-check the index
+```
+
+Prefer not to install? Run either entry point ephemerally with `uvx` — note the two are different commands:
+
+```bash
+uvx agentcairn                                        # the MCP server (point any MCP host at this)
+uvx --from agentcairn cairn recall "..."             # the CLI — needs `--from`; plain `uvx cairn` won't work
 ```
 
 `cairn schedule install/status/uninstall` manages a launchd (macOS) or crontab (Linux) job that runs `cairn sweep` periodically — a host-agnostic capture backstop so memory keeps flowing even for hosts without ambient hooks.
