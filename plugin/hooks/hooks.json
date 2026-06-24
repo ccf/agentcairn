@@ -3,19 +3,19 @@
     "SessionStart": [
       { "matcher": "*", "hooks": [
         { "type": "command", "command": "sh",
-          "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/session-start.sh", "${user_config.vault_path}"],
+          "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/session-start.sh"],
           "timeout": 20 } ] }
     ],
     "SessionEnd": [
       { "matcher": "*", "hooks": [
         { "type": "command", "command": "sh",
-          "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/session-end.sh", "${user_config.vault_path}"],
+          "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/session-end.sh"],
           "timeout": 120 } ] }
     ],
     "PreCompact": [
       { "matcher": "*", "hooks": [
         { "type": "command", "command": "sh",
-          "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/session-end.sh", "${user_config.vault_path}"],
+          "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/session-end.sh"],
           "timeout": 30 } ] }
     ]
   }

@@ -2,7 +2,7 @@
   "name": "agentcairn",
   "displayName": "agentcairn",
   "description": "Local-first agent memory for Claude Code — recall, remember, and ambient capture into a Markdown vault you own.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "author": { "name": "Charles C. Figueiredo", "email": "ccf@ccf.io" },
   "homepage": "https://agentcairn.dev",
   "repository": "https://github.com/ccf/agentcairn",
@@ -12,8 +12,9 @@
     "vault_path": {
       "type": "directory",
       "title": "agentcairn vault",
-      "description": "Folder for your Markdown memory vault (auto-created on first session).",
-      "default": "~/agentcairn"
+      "description": "Folder for your Markdown memory vault (auto-created on first session; defaults to ~/agentcairn).",
+      "default": "~/agentcairn",
+      "required": false
     }
   },
   "mcpServers": "./.mcp.json"

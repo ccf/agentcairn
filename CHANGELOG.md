@@ -5,6 +5,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+### Fixed
+- **Claude Code plugin (0.3.1): fresh install no longer fails on first run.** The
+  SessionStart/SessionEnd/PreCompact hooks passed `${user_config.vault_path}` as a command
+  arg, which Claude Code hard-fails when the user hasn't explicitly set the option (the schema
+  `default` isn't applied to that interpolation) — producing `Plugin option "vault_path" isn't set`
+  on a zero-config install. The hooks now resolve the vault inside the scripts from the
+  `CLAUDE_PLUGIN_OPTION_VAULT_PATH` env var (which Claude Code exports), falling back to
+  `~/agentcairn`, so a fresh install just works while still honoring a user-set vault. Run
+  `claude plugin update` to get the fix.
+
 ## [0.22.1] - 2026-06-23
 
 ### Fixed

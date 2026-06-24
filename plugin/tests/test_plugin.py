@@ -67,6 +67,9 @@ def _run_hook(script, stdin_obj, env_extra, cwd=None, first_run=False):
     # genuine first-run branch.
     home = Path(env["VAULT_ARG"]).parent
     env["HOME"] = str(home)
+    # Claude Code exports the user's `vault_path` userConfig as this env var; the
+    # scripts read it (falling back to the legacy $1 arg, then ~/agentcairn).
+    env["CLAUDE_PLUGIN_OPTION_VAULT_PATH"] = env["VAULT_ARG"]
     if not first_run:
         (home / ".cache" / "agentcairn" / "indexes").mkdir(parents=True, exist_ok=True)
     return subprocess.run(
@@ -251,11 +254,17 @@ def test_session_start_first_run_warms_models():
     assert "$CAIRN warm" in text
 
 
-def test_hooks_pass_vault_not_index_path():
+def test_hooks_do_not_hardfail_on_unset_vault_path():
+    # Hooks must NOT interpolate ${user_config.vault_path} as a command arg:
+    # Claude Code hard-fails that interpolation when the user never set the option
+    # (fresh install — the schema `default` is not applied to it). The scripts
+    # resolve the vault from $CLAUDE_PLUGIN_OPTION_VAULT_PATH (with a ~/agentcairn
+    # fallback) instead, so a zero-config install just works.
     hooks = _json(PLUGIN / "hooks" / "hooks.json")
     blob = json.dumps(hooks)
-    assert "${user_config.vault_path}" in blob
+    assert "${user_config.vault_path}" not in blob
     assert "index_path" not in blob  # the index is vault-derived; no index arg
+    assert "session-start.sh" in blob and "session-end.sh" in blob
 
 
 def test_precompact_hook_captures_long_sessions():
@@ -267,7 +276,7 @@ def test_precompact_hook_captures_long_sessions():
     assert "PreCompact" in hooks, "no PreCompact hook — long sessions won't be captured"
     blob = json.dumps(hooks["PreCompact"])
     assert "session-end.sh" in blob, "PreCompact should reuse the detached-sweep script"
-    assert "${user_config.vault_path}" in blob
+    assert "${user_config.vault_path}" not in blob  # no hard-failing interpolation
 
 
 def test_plugin_manifest_drops_index_path_and_bumps_version():

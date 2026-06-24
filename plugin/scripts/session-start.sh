@@ -1,11 +1,15 @@
 #!/bin/sh
-# args: $1 = vault path (index is vault-derived; no index arg is passed).
+# Vault resolution: $CLAUDE_PLUGIN_OPTION_VAULT_PATH (Claude Code exports the
+# user's `vault_path` userConfig as this env var) → legacy $1 → ~/agentcairn.
+# We do NOT take the vault from a `${user_config.vault_path}` hook arg: Claude
+# Code hard-fails that interpolation when the user never set it (fresh install),
+# whereas an unset env var simply falls through to the default here.
 # stdin = hook JSON (unused).
 # Emits SessionStart additionalContext with a compact recent-memory digest
 # (global / cross-project — see the using-agentcairn-memory skill).
 # Always exits 0 (never blocks/delays the session); no output when there's nothing.
 set -u
-VAULT=$(printf '%s' "${1:-$HOME/agentcairn}" | sed "s#^~#$HOME#")
+VAULT=$(printf '%s' "${CLAUDE_PLUGIN_OPTION_VAULT_PATH:-${1:-$HOME/agentcairn}}" | sed "s#^~#$HOME#")
 CAIRN="uvx --from agentcairn>=0.2 cairn"
 
 # Ensure the vault dir exists on every session (uvx-free, instant) so a
