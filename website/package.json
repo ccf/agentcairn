@@ -21,17 +21,17 @@
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "^4.3.1",
     "astro": "^6.4.8",
-    "motion": "^12.40.0",
+    "motion": "^12.42.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwindcss": "^4.0.0"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.0",
-    "@axe-core/playwright": "^4.10.0",
-    "@playwright/test": "^1.61.0",
+    "@axe-core/playwright": "^4.12.1",
+    "@playwright/test": "^1.61.1",
     "@types/node": "^25.9.3",
     "typescript": "^6.0.3",
-    "wrangler": "^4.102.0"
+    "wrangler": "^4.105.0"
   }
 }
