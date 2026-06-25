@@ -10,9 +10,9 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Trivy filesystem scan (deps + secrets + misconfig)
-        uses: aquasecurity/trivy-action@0.35.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -29,6 +29,6 @@ jobs:
         # Fork PRs aren't granted `security-events: write`, so only upload on
         # pushes and same-repo PRs (avoids a red workflow for outside contributors).
         if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy.sarif
