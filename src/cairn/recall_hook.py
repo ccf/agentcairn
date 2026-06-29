@@ -21,6 +21,7 @@ from cairn.config import (
     resolve_auto_recall_scope,
 )
 from cairn.embed import get_embedder
+from cairn.ingest.events import project_from_cwd
 from cairn.search import open_search, resolve_current_project, search
 
 _DEFAULT_MIN_CHARS = 12
@@ -69,7 +70,9 @@ def build_hook_output(block: str) -> dict:
     }
 
 
-def _recall(prompt: str, *, vault, index, embedder_name: str, k: int, scope: str) -> list[dict]:
+def _recall(
+    prompt: str, *, vault, index, embedder_name: str, k: int, scope: str, cwd: str | None = None
+) -> list[dict]:
     """Run one hybrid recall; returns note dicts (possibly empty). Falls back to
     BM25-only if the embedder cannot load. Records the savings ledger
     best-effort (this is the observability that proves recall fired)."""
@@ -80,7 +83,12 @@ def _recall(prompt: str, *, vault, index, embedder_name: str, k: int, scope: str
         emb = None if embedder_name == "none" else get_embedder(embedder_name)
     except Exception:
         emb = None  # BM25-only fallback when the embedder can't load
-    current = resolve_current_project(None)
+    # Project boost/scope resolves from the hook payload's cwd (the session
+    # workspace), falling back to the process cwd when the payload omits it.
+    current = resolve_current_project(
+        project_from_cwd(cwd) if isinstance(cwd, str) and cwd else None
+    )
+    notes: list[dict] = []
     con = open_search(str(idx))
     try:
         hits = search(con, prompt, embedder=emb, k=k, rerank=False, project=current, scope=scope)
@@ -119,9 +127,12 @@ def run(
         name = embedder_name or env.get("CAIRN_EMBEDDER") or "fastembed"
         try:
             obj = json.loads(stdin_text)
-            prompt = obj.get("prompt") or "" if isinstance(obj, dict) else ""
         except (ValueError, TypeError):
-            prompt = ""
+            obj = {}
+        if not isinstance(obj, dict):
+            obj = {}
+        prompt = obj.get("prompt") or ""
+        cwd = obj.get("cwd")
         if not should_recall(prompt, env):
             return ""
         notes = _recall(
@@ -131,6 +142,7 @@ def run(
             embedder_name=name,
             k=resolve_auto_recall_k(env),
             scope=resolve_auto_recall_scope(env),
+            cwd=cwd,
         )
         block = format_block(notes)
         return json.dumps(build_hook_output(block)) if block else ""

@@ -110,3 +110,24 @@ def test_run_bm25_fallback_when_embedder_none(tmp_path):
         env={},
     )
     assert out != ""
+
+
+def test_run_uses_payload_cwd_for_project(tmp_path, monkeypatch):
+    """Project boost/scope resolves from the hook payload's cwd, not the process cwd."""
+    from cairn import recall_hook as rh
+    from cairn.ingest.events import project_from_cwd
+
+    captured: dict = {}
+
+    def fake_search(con, query, **kw):
+        captured.update(kw)
+        return []
+
+    monkeypatch.setattr(rh, "search", fake_search)
+    rh.run(
+        json.dumps({"prompt": "how do I brew coffee beans?", "cwd": "/work/acme-api"}),
+        index=_idx(tmp_path),
+        embedder_name="fake",
+        env={},
+    )
+    assert captured.get("project") == project_from_cwd("/work/acme-api")
