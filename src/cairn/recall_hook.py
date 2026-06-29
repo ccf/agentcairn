@@ -107,7 +107,7 @@ def run(
     *,
     vault: Path | str | None = None,
     index: Path | str | None = None,
-    embedder_name: str = "fastembed",
+    embedder_name: str | None = None,
     env: Mapping[str, str] | None = None,
 ) -> str:
     """Parse a UserPromptSubmit payload (JSON on stdin) and return the string to
@@ -116,8 +116,10 @@ def run(
     try:
         if env is None:
             env = cairn_env()
+        name = embedder_name or env.get("CAIRN_EMBEDDER") or "fastembed"
         try:
-            prompt = (json.loads(stdin_text) or {}).get("prompt") or ""
+            obj = json.loads(stdin_text)
+            prompt = obj.get("prompt") or "" if isinstance(obj, dict) else ""
         except (ValueError, TypeError):
             prompt = ""
         if not should_recall(prompt, env):
@@ -126,7 +128,7 @@ def run(
             prompt,
             vault=vault,
             index=index,
-            embedder_name=embedder_name,
+            embedder_name=name,
             k=resolve_auto_recall_k(env),
             scope=resolve_auto_recall_scope(env),
         )

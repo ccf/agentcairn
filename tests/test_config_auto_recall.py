@@ -15,6 +15,11 @@ def test_auto_recall_off():
     assert resolve_auto_recall(env={"CAIRN_AUTO_RECALL": "false"}) is False
 
 
+def test_auto_recall_explicit_true():
+    assert resolve_auto_recall(env={"CAIRN_AUTO_RECALL": "true"}) is True
+    assert resolve_auto_recall(env={"CAIRN_AUTO_RECALL": "1"}) is True
+
+
 def test_auto_recall_bad_value_falls_back_true():
     assert resolve_auto_recall(env={"CAIRN_AUTO_RECALL": "maybe"}) is True
 

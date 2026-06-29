@@ -371,7 +371,7 @@ def recall_hook(
         None, "--index", help="Index .duckdb path (default: derived from vault)."
     ),
     embedder: str = typer.Option(
-        "fastembed", "--embedder", help="'fastembed' (default), 'fake' (tests), or 'none' (BM25)."
+        None, "--embedder", help="'fastembed' (default), 'fake' (tests), or 'none' (BM25)."
     ),
 ) -> None:
     """Auto-recall for the Claude Code UserPromptSubmit hook (internal).
@@ -380,13 +380,16 @@ def recall_hook(
     prompt, and prints the additionalContext envelope (or nothing). Always
     exits 0 — never blocks or breaks a prompt.
     """
-    import sys
+    try:
+        import sys
 
-    from cairn import recall_hook as _rh
+        from cairn import recall_hook as _rh
 
-    out = _rh.run(sys.stdin.read(), vault=vault, index=index, embedder_name=embedder)
-    if out:
-        typer.echo(out)
+        out = _rh.run(sys.stdin.read(), vault=vault, index=index, embedder_name=embedder)
+        if out:
+            typer.echo(out)
+    except Exception:
+        pass
 
 
 @app.command()

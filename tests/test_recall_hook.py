@@ -80,3 +80,33 @@ def test_run_no_index_is_silent(tmp_path):
 def test_run_malformed_stdin_is_silent(tmp_path):
     out = run("not json at all", index=_idx(tmp_path), embedder_name="fake", env={})
     assert out == ""
+
+
+def test_run_honors_cairn_embedder_env(tmp_path):
+    """No explicit embedder_name → CAIRN_EMBEDDER env var is used."""
+    out = run(
+        json.dumps({"prompt": "how do I brew coffee beans?"}),
+        index=_idx(tmp_path),
+        env={"CAIRN_EMBEDDER": "fake"},
+    )
+    assert out
+    data = json.loads(out)
+    assert "coffee" in data["hookSpecificOutput"]["additionalContext"].lower()
+
+
+def test_run_valid_non_dict_json_is_silent(tmp_path):
+    """Valid JSON that is not a dict (string, list) should return ''."""
+    idx = _idx(tmp_path)
+    assert run('"hi"', index=idx, embedder_name="fake", env={}) == ""
+    assert run("[1, 2]", index=idx, embedder_name="fake", env={}) == ""
+
+
+def test_run_bm25_fallback_when_embedder_none(tmp_path):
+    """embedder_name='none' → BM25-only path; still returns hits for a keyword query."""
+    out = run(
+        json.dumps({"prompt": "coffee beans"}),
+        index=_idx(tmp_path),
+        embedder_name="none",
+        env={},
+    )
+    assert out != ""

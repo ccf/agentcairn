@@ -49,7 +49,7 @@ start. Trivially-short prompts (e.g. "yes", "go") are skipped. It is fail-open:
 if anything goes wrong it injects nothing and never blocks your prompt.
 
 Configure it in `~/.agentcairn/config.toml` (flat top-level keys; env vars
-`CAIRN_AUTO_RECALL{,_K,_SCOPE}` override the file):
+`CAIRN_AUTO_RECALL`, `CAIRN_AUTO_RECALL_K`, `CAIRN_AUTO_RECALL_SCOPE` override the file):
 
 ```toml
 auto_recall       = true    # master on/off (default: true)
