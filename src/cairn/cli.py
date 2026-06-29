@@ -362,6 +362,33 @@ def recall(
         typer.echo(f"        {h.snippet.strip()[:160]}")
 
 
+@app.command("recall-hook")
+def recall_hook(
+    vault: Path = typer.Option(
+        None, "--vault", help="Vault dir (default: CAIRN_VAULT or ~/agentcairn)."
+    ),
+    index: Path = typer.Option(
+        None, "--index", help="Index .duckdb path (default: derived from vault)."
+    ),
+    embedder: str = typer.Option(
+        "fastembed", "--embedder", help="'fastembed' (default), 'fake' (tests), or 'none' (BM25)."
+    ),
+) -> None:
+    """Auto-recall for the Claude Code UserPromptSubmit hook (internal).
+
+    Reads the hook JSON payload from stdin, runs a hybrid recall against the
+    prompt, and prints the additionalContext envelope (or nothing). Always
+    exits 0 — never blocks or breaks a prompt.
+    """
+    import sys
+
+    from cairn import recall_hook as _rh
+
+    out = _rh.run(sys.stdin.read(), vault=vault, index=index, embedder_name=embedder)
+    if out:
+        typer.echo(out)
+
+
 @app.command()
 def recent(
     index: Path = typer.Option(None, "--index", help="Index .duckdb path."),
