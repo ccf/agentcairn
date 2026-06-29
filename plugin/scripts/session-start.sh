@@ -33,6 +33,13 @@ if [ ! -d "$HOME/.cache/agentcairn/indexes" ] && [ ! -f "$HOME/.cache/agentcairn
   exit 0
 fi
 
+# Keep the embedder/reranker models loaded on every (warm-path) session so the
+# per-prompt UserPromptSubmit recall stays fast. `cairn warm` is idempotent and
+# near-instant once cached; fully detached anyway so a cold re-download can never
+# delay the session, and stdin/stdout/stderr detached so it can't hold the hook's
+# pipes open. Best-effort: failures are swallowed.
+( $CAIRN warm ) </dev/null >/dev/null 2>&1 &
+
 # Fetch recent memories as JSON (best-effort, cross-project).
 JSON=$($CAIRN recent --vault "$VAULT" -n 5 --json 2>/dev/null || echo '{"notes":[]}')
 

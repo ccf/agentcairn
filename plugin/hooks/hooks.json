@@ -1,5 +1,11 @@
 {
   "hooks": {
+    "UserPromptSubmit": [
+      { "matcher": "*", "hooks": [
+        { "type": "command", "command": "sh",
+          "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/user-prompt-submit.sh"],
+          "timeout": 10 } ] }
+    ],
     "SessionStart": [
       { "matcher": "*", "hooks": [
         { "type": "command", "command": "sh",

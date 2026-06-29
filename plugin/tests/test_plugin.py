@@ -267,6 +267,12 @@ def test_hooks_do_not_hardfail_on_unset_vault_path():
     assert "session-start.sh" in blob and "session-end.sh" in blob
 
 
+def test_userpromptsubmit_hook_runs_recall():
+    hooks = _json(PLUGIN / "hooks" / "hooks.json")["hooks"]
+    assert "UserPromptSubmit" in hooks
+    assert "user-prompt-submit.sh" in json.dumps(hooks["UserPromptSubmit"])
+
+
 def test_precompact_hook_captures_long_sessions():
     # Capture must not wait for SessionEnd: long/resumed sessions compact
     # repeatedly, so PreCompact runs the same detached sweep at each boundary,
