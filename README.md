@@ -42,6 +42,21 @@ codex plugin add agentcairn@agentcairn
 
 On install you pick a vault path (default `~/agentcairn`); it's **auto-created** on the first session — no Obsidian setup required. From then on agentcairn surfaces relevant memory at the start of each session, distills each session into your vault, and gives you `/agentcairn:recall`, `/remember`, `/memory`, `/savings`, and `/ingest`. Nothing to pip-install — the plugin runs the published package via `uvx`.
 
+**Automatic recall (Claude Code).** On every substantive prompt, the plugin runs
+a hybrid recall against what you just asked and injects the most relevant
+memories as context for that turn — not just the recency digest shown at session
+start. Trivially-short prompts (e.g. "yes", "go") are skipped. It is fail-open:
+if anything goes wrong it injects nothing and never blocks your prompt.
+
+Configure it in `~/.agentcairn/config.toml` (flat top-level keys; env vars
+`CAIRN_AUTO_RECALL{,_K,_SCOPE}` override the file):
+
+```toml
+auto_recall       = true    # master on/off (default: true)
+auto_recall_k     = 3       # memories injected per prompt
+auto_recall_scope = "all"   # "all" (boost, non-lossy) or "project" (hard filter)
+```
+
 > Not on Claude Code or Codex? agentcairn is also a standalone MCP server + CLI for any host — see [Using it directly](#using-it-directly).
 
 ## How it works

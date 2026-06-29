@@ -5,6 +5,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+### Added
+- **Automatic per-turn recall on Claude Code.** A `UserPromptSubmit` hook runs a
+  hybrid recall against each substantive prompt and injects the hits as context,
+  closing the gap where the `recall` tool was almost never invoked. New
+  `cairn recall-hook` command; configurable via `auto_recall` / `auto_recall_k` /
+  `auto_recall_scope` (default on). Plugin `0.4.0`.
+
 ### Fixed
 - **Claude Code plugin (0.3.1): fresh install no longer fails on first run.** The
   SessionStart/SessionEnd/PreCompact hooks passed `${user_config.vault_path}` as a command
