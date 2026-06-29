@@ -106,15 +106,17 @@ Code's `UserPromptSubmit` hook.
 
 ## Config surface
 
-New `[recall]` section in `~/.agentcairn/config.toml`. Each key maps to a
-`CAIRN_*` env var through the existing `KNOBS` / `_translate` machinery, preserving
-the established precedence: **explicit arg → env → config file → default**.
+**Flat top-level keys** in `~/.agentcairn/config.toml`. The config loader
+(`config_file_values`) reads only top-level keys — it does **not** descend into
+`[section]` tables, and every existing knob (`vault`, `rerank`, `usage`, …) is
+flat. Each key maps to a `CAIRN_*` env var through the existing `KNOBS` /
+`_translate` machinery (`foo` → `CAIRN_FOO`), preserving the established
+precedence: **explicit arg → env → config file → default**.
 
 ```toml
-[recall]
-auto  = true     # CAIRN_AUTO_RECALL       — master on/off (default: true)
-k     = 3        # CAIRN_AUTO_RECALL_K      — notes injected per turn (default: 3)
-scope = "all"    # CAIRN_AUTO_RECALL_SCOPE  — "all" (boost, non-lossy) | "project" (hard filter)
+auto_recall       = true    # CAIRN_AUTO_RECALL       — master on/off (default: true)
+auto_recall_k     = 3       # CAIRN_AUTO_RECALL_K      — notes injected per turn (default: 3)
+auto_recall_scope = "all"   # CAIRN_AUTO_RECALL_SCOPE  — "all" (boost, non-lossy) | "project" (hard filter)
 ```
 
 - `resolve_auto_recall(env) -> bool` (default `True`)
@@ -178,10 +180,14 @@ prompts ("lets check on the pr's"). No topic detection.
 - **Per-call:** each `recall-hook` invocation loads the model from cache
   (~0.5–1.5s warm). OpenCode already shells `cairn recall` per turn, so this is
   proven tolerable in practice.
-- **Graceful cold fallback:** if the embedder is not yet warm, `recall-hook` runs
-  **BM25-only** (`embedder=none`, instant) for that turn instead of blocking on a
-  cold model load — keyword recall immediately, full hybrid once warm.
-- The hook `timeout` is a safety ceiling, not the expected latency.
+- **Fail-open + BM25 fallback:** if the embedder cannot load, `recall-hook`
+  degrades to **BM25-only** (`embedder=None`) for that turn; on any other
+  error/timeout it injects nothing. The genuine cold case (first-ever run) has no
+  index yet, so the hook exits early regardless.
+- The hook `timeout` (~10s) is the hard ceiling: if a cold model load exceeds it,
+  Claude Code kills the hook and the prompt proceeds without injection
+  (fail-open). An active embedder-warmth check (e.g. a thread deadline) is
+  deferred — the blocking path is rarely hit in practice.
 
 ## Error handling — fail-open, always
 
