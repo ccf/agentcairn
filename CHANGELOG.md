@@ -3,7 +3,7 @@
 All notable changes to **agentcairn** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [0.23.0] - 2026-06-29
 
 ### Added
 - **Automatic per-turn recall on Claude Code.** A `UserPromptSubmit` hook runs a
