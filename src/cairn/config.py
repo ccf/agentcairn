@@ -101,6 +101,24 @@ KNOBS: tuple[Knob, ...] = (
         "true",
         "Semantic dedup + supersession during ingest (LLM judge tier only).",
     ),
+    Knob(
+        "auto_recall",
+        "CAIRN_AUTO_RECALL",
+        "true",
+        "Auto-recall relevant memory before each substantive prompt (Claude Code).",
+    ),
+    Knob(
+        "auto_recall_k",
+        "CAIRN_AUTO_RECALL_K",
+        "3",
+        "How many memories auto-recall injects per prompt.",
+    ),
+    Knob(
+        "auto_recall_scope",
+        "CAIRN_AUTO_RECALL_SCOPE",
+        "all",
+        "Auto-recall scope: 'all' (boost, non-lossy) or 'project' (hard filter).",
+    ),
 )
 _KNOWN_KEYS = {k.key for k in KNOBS}
 
@@ -209,6 +227,9 @@ def openai_config(env: Mapping[str, str] | None = None) -> tuple[str, str | None
     return model, env.get("OPENAI_API_KEY"), base
 
 
+_DEFAULT_AUTO_RECALL_K = 3
+
+
 def resolve_rerank(explicit: bool | None = None, env: Mapping[str, str] | None = None) -> bool:
     """Resolve the reranker on/off setting: explicit arg → CAIRN_RERANK env → True.
     An unparseable CAIRN_RERANK falls back to the default (True) rather than raising,
@@ -239,6 +260,39 @@ def resolve_consolidate(env: Mapping[str, str] | None = None) -> bool:
         return parse_bool(raw)
     except ValueError:
         return True
+
+
+def resolve_auto_recall(env: Mapping[str, str] | None = None) -> bool:
+    """Resolve auto-recall on/off: CAIRN_AUTO_RECALL env/file → True.
+    An unparseable value falls back to the default (True) rather than raising,
+    so a typo never disables recall silently or breaks a prompt."""
+    if env is None:
+        env = cairn_env()
+    raw = env.get("CAIRN_AUTO_RECALL")
+    if raw is None:
+        return True
+    try:
+        return parse_bool(raw)
+    except ValueError:
+        return True
+
+
+def resolve_auto_recall_k(env: Mapping[str, str] | None = None) -> int:
+    """Resolve auto-recall depth: CAIRN_AUTO_RECALL_K env/file → 3.
+    An unparseable value falls back to the default rather than raising."""
+    if env is None:
+        env = cairn_env()
+    try:
+        return int(env.get("CAIRN_AUTO_RECALL_K") or _DEFAULT_AUTO_RECALL_K)
+    except ValueError:
+        return _DEFAULT_AUTO_RECALL_K
+
+
+def resolve_auto_recall_scope(env: Mapping[str, str] | None = None) -> str:
+    """Resolve auto-recall scope: CAIRN_AUTO_RECALL_SCOPE env/file → 'all'."""
+    if env is None:
+        env = cairn_env()
+    return (env.get("CAIRN_AUTO_RECALL_SCOPE") or "all").strip().lower()
 
 
 _DEFAULT_JUDGE_MODEL = "claude-haiku-4-5"
