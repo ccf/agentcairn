@@ -1,12 +1,12 @@
 {
   "hooks": {
     "SessionStart": [
-      { "hooks": [ { "type": "command", "command": "sh",
-        "args": ["${PLUGIN_ROOT}/scripts/session-start.sh"], "timeout": 20 } ] }
+      { "hooks": [ { "type": "command",
+        "command": "/bin/sh \"${PLUGIN_ROOT}/scripts/session-start.sh\"", "timeout": 20 } ] }
     ],
     "SessionEnd": [
-      { "hooks": [ { "type": "command", "command": "sh",
-        "args": ["${PLUGIN_ROOT}/scripts/session-end.sh"], "timeout": 120 } ] }
+      { "hooks": [ { "type": "command",
+        "command": "/bin/sh \"${PLUGIN_ROOT}/scripts/session-end.sh\"", "timeout": 120 } ] }
     ]
   }
 }

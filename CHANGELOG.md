@@ -5,6 +5,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.24.2] - 2026-07-12
+
+### Fixed
+- Codex plugin 0.1.2 encodes SessionStart/SessionEnd hooks as the documented
+  single command string. Codex previously ignored the unsupported `args` array,
+  ran bare `sh`, and fed hook JSON to it as shell input, causing exit code 127.
+
 ## [0.24.1] - 2026-07-12
 
 ### Fixed
@@ -358,7 +365,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Out-of-band capture from coding-agent transcripts (redacted, non-lossy `remember`).
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
-[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.24.1...HEAD
+[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.24.2...HEAD
+[0.24.2]: https://github.com/ccf/agentcairn/compare/v0.24.1...v0.24.2
 [0.24.1]: https://github.com/ccf/agentcairn/compare/v0.24.0...v0.24.1
 [0.24.0]: https://github.com/ccf/agentcairn/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/ccf/agentcairn/compare/v0.22.1...v0.23.0
