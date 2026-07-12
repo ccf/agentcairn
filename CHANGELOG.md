@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+### Fixed
+- Codex plugin 0.1.2 encodes SessionStart/SessionEnd hooks as the documented
+  single command string. Codex previously ignored the unsupported `args` array,
+  ran bare `sh`, and fed hook JSON to it as shell input, causing exit code 127.
+
 ## [0.24.1] - 2026-07-12
 
 ### Fixed

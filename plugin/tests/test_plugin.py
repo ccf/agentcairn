@@ -58,6 +58,54 @@ def test_mcp_config_wires_uvx_agentcairn():
     assert srv["env"]["CAIRN_VAULT"] == "${user_config.vault_path}"
 
 
+def test_codex_hooks_use_documented_single_command_strings():
+    hooks = _json(PLUGIN / "hooks" / "hooks.codex.json")["hooks"]
+    expected = {
+        "SessionStart": '/bin/sh "${PLUGIN_ROOT}/scripts/session-start.sh"',
+        "SessionEnd": '/bin/sh "${PLUGIN_ROOT}/scripts/session-end.sh"',
+    }
+    for event, command in expected.items():
+        handler = hooks[event][0]["hooks"][0]
+        assert handler["command"] == command
+        assert "args" not in handler
+
+
+def test_codex_session_start_handler_executes_script_instead_of_stdin(tmp_path):
+    hooks = _json(PLUGIN / "hooks" / "hooks.codex.json")["hooks"]
+    handler = hooks["SessionStart"][0]["hooks"][0]
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    stub = scripts / "session-start.sh"
+    stub.write_text(
+        "#!/bin/sh\n"
+        'grep -q \'"hook_event_name": "SessionStart"\' || exit 2\n'
+        "printf '%s\\n' "
+        '\'{"hookSpecificOutput":{"hookEventName":"SessionStart",'
+        '"additionalContext":"Codex hook works"}}\'\n'
+    )
+    stub.chmod(0o755)
+    env = {
+        **os.environ,
+        "PLUGIN_ROOT": str(tmp_path),
+    }
+
+    result = subprocess.run(
+        handler["command"],
+        shell=True,
+        executable="/bin/sh",
+        input=json.dumps({"hook_event_name": "SessionStart", "cwd": str(ROOT)}),
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=10,
+    )
+
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert output["hookSpecificOutput"]["hookEventName"] == "SessionStart"
+    assert "Codex hook works" in output["hookSpecificOutput"]["additionalContext"]
+
+
 def _run_hook(script, stdin_obj, env_extra, cwd=None, first_run=False):
     env = {**os.environ, **env_extra}
     # The index is now vault-derived, so session-start.sh detects a first run via the

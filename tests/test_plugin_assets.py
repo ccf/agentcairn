@@ -33,10 +33,10 @@ def test_codex_mcp_is_bare_map_and_defers_to_shared_config():
 
 def test_codex_hooks_reference_existing_scripts():
     h = _load(PLUGIN / "hooks" / "hooks.codex.json")
-    starts = h["hooks"]["SessionStart"][0]["hooks"][0]["args"]
-    ends = h["hooks"]["SessionEnd"][0]["hooks"][0]["args"]
-    assert starts == ["${PLUGIN_ROOT}/scripts/session-start.sh"]
-    assert ends == ["${PLUGIN_ROOT}/scripts/session-end.sh"]
+    starts = h["hooks"]["SessionStart"][0]["hooks"][0]["command"]
+    ends = h["hooks"]["SessionEnd"][0]["hooks"][0]["command"]
+    assert starts == '/bin/sh "${PLUGIN_ROOT}/scripts/session-start.sh"'
+    assert ends == '/bin/sh "${PLUGIN_ROOT}/scripts/session-end.sh"'
     assert (PLUGIN / "scripts" / "session-start.sh").is_file()
     assert (PLUGIN / "scripts" / "session-end.sh").is_file()
 
