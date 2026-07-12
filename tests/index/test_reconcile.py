@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 from pathlib import Path
 
+import pytest
+
 from cairn.embed import FakeEmbedder
 from cairn.index import open_index, reconcile
 
@@ -51,6 +53,56 @@ def test_reconcile_rebuilds_on_dimension_change(tmp_path):
     assert (
         con.execute("SELECT count(*) FROM chunk_embeddings WHERE len(vec) != 16").fetchone()[0] == 0
     )
+
+
+def test_reconcile_embedding_failure_rolls_back_updated_note(tmp_path):
+    vault = _seed(tmp_path)
+    good = FakeEmbedder(dim=8)
+    con = open_index(str(tmp_path / "i.duckdb"), dim=good.dim, model_id=good.model_id)
+    reconcile(con, str(vault), good)
+    before = con.execute(
+        "SELECT n.content_hash, c.text FROM notes n JOIN chunks c "
+        "ON c.note_permalink = n.permalink WHERE n.permalink = 'a'"
+    ).fetchall()
+    (vault / "a.md").write_text("---\ntitle: A\npermalink: a\n---\nalpha changed\n")
+
+    class Broken(FakeEmbedder):
+        def embed(self, texts):
+            raise RuntimeError("embedding service failed")
+
+    with pytest.raises(RuntimeError, match="embedding service failed"):
+        reconcile(con, str(vault), Broken(dim=8))
+
+    after = con.execute(
+        "SELECT n.content_hash, c.text FROM notes n JOIN chunks c "
+        "ON c.note_permalink = n.permalink WHERE n.permalink = 'a'"
+    ).fetchall()
+    assert after == before
+
+
+def test_reconcile_failed_model_rebuild_preserves_last_good_index(tmp_path):
+    vault = _seed(tmp_path)
+    good = FakeEmbedder(dim=8)
+    con = open_index(str(tmp_path / "i.duckdb"), dim=good.dim, model_id=good.model_id)
+    reconcile(con, str(vault), good)
+
+    class BrokenModel(FakeEmbedder):
+        @property
+        def model_id(self):
+            return "broken-16"
+
+        def embed(self, texts):
+            raise RuntimeError("new model unavailable")
+
+    with pytest.raises(RuntimeError, match="new model unavailable"):
+        reconcile(con, str(vault), BrokenModel(dim=16))
+
+    assert (
+        con.execute("SELECT value FROM meta WHERE key='embedding_model'").fetchone()[0] == "fake-8"
+    )
+    assert con.execute("SELECT value FROM meta WHERE key='embedding_dim'").fetchone()[0] == "8"
+    assert con.execute("SELECT count(*) FROM notes").fetchone()[0] == 2
+    assert con.execute("SELECT count(*) FROM chunk_embeddings").fetchone()[0] >= 2
 
 
 def test_reconcile_indexes_same_stem_in_subdirs(tmp_path):

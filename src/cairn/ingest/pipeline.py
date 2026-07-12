@@ -110,6 +110,28 @@ def _memory_text(cand: Candidate) -> str:
     return j.distilled if (j and j.distilled) else cand.text
 
 
+def _redact_judgment(judgment: Judgment) -> tuple[Judgment, int]:
+    """Redact model-generated fields at the final trusted-write boundary.
+
+    The LLM only receives redacted input, but its output is still untrusted: it
+    can reproduce a credential-shaped value from unrelated model context or emit
+    one spuriously. Sanitizing before distillation also keeps secrets out of the
+    title-derived permalink and filename, not merely out of the serialized body.
+    """
+    count = 0
+    title = judgment.title
+    distilled = judgment.distilled
+    if title is not None:
+        result = redact(title)
+        title = result.text
+        count += result.count
+    if distilled is not None:
+        result = redact(distilled)
+        distilled = result.text
+        count += result.count
+    return replace(judgment, title=title, distilled=distilled), count
+
+
 def _consolidate(cand: Candidate, consolidator: Consolidator, neighbor_index: NeighborIndex):
     """Return (verdict, neighbor). Fail-safe: any error -> (DISTINCT, None)."""
     try:
@@ -227,6 +249,10 @@ def ingest_transcripts(
             continue
         heuristic = score(cand.text)
         j = judged.get(idx)
+        if j is not None:
+            j, generated_redactions = _redact_judgment(j)
+            report.redactions += generated_redactions
+            judged[idx] = j
         # A degraded judgment is a fallback verdict wearing the LLM run's tier — it
         # must gate by the fallback (blend) rule, not the LLM keep rule.
         llm_verdict = j is not None and report.judge_tier == "llm" and not j.degraded

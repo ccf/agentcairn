@@ -1,5 +1,5 @@
 name: agentcairn
-version: 0.1.0
+version: 0.1.1
 description: Local-first, vault-native memory — your memories as plain Markdown in an Obsidian vault you own.
 # Targets the Hermes MemoryProvider plugin API as documented 2026-06; pin/update as it stabilizes.
 hooks:

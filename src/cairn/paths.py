@@ -10,6 +10,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from cairn.config import cairn_env
+from cairn.storage import PRIVATE_FILE_MODE, ensure_private_dir
 
 
 def cache_root() -> Path:
@@ -80,8 +81,12 @@ def migrate_legacy_index(env: Mapping[str, str] | None = None) -> Path | None:
         target = default_index(vault_root)
         if target.exists():
             return None  # derived slot already populated — leave legacy in place
-        target.parent.mkdir(parents=True, exist_ok=True)
+        ensure_private_dir(target.parent)
         legacy.rename(target)
+        try:
+            target.chmod(PRIVATE_FILE_MODE)
+        except OSError:
+            pass
         return target
     except Exception:
         return None

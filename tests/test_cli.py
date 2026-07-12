@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import json
 import re
+import stat
 import time
 from pathlib import Path
 
@@ -103,6 +104,26 @@ def test_reindex_and_status(tmp_path):
     assert "notes: 1" in s.output
 
 
+def test_reindex_reports_actionable_vault_contention(tmp_path):
+    from cairn.locking import vault_writer_lock
+
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "a.md").write_text("---\ntitle: A\npermalink: a\n---\nalpha\n")
+    index = tmp_path / "i.duckdb"
+
+    with vault_writer_lock(vault, operation="test-holder"):
+        result = runner.invoke(
+            app,
+            ["reindex", str(vault), "--index", str(index), "--embedder", "fake"],
+        )
+
+    assert result.exit_code == 75
+    assert "vault is busy" in result.output
+    assert "Retry after" in result.output
+    assert not index.exists()
+
+
 def test_default_ledger_is_outside_vault(tmp_path, monkeypatch):
     """Default dedup ledger must NOT be placed inside the vault root (I2)."""
     projects = tmp_path / "projects"
@@ -164,7 +185,7 @@ def test_recall_command(tmp_path):
 
 
 def test_recall_json_flag(tmp_path):
-    """--json emits a JSON list; each item has permalink, title, text, score."""
+    """--json emits a JSON list with content and provenance fields."""
     import json as _json
 
     v = tmp_path / "vault"
@@ -197,6 +218,7 @@ def test_recall_json_flag(tmp_path):
     assert "title" in first
     assert "text" in first
     assert "score" in first
+    assert "project" in first
 
 
 def test_cli_recall_marks_cross_project(tmp_path, monkeypatch):
@@ -365,6 +387,8 @@ def test_sweep_closes_index_when_reconcile_fails(tmp_path, monkeypatch):
             str(idx),
             "--embedder",
             "fake",
+            "--ledger",
+            str(tmp_path / "led.sha256"),
         ],
         env={"CAIRN_JUDGE": "none"},  # hermetic: don't load the fastembed judge
     )
@@ -508,6 +532,10 @@ def test_init_creates_obsidian_ready_vault(tmp_path):
     welcome = (target / "welcome.md").read_text()
     assert "permalink: welcome" in welcome
     assert str(target) in r.output
+    assert stat.S_IMODE(target.stat().st_mode) == 0o700
+    assert stat.S_IMODE((target / ".obsidian").stat().st_mode) == 0o700
+    assert stat.S_IMODE((target / ".obsidian" / "app.json").stat().st_mode) == 0o600
+    assert stat.S_IMODE((target / "welcome.md").stat().st_mode) == 0o600
 
 
 def test_init_idempotent_preserves_edits(tmp_path):
@@ -515,10 +543,16 @@ def test_init_idempotent_preserves_edits(tmp_path):
     runner.invoke(app, ["init", str(target)])
     (target / "welcome.md").write_text("---\ntitle: Mine\npermalink: welcome\n---\nedited\n")
     (target / "note.md").write_text("---\ntitle: N\npermalink: n\n---\nkeep me\n")
+    target.chmod(0o755)
+    (target / "welcome.md").chmod(0o644)
+    (target / "note.md").chmod(0o640)
     r2 = runner.invoke(app, ["init", str(target)])  # second run
     assert r2.exit_code == 0
     assert "edited" in (target / "welcome.md").read_text()  # not clobbered
     assert (target / "note.md").exists()  # existing notes untouched
+    assert stat.S_IMODE(target.stat().st_mode) == 0o755
+    assert stat.S_IMODE((target / "welcome.md").stat().st_mode) == 0o644
+    assert stat.S_IMODE((target / "note.md").stat().st_mode) == 0o640
 
 
 def test_recent_project_filters_by_path_substring(tmp_path):
@@ -1047,6 +1081,41 @@ def test_ingest_dry_run_skips_llm_judge(tmp_path, monkeypatch):
     assert seen["env"]["CAIRN_JUDGE"] == "embedding"  # anthropic forced away on dry runs
 
 
+def test_ingest_reports_actionable_vault_contention(tmp_path):
+    from cairn.locking import vault_writer_lock
+
+    projects = tmp_path / "projects"
+    _seed_transcript(
+        projects,
+        "/Users/x/proj",
+        "s-busy",
+        [("user", "We decided to serialize every mutation of the memory vault.")],
+    )
+    vault = tmp_path / "vault"
+
+    with vault_writer_lock(vault, operation="test-holder"):
+        result = runner.invoke(
+            app,
+            [
+                "ingest",
+                "--vault",
+                str(vault),
+                "--transcripts-dir",
+                str(projects),
+                "--harness",
+                "claude-code",
+                "--ledger",
+                str(tmp_path / "ledger.sha256"),
+            ],
+            env={"CAIRN_JUDGE": "none"},
+        )
+
+    assert result.exit_code == 75
+    assert "vault is busy" in result.output
+    assert not vault.exists()
+    assert not (tmp_path / "ledger.sha256").exists()
+
+
 def test_ingest_notes_when_anthropic_tier_unavailable(tmp_path, monkeypatch):
     """CAIRN_JUDGE=anthropic but the run used a lower tier -> one explanatory line."""
     monkeypatch.setattr("cairn.cli.resolve_judge", lambda **kw: None)
@@ -1289,6 +1358,7 @@ def test_config_init_scaffolds_template(tmp_path, monkeypatch):
     assert r.exit_code == 0, r.output
     assert conf.exists()
     assert (conf.stat().st_mode & 0o777) == 0o600  # key may live here
+    assert stat.S_IMODE(conf.parent.stat().st_mode) == 0o700
     body = conf.read_text()
     assert '# judge = "embedding"' in body  # every knob present, commented out
     assert "# anthropic_api_key" in body
@@ -1296,6 +1366,7 @@ def test_config_init_scaffolds_template(tmp_path, monkeypatch):
     assert "# rerank = true" in body and '# rerank = "true"' not in body
     assert "# usage = 1" in body and '# usage = "1"' not in body
     assert "# judge_timeout = 90" in body and '# judge_timeout = "90"' not in body
+    assert '# auto_recall_scope = "project"' in body
     # refuses overwrite
     r2 = runner.invoke(app, ["config", "--init"])
     assert r2.exit_code == 0
@@ -1825,11 +1896,13 @@ def test_relink_note_writes_related_when_changed(tmp_path):
 
     p = tmp_path / "a.md"
     p.write_text("---\ntitle: A\npermalink: a\n---\nalpha body\n")
+    p.chmod(0o600)
     status = _relink_note(p, ["[[b]]", "[[c]]"])
     assert status == "linked"
     text = p.read_text()
     assert "related:" in text and "[[b]]" in text and "[[c]]" in text
     assert "alpha body" in text  # body preserved
+    assert stat.S_IMODE(p.stat().st_mode) == 0o600
 
 
 def test_relink_note_unchanged_is_noop(tmp_path):

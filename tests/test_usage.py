@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import json
+import stat
 
 from cairn import usage
 
@@ -51,6 +52,7 @@ def test_record_appends_row(tmp_path, monkeypatch):
     assert rows[0]["recalled"] == 120
     assert rows[0]["k"] == 5
     assert rows[0]["v"] == 1
+    assert stat.S_IMODE(led.stat().st_mode) == 0o600
 
 
 def test_record_noop_when_disabled(tmp_path, monkeypatch):

@@ -16,6 +16,7 @@ def test_recall_hook_cli_stdin_wiring(tmp_path):
         app,
         ["recall-hook", "--index", str(idx), "--embedder", "fake"],
         input=json.dumps({"prompt": "how do I brew coffee beans?"}),
+        env={"CAIRN_AUTO_RECALL_SCOPE": "all"},
     )
     assert r.exit_code == 0
     data = json.loads(r.output)

@@ -1,6 +1,6 @@
 {
   "name": "agentcairn",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local-first agent memory for Codex — recall, remember, and ambient capture into a Markdown vault you own.",
   "author": { "name": "Charles C. Figueiredo", "email": "ccf@ccf.io" },
   "homepage": "https://agentcairn.dev",

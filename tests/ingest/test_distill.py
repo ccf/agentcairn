@@ -1,5 +1,6 @@
 # tests/ingest/test_distill.py
 # SPDX-License-Identifier: Apache-2.0
+import stat
 from pathlib import Path
 
 import pytest
@@ -81,6 +82,33 @@ def test_write_derived_note_lands_under_vault_root(tmp_path):
     assert parsed.frontmatter["source"] == "memory://session/sess-9"
 
 
+def test_write_derived_note_uses_private_defaults_without_chmodding_vault(tmp_path):
+    vault = tmp_path / "vault"
+    vault.mkdir(mode=0o755)
+    vault.chmod(0o755)
+
+    note = ExtractiveDistiller().distill(_candidate())
+    path = write_derived_note(note, vault, subdir="memories")
+
+    assert stat.S_IMODE(vault.stat().st_mode) == 0o755
+    assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+
+def test_write_derived_note_preserves_existing_note_mode(tmp_path):
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    note = ExtractiveDistiller().distill(_candidate())
+    path = vault / "memories" / f"{note.permalink}.md"
+    path.parent.mkdir()
+    path.write_text("old", encoding="utf-8")
+    path.chmod(0o644)
+
+    write_derived_note(note, vault, subdir="memories")
+
+    assert stat.S_IMODE(path.stat().st_mode) == 0o644
+
+
 def test_write_derived_note_rejects_path_traversal(tmp_path):
     vault = tmp_path / "vault"
     vault.mkdir()
@@ -127,10 +155,12 @@ def test_mark_superseded_sets_frontmatter(tmp_path):
         "---\ntitle: Old\ntype: memory\npermalink: old\n---\n\n- [context] old fact #ingested\n",
         encoding="utf-8",
     )
+    p.chmod(0o600)
     mark_superseded(p, "new-permalink")
     note = parse_note(p.read_text(encoding="utf-8"))
     assert note.frontmatter.get("superseded_by") == "new-permalink"
     assert "old fact" in note.body  # body preserved
+    assert stat.S_IMODE(p.stat().st_mode) == 0o600
 
 
 def test_supersession_timestamp_guard(tmp_path):

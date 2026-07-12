@@ -23,13 +23,12 @@ def test_codex_manifest_valid_and_pointers_resolve():
     assert m["interface"]["displayName"] == "agentcairn"
 
 
-def test_codex_mcp_is_bare_map_with_vault_env():
+def test_codex_mcp_is_bare_map_and_defers_to_shared_config():
     mcp = _load(PLUGIN / ".mcp.codex.json")
     assert "mcpServers" not in mcp
     ac = mcp["agentcairn"]
     assert ac["command"] == "uvx" and ac["args"] == ["agentcairn"]
-    assert ac["env"]["CAIRN_VAULT"] == "~/agentcairn"
-    assert "CAIRN_INDEX" not in ac["env"]
+    assert "env" not in ac
 
 
 def test_codex_hooks_reference_existing_scripts():
@@ -57,12 +56,11 @@ def test_antigravity_manifest_valid():
     assert (PLUGIN / "skills").is_dir()
 
 
-def test_antigravity_mcp_config_is_wrapper_with_vault_env():
+def test_antigravity_mcp_config_is_wrapper_and_defers_to_shared_config():
     mcp = _load(PLUGIN / "mcp_config.json")
     ac = mcp["mcpServers"]["agentcairn"]
     assert ac["command"] == "uvx" and ac["args"] == ["agentcairn"]
-    assert ac["env"]["CAIRN_VAULT"] == "~/agentcairn"
-    assert "CAIRN_INDEX" not in ac["env"]
+    assert "env" not in ac
 
 
 def test_bundled_cursor_skill_matches_plugin_copy():

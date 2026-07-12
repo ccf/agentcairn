@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
+import stat
+
 import duckdb
 import pytest
 
@@ -128,6 +130,50 @@ def test_open_index_creates_tables_and_meta(tmp_path):
     assert get_meta(con, "embedding_dim") == "8"
     set_meta(con, "k", "v")
     assert get_meta(con, "k") == "v"
+
+
+def test_open_index_new_database_and_missing_parent_are_private(tmp_path):
+    db_path = tmp_path / "cache" / "indexes" / "i.duckdb"
+    con = open_index(str(db_path), dim=8, model_id="fake-8")
+    con.close()
+
+    assert stat.S_IMODE(db_path.stat().st_mode) == 0o600
+    assert stat.S_IMODE(db_path.parent.stat().st_mode) == 0o700
+    assert stat.S_IMODE(db_path.parent.parent.stat().st_mode) == 0o700
+
+
+def test_open_index_uses_private_umask_at_duckdb_creation(tmp_path, monkeypatch):
+    import os
+
+    import cairn.index.schema as schema
+
+    real_connect = schema.duckdb.connect
+    observed_umasks = []
+
+    def recording_connect(path, *args, **kwargs):
+        current = os.umask(0o777)
+        os.umask(current)
+        observed_umasks.append(current)
+        return real_connect(path, *args, **kwargs)
+
+    monkeypatch.setattr(schema.duckdb, "connect", recording_connect)
+    con = open_index(str(tmp_path / "public" / "i.duckdb"), dim=8, model_id="fake-8")
+    con.close()
+
+    assert observed_umasks
+    assert observed_umasks[0] & 0o177 == 0o177
+
+
+def test_open_index_does_not_chmod_preexisting_database(tmp_path):
+    db_path = tmp_path / "i.duckdb"
+    con = duckdb.connect(str(db_path))
+    con.close()
+    db_path.chmod(0o640)
+
+    con = open_index(str(db_path), dim=8, model_id="fake-8")
+    con.close()
+
+    assert stat.S_IMODE(db_path.stat().st_mode) == 0o640
 
 
 def test_embedding_vec_column_is_fixed_width(tmp_path):

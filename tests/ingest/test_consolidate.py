@@ -61,6 +61,32 @@ def test_llm_consolidator_failsafe_distinct(monkeypatch):
     assert c.classify(new_text="y", new_ts=None, neighbor=nb) == ConsolidationVerdict.DISTINCT
 
 
+def test_llm_consolidator_redacts_new_and_hand_edited_neighbor_before_egress(monkeypatch):
+    import cairn.ingest.consolidate as cmod
+    from cairn.ingest.consolidate import ConsolidationVerdict, LLMConsolidator, Neighbor
+
+    captured = {}
+
+    def request(payload, key, timeout):
+        captured.update(payload)
+        return _resp("distinct")
+
+    monkeypatch.setattr(cmod, "_anthropic_request", request)
+    secret = "sk-proj-abcdefghijklmnopqrstuvwxyz123456"
+    consolidator = LLMConsolidator(api_key="k", model="m", timeout=5.0)
+
+    verdict = consolidator.classify(
+        new_text=f"new fact {secret}",
+        new_ts="t2",
+        neighbor=Neighbor("old", f"hand edit {secret}", "t1"),
+    )
+
+    body = captured["messages"][0]["content"]
+    assert verdict is ConsolidationVerdict.DISTINCT
+    assert secret not in body
+    assert body.count("[REDACTED:openai_key]") == 2
+
+
 def test_resolve_consolidator(monkeypatch):
     from cairn.ingest.consolidate import LLMConsolidator, resolve_consolidator
 

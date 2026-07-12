@@ -6,12 +6,14 @@ Fail-closed: any failure raises actionably — never returns zero/partial vector
 from __future__ import annotations
 
 import json
+import logging
 import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Sequence
 
 PostFn = Callable[[str, dict, dict], dict]
+_LOG = logging.getLogger(__name__)
 
 
 def _http_post(url: str, payload: dict, headers: dict) -> dict:
@@ -24,6 +26,33 @@ def _http_post(url: str, payload: dict, headers: dict) -> dict:
 def batched(seq: Sequence, n: int):
     for i in range(0, len(seq), n):
         yield seq[i : i + n]
+
+
+def _sanitize_payload(payload: dict) -> tuple[dict, int]:
+    """Return a shallow payload copy with every cloud-bound input redacted.
+
+    Ingested memories are redacted before they reach the vault, but hand-authored
+    or edited Markdown and live recall queries are not.  The provider boundary is
+    therefore the last reliable place to enforce the no-secret-egress invariant.
+    The caller's payload is never mutated.
+    """
+    inputs = payload.get("input")
+    if not isinstance(inputs, (list, tuple)):
+        return dict(payload), 0
+
+    # Import lazily: local embedders never need the ingestion/redaction modules.
+    from cairn.ingest.redact import redact
+
+    safe: list[object] = []
+    count = 0
+    for value in inputs:
+        if not isinstance(value, str):
+            safe.append(value)
+            continue
+        result = redact(value)
+        safe.append(result.text)
+        count += result.count
+    return {**payload, "input": safe}, count
 
 
 def _retryable(e: Exception) -> bool:
@@ -45,17 +74,24 @@ def embed_request(
     Retries on 429/transient with backoff; raises an actionable RuntimeError otherwise."""
     if not api_key:
         raise RuntimeError(f"{label}: missing API key — set the provider's API key env var.")
+    safe_payload, redactions = _sanitize_payload(payload)
+    if redactions:
+        _LOG.warning(
+            "%s: redacted %d potential secret(s) from embedding input before cloud egress",
+            label,
+            redactions,
+        )
     p = post or _http_post
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
     last: Exception | None = None
     for attempt in range(retries):
         try:
-            resp = p(url, payload, headers)
+            resp = p(url, safe_payload, headers)
             data = resp.get("data") or []
             if not data:
                 raise RuntimeError(f"{label}: no embeddings in response")
             vecs = [d["embedding"] for d in sorted(data, key=lambda d: d.get("index", 0))]
-            n_in = len(payload.get("input", []))
+            n_in = len(safe_payload.get("input", []))
             if len(vecs) != n_in:
                 raise RuntimeError(f"{label}: embedding count mismatch ({len(vecs)} != {n_in})")
             return vecs

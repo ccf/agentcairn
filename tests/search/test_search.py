@@ -64,6 +64,66 @@ def test_search_bm25_only_without_embedder(tmp_path):
     assert hits and any(h.permalink == "tea" for h in hits)
 
 
+def test_search_model_mismatch_degrades_to_bm25_without_embedding(tmp_path):
+    indexed = FakeEmbedder(dim=8)
+    idx = build_index(tmp_path, indexed)
+    con = open_search(idx)
+
+    class WrongModel:
+        model_id = "different-model-same-dim"
+        dim = 8
+
+        def embed_query(self, text):
+            raise AssertionError("an incompatible embedder must not be queried")
+
+    diagnostics = {}
+    try:
+        hits = search(
+            con,
+            "tea steeping",
+            embedder=WrongModel(),
+            k=5,
+            diagnostics=diagnostics,
+        )
+    finally:
+        con.close()
+
+    assert hits and any(h.permalink == "tea" for h in hits)
+    assert diagnostics["mode"] == "bm25"
+    assert "model mismatch" in diagnostics["degraded_reason"]
+
+
+def test_search_query_embedding_failure_degrades_to_bm25(tmp_path):
+    indexed = FakeEmbedder(dim=8)
+    idx = build_index(tmp_path, indexed)
+    con = open_search(idx)
+
+    class BrokenEmbedder:
+        model_id = indexed.model_id
+        dim = indexed.dim
+
+        def embed_query(self, text):
+            raise RuntimeError("provider unavailable")
+
+    diagnostics = {}
+    try:
+        hits = search(
+            con,
+            "tea steeping",
+            embedder=BrokenEmbedder(),
+            k=5,
+            diagnostics=diagnostics,
+        )
+    finally:
+        con.close()
+
+    assert hits and any(h.permalink == "tea" for h in hits)
+    assert diagnostics == {
+        "mode": "bm25",
+        "degraded_reason": "query embedding failed: provider unavailable",
+    }
+
+
 def test_rerank_hit_scores_reflect_reranker_order(tmp_path, monkeypatch):
     """When rerank=True, Hit.score must equal the cross-encoder score (not the RRF
     score), so the returned list is sorted descending by Hit.score."""
@@ -380,6 +440,44 @@ def test_rerank_validity_demote_superseded(tmp_path, monkeypatch):
         con.close()
 
 
+def test_rerank_validity_penalty_demotes_negative_scores(tmp_path, monkeypatch):
+    """Cross-encoder outputs are unnormalized and may be negative. A multiplicative
+    0.5 penalty would make a negative score *larger*, so validity adjustment must be
+    monotonic for the full real-number score range."""
+    from cairn.embed import FakeEmbedder
+    from cairn.index import open_index, reconcile
+    from cairn.search import open_search, search
+
+    v = tmp_path / "negative-validity"
+    v.mkdir()
+    (v / "old.md").write_text(
+        "---\ntitle: Old\npermalink: old\nsuperseded_by: new\n---\nfavorite color is blue\n"
+    )
+    (v / "new.md").write_text("---\ntitle: New\npermalink: new\n---\nfavorite color is green\n")
+    emb = FakeEmbedder(dim=8)
+    idx = tmp_path / "negative-validity.duckdb"
+    writer = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
+    reconcile(writer, str(v), emb)
+    writer.close()
+
+    def fake_rerank(query, candidates, *, top_k):
+        scored = [
+            {**c, "rerank_score": -0.1 if c["note_permalink"] == "old" else -0.2}
+            for c in candidates
+        ]
+        return sorted(scored, key=lambda c: c["rerank_score"], reverse=True)[:top_k]
+
+    monkeypatch.setattr("cairn.search.engine.rerank_candidates", fake_rerank)
+    con = open_search(str(idx))
+    try:
+        hits = search(con, "favorite color", embedder=emb, k=5, rerank=True)
+    finally:
+        con.close()
+
+    assert [h.permalink for h in hits[:2]] == ["new", "old"]
+    assert hits[0].score > hits[1].score
+
+
 def test_rerank_inert_without_validity_fields(tmp_path, monkeypatch):
     """Notes without any validity frontmatter → factor 1.0 → reranked order unchanged.
 
@@ -510,7 +608,7 @@ def test_scope_project_filters_out_cross_project(tmp_path):
     assert hits and all(h.project == "agentcairn" for h in hits)
 
 
-def test_no_project_is_noop(tmp_path, monkeypatch):
+def test_scope_project_without_project_fails_closed(tmp_path, monkeypatch):
     from cairn.embed import FakeEmbedder
     from cairn.search import open_search, search
 
@@ -524,12 +622,31 @@ def test_no_project_is_noop(tmp_path, monkeypatch):
             embedder=FakeEmbedder(dim=8),
             k=5,
             project=None,
-            scope="project",  # scope degrades to all
+            scope="project",
         )
     finally:
         con.close()
-    projs = {h.project for h in hits}
-    assert "agentcairn" in projs and "otherrepo" in projs
+    assert hits == []
+
+
+def test_invalid_scope_fails_closed_to_current_project(tmp_path):
+    from cairn.embed import FakeEmbedder
+    from cairn.search import open_search, search
+
+    index_path = _build_two_project_index(tmp_path, FakeEmbedder(dim=8))
+    con = open_search(str(index_path))
+    try:
+        hits = search(
+            con,
+            "deploy key rotation",
+            embedder=FakeEmbedder(dim=8),
+            k=5,
+            project="agentcairn",
+            scope="typo",
+        )
+    finally:
+        con.close()
+    assert hits and all(h.project == "agentcairn" for h in hits)
 
 
 def test_rerank_path_project_boost_resorts(tmp_path, monkeypatch):
@@ -574,6 +691,42 @@ def test_rerank_path_project_boost_resorts(tmp_path, monkeypatch):
     assert perms[0] == "agentcairn", f"same-project must lead after boost; got {perms}"
     scores = [h.score for h in hits]
     assert scores == sorted(scores, reverse=True), f"scores not descending: {scores}"
+
+
+def test_rerank_project_boost_improves_negative_score(tmp_path, monkeypatch):
+    """A project preference must improve a negative cross-encoder score, not make
+    it more negative as multiplication by 1.4 would."""
+    from cairn.embed import FakeEmbedder
+    from cairn.search import open_search, search
+
+    def fake_rerank(query, candidates, *, top_k):
+        scored = [
+            {
+                **c,
+                "rerank_score": -0.2 if c.get("project") == "agentcairn" else -0.1,
+            }
+            for c in candidates
+        ]
+        return sorted(scored, key=lambda c: c["rerank_score"], reverse=True)[:top_k]
+
+    monkeypatch.setattr("cairn.search.engine.rerank_candidates", fake_rerank)
+    index_path = _build_two_project_index(tmp_path, FakeEmbedder(dim=8))
+    con = open_search(index_path)
+    try:
+        hits = search(
+            con,
+            "deploy key rotation",
+            embedder=FakeEmbedder(dim=8),
+            k=5,
+            project="agentcairn",
+            rerank=True,
+            validity_aware=False,
+        )
+    finally:
+        con.close()
+
+    assert hits[0].project == "agentcairn"
+    assert hits[0].score > next(h.score for h in hits if h.project == "otherrepo")
 
 
 def test_scope_project_excludes_null_project_note(tmp_path):

@@ -31,10 +31,10 @@ export const navGuides = [
 ];
 
 export const hero = {
-  eyebrow: "Local-first memory for AI agents",
-  h1: "Most agent memory makes a database the source of truth. We made it your files.",
+  eyebrow: "Shared, local-first memory for coding agents",
+  h1: "One memory across your coding agents. Plain Markdown under your control.",
   subhead:
-    "agentcairn inverts the stack: human-readable Markdown with [[wikilinks]] is the truth, and a rebuildable DuckDB index gives your agent fast hybrid retrieval. Hand-edit a fact in Obsidian and the agent picks it up.",
+    "agentcairn captures durable context across Claude Code, Codex, Cursor, OpenCode, and more into an Obsidian-compatible vault. A rebuildable DuckDB index gives fast hybrid recall; hand-edit a fact and the agents honor it.",
   install: [
     "claude plugin marketplace add ccf/agentcairn",
     "claude plugin install agentcairn@agentcairn",
@@ -55,11 +55,11 @@ export const footer = {
 };
 
 export const inversion = {
-  eyebrow: "The inversion",
-  h2: "Most systems make the database the truth. We made it your files.",
+  eyebrow: "The contract",
+  h2: "The files are canonical. The index is replaceable.",
   body: [
-    "Mem0 and Zep keep your memory in a cloud database. Letta and agentmemory keep it in a database too, and treat files — if any — as a one-way export. agentcairn is the only one where the Markdown vault *is* the source of truth.",
-    "So your memory survives a model upgrade, a corrupted index, a schema change — even uninstalling the tool. There is nothing to lose, because the truth was never trapped in the database.",
+    "Some memory systems center a managed database; other local-first tools also use editable files. agentcairn's contract is specific: your Markdown vault is canonical, DuckDB is a disposable retrieval cache, and every supported coding agent shares the same memory.",
+    "It is purpose-built for coding workflows: ambient multi-harness capture, project and harness provenance, secret-aware ingestion, temporal supersession, and reproducible retrieval benchmarks.",
   ],
 };
 
@@ -73,7 +73,7 @@ export const differentiators = [
 ];
 
 export const howItWorks = {
-  body: "Capture reads your agent's session transcripts out-of-band, then redacts → dedups → importance-gates → distills into the vault. Retrieval fuses BM25 + vectors with RRF, with an optional cross-encoder reranker. The vault and the index reconcile on spawn; the MCP server exposes remember · recall · search · build_context · recent.",
+  body: "Capture reads your agent's session transcripts out-of-band, then redacts → dedups → importance-gates → distills into the vault. Retrieval fuses BM25 + vectors with RRF, with an optional cross-encoder reranker. The disposable index reconciles before the first MCP read, and remember writes through immediately; the server exposes remember · recall · search · build_context · recent.",
 };
 
 export const benchmark = {
@@ -182,7 +182,7 @@ export const agents = {
 };
 export const trust = [
   { k: "Redaction before write", v: "regex + entropy + URL-credential" },
-  { k: "Localhost-only MCP", v: "READ_ONLY queries, no exposed ports" },
+  { k: "No network listener", v: "stdio MCP; short-lived read-only query handles" },
   { k: "No telemetry", v: "nothing phones home" },
   { k: "Index outside the vault", v: "the .duckdb cache is never synced" },
 ];

@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -18,6 +19,30 @@ from cairn.temporal import db_now, from_db, validity_factor
 _RRF_MACRO = "CREATE OR REPLACE MACRO rrf(rank, k := 60) AS coalesce(1.0 / (k + rank), 0)"
 _VALIDITY_PENALTY = 0.5
 _PROJECT_BOOST = 1.4
+
+
+def _rerank_adjust(score: float, factor: float) -> float:
+    """Apply a positive ranking factor to an unnormalized cross-encoder score.
+
+    Cross-encoder outputs may be negative logits. Multiplication reverses the
+    intended meaning there (``-1 * 0.5`` improves a stale item). Adding the
+    factor in log space is monotonic for every real-valued score: factors above
+    one always boost and factors below one always penalize.
+    """
+    return score if factor == 1.0 else score + math.log(factor)
+
+
+def _stored_embedding_meta(con: duckdb.DuckDBPyConnection) -> tuple[str | None, int | None]:
+    rows = dict(
+        con.execute(
+            "SELECT key, value FROM meta WHERE key IN ('embedding_model', 'embedding_dim')"
+        ).fetchall()
+    )
+    try:
+        dim = int(rows["embedding_dim"])
+    except (KeyError, TypeError, ValueError):
+        dim = None
+    return rows.get("embedding_model"), dim
 
 
 def open_search(index_path: str) -> duckdb.DuckDBPyConnection:
@@ -324,6 +349,7 @@ def search(
     validity_aware: bool = True,
     project: str | None = None,
     scope: str = "all",
+    diagnostics: dict | None = None,
 ) -> list[Hit]:
     """Top-level retrieval (degradation ladder): hybrid when an embedder is given
     (auto-degrades to BM25 if no embeddings exist), else BM25-only.
@@ -335,29 +361,68 @@ def search(
     now_aware = datetime.now(UTC)
     now_naive = now_aware.replace(tzinfo=None)  # naive-UTC for DuckDB TIMESTAMP bind
 
+    if diagnostics is not None:
+        diagnostics.clear()
+
+    requested_scope = scope.strip().lower() if isinstance(scope, str) else ""
+    if requested_scope not in {"all", "project"}:
+        logging.getLogger(__name__).warning(
+            "invalid recall scope %r; failing closed to scope='project'", scope
+        )
+        requested_scope = "project"
+    scope = requested_scope
+
     current = resolve_current_project(project)
     if scope == "project" and current is None:
         logging.getLogger(__name__).warning(
-            "recall scope='project' requested but no current project resolved; "
-            "falling back to scope='all'"
+            "recall scope='project' requested but no current project resolved; returning no results"
         )
+        if diagnostics is not None:
+            diagnostics.update(
+                mode="none", degraded_reason="project scope requested but no project resolved"
+            )
+        return []
 
+    degraded_reason: str | None = None
+    rows: list[dict] | None = None
     if embedder is not None:
-        qvec = embedder.embed_query(query)
-        rows = hybrid_search(
-            con,
-            query,
-            qvec,
-            dim=embedder.dim,
-            limit=max(20, k),
-            pool=pool,
-            graph_boost=graph_boost,
-            validity_aware=validity_aware,
-            now=now_naive,
-            current=current,
-            scope=scope,
-        )
-    else:
+        try:
+            stored_model, stored_dim = _stored_embedding_meta(con)
+            query_model = embedder.model_id
+            if stored_model is None or stored_dim is None:
+                degraded_reason = "index embedding metadata is missing"
+            elif query_model != stored_model:
+                degraded_reason = (
+                    f"embedding model mismatch: index={stored_model}, query={query_model}"
+                )
+            else:
+                qvec = embedder.embed_query(query)
+                if len(qvec) != stored_dim:
+                    degraded_reason = (
+                        f"embedding dimension mismatch: index={stored_dim}, query={len(qvec)}"
+                    )
+                else:
+                    rows = hybrid_search(
+                        con,
+                        query,
+                        qvec,
+                        dim=stored_dim,
+                        limit=max(20, k),
+                        pool=pool,
+                        graph_boost=graph_boost,
+                        validity_aware=validity_aware,
+                        now=now_naive,
+                        current=current,
+                        scope=scope,
+                    )
+        except Exception as exc:
+            degraded_reason = f"query embedding failed: {exc}"
+
+    if rows is None:
+        if degraded_reason:
+            logging.getLogger(__name__).warning(
+                "hybrid retrieval degraded to BM25: %s", degraded_reason
+            )
         rows = bm25_only(
             con,
             query,
@@ -369,6 +434,12 @@ def search(
             current=current,
             scope=scope,
         )
+        if diagnostics is not None:
+            diagnostics["mode"] = "bm25"
+    elif diagnostics is not None:
+        diagnostics["mode"] = "hybrid"
+    if diagnostics is not None and degraded_reason:
+        diagnostics["degraded_reason"] = degraded_reason
     if rerank and rows:
         # Hydrate full text for a precise rerank, then map back to compact Hits.
         # Hit.score is set to the cross-encoder score so the list remains sorted
@@ -378,14 +449,43 @@ def search(
             c["chunk_id"]: c["text"] for c in get_chunks(con, [r["chunk_id"] for r in rows])
         }
         cands = [{**r, "text": text_by_id.get(r["chunk_id"], r["snippet"])} for r in rows]
-        ranked = rerank_candidates(query, cands, top_k=max(20, k))
+        try:
+            ranked = rerank_candidates(query, cands, top_k=max(20, k))
+        except Exception as exc:
+            ranked = []
+            reason = f"reranker failed: {exc}"
+            logging.getLogger(__name__).warning("%s; using fused retrieval order", reason)
+            if diagnostics is not None:
+                diagnostics["degraded_reason"] = (
+                    f"{diagnostics['degraded_reason']}; {reason}"
+                    if diagnostics.get("degraded_reason")
+                    else reason
+                )
+        if not ranked:
+            rows = _dedupe_by_note(rows)[:k]
+            return [
+                Hit(
+                    chunk_id=r["chunk_id"],
+                    permalink=r["note_permalink"],
+                    heading_path=r["heading_path"],
+                    snippet=r["snippet"],
+                    score=r["score"],
+                    valid_from=r.get("valid_from"),
+                    valid_until=r.get("valid_until"),
+                    superseded_by=r.get("superseded_by"),
+                    project=r.get("project"),
+                )
+                for r in rows
+            ]
         if current is not None:
             ranked = sorted(
                 (
                     {
                         **c,
-                        "rerank_score": c["rerank_score"]
-                        * (_PROJECT_BOOST if c.get("project") == current else 1.0),
+                        "rerank_score": _rerank_adjust(
+                            c["rerank_score"],
+                            _PROJECT_BOOST if c.get("project") == current else 1.0,
+                        ),
                     }
                     for c in ranked
                 ),
@@ -406,12 +506,14 @@ def search(
                 [
                     {
                         **c,
-                        "rerank_score": c["rerank_score"]
-                        * validity_factor(
-                            _parse_iso(c.get("valid_from")),
-                            _parse_iso(c.get("valid_until")),
-                            c.get("superseded_by"),
-                            now_aware,
+                        "rerank_score": _rerank_adjust(
+                            c["rerank_score"],
+                            validity_factor(
+                                _parse_iso(c.get("valid_from")),
+                                _parse_iso(c.get("valid_until")),
+                                c.get("superseded_by"),
+                                now_aware,
+                            ),
                         ),
                     }
                     for c in ranked

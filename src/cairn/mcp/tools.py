@@ -12,9 +12,11 @@ from functools import lru_cache
 from pathlib import Path
 
 from cairn.embed import get_embedder
+from cairn.index import open_index, reconcile
 from cairn.ingest import write_derived_note
 from cairn.ingest.dedup import content_hash
 from cairn.ingest.redact import redact
+from cairn.locking import vault_writer_lock
 from cairn.search import get_note, open_search, resolve_current_project, search
 from cairn.search.engine import semantic_neighbors
 from cairn.temporal import validity_status
@@ -64,6 +66,32 @@ def _open(index_path: str):
     return open_search(index_path)
 
 
+def _reconcile_unlocked(vault_root: str, index_path: str, embedder: str) -> dict:
+    """Reconcile an index; the caller must already hold the vault writer lock."""
+    emb = _embedder(embedder)
+    if emb is None:
+        raise ValueError("index reconciliation requires an embedder")
+    idx = Path(index_path)
+    con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
+    try:
+        stats = reconcile(con, vault_root, emb)
+    finally:
+        con.close()
+    return {
+        "status": "current",
+        "added": stats.added,
+        "updated": stats.updated,
+        "deleted": stats.deleted,
+        "rebuilt": stats.rebuilt,
+    }
+
+
+def reconcile_index_tool(vault_root: str, index_path: str, *, embedder: str) -> dict:
+    """Bring the MCP index current while serializing against every other writer."""
+    with vault_writer_lock(vault_root, operation="mcp-reconcile"):
+        return _reconcile_unlocked(vault_root, index_path, embedder)
+
+
 def search_tool(
     index_path: str,
     query: str,
@@ -82,6 +110,7 @@ def search_tool(
     fetch = max(k * _FETCH_FACTOR, 25)
     current = resolve_current_project(project)
     con = _open(index_path)
+    diagnostics: dict = {}
     try:
         hits = search(
             con,
@@ -92,6 +121,7 @@ def search_tool(
             pool=max(200, fetch),
             project=current,
             scope=scope,
+            diagnostics=diagnostics,
         )
     finally:
         con.close()
@@ -110,6 +140,7 @@ def search_tool(
     return {
         "query": query,
         "as_of": now.isoformat(),
+        "retrieval": diagnostics,
         "hits": [
             {
                 "permalink": h.permalink,
@@ -144,6 +175,7 @@ def recall_tool(
     current = resolve_current_project(project)
     con = _open(index_path)
     now = datetime.now(UTC)
+    diagnostics: dict = {}
     try:
         hits = search(
             con,
@@ -154,6 +186,7 @@ def recall_tool(
             pool=max(200, fetch),
             project=current,
             scope=scope,
+            diagnostics=diagnostics,
         )
         seen: set[str] = set()
         notes: list[dict] = []
@@ -191,7 +224,12 @@ def recall_tool(
         usage.record("recall", full=full, recalled=recalled, k=k)
     except Exception:
         pass
-    return {"query": query, "as_of": now.isoformat(), "notes": notes}
+    return {
+        "query": query,
+        "as_of": now.isoformat(),
+        "retrieval": diagnostics,
+        "notes": notes,
+    }
 
 
 def build_context_tool(index_path: str, permalink: str) -> dict:
@@ -277,9 +315,15 @@ def remember_tool(
     title: str | None = None,
     tags: list[str] | None = None,
     subdir: str = "memories",
+    index_path: str | None = None,
+    embedder: str = "fastembed",
+    project: str | None = None,
+    harness: str | None = None,
 ) -> dict:
     """Agent-loop capture: redact, build a non-lossy memory note, write it under
-    the vault. Does not reindex (run `cairn sweep`/`reindex` to make it searchable)."""
+    the vault, and (when ``index_path`` is provided) make it searchable before
+    returning.  The Markdown write is authoritative: an index failure is reported
+    as degraded but never rolls back or hides the durable note."""
     if not text or not text.strip():
         raise ValueError("remember: text must be non-empty")
     red = redact(text)
@@ -293,21 +337,56 @@ def remember_tool(
     # Count redactions across ALL written fields (body + title + tags), not just
     # the body — else a secret only in title/tags reports 0 and misrepresents.
     total_redactions = red.count + title_red.count + sum(tr.count for tr in tag_reds)
+    frontmatter = {
+        "title": safe_title,
+        "type": "memory",
+        "permalink": slug,
+        "tags": safe_tags,
+        "source": "memory://agent/remember",
+    }
+    if project:
+        frontmatter["project"] = project
+    if harness:
+        frontmatter["harness"] = harness
     note = Note(
         permalink=slug,
-        frontmatter={
-            "title": safe_title,
-            "type": "memory",
-            "permalink": slug,
-            "tags": safe_tags,
-            "source": "memory://agent/remember",
-        },
+        frontmatter=frontmatter,
         body=f"- [context] {body_text} #remembered\n",
     )
-    path = write_derived_note(note, Path(vault_root), subdir=subdir)
+
+    def _write() -> Path:
+        return write_derived_note(note, Path(vault_root), subdir=subdir)
+
+    # Serialize every public remember write, even when a caller declines the
+    # write-through index update. With an index, hold this same lock across both
+    # halves so a sweep cannot observe the note and race our reconciliation.
+    with vault_writer_lock(vault_root, operation="mcp-remember"):
+        path = _write()
+        if index_path is None:
+            index_status = {
+                "status": "not_requested",
+                "reason": "no_index_path",
+            }
+        else:
+            try:
+                index_status = _reconcile_unlocked(vault_root, index_path, embedder)
+            except Exception as exc:
+                # The Markdown file is already durable and remains the source of
+                # truth.  Surface the stale index explicitly instead of making the
+                # caller believe the memory was lost.
+                index_status = {
+                    "status": "degraded",
+                    "reason": "index_update_failed",
+                    "error": str(exc),
+                }
     return {
         "permalink": slug,
         "path": str(path),
         "redactions": total_redactions,
-        "note": "written; run `cairn sweep` or `cairn reindex` to make it searchable",
+        "index": index_status,
+        "note": (
+            "written and indexed"
+            if index_status["status"] == "current"
+            else "written; index is not current, but the Markdown memory is durable"
+        ),
     }

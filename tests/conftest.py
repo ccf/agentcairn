@@ -26,6 +26,12 @@ def _isolated_usage_ledger(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _isolated_writer_locks(tmp_path, monkeypatch):
+    """Never create inter-process lock rendezvous files in the developer's cache."""
+    monkeypatch.setenv("CAIRN_LOCK_DIR", str(tmp_path / "locks"))
+
+
+@pytest.fixture(autouse=True)
 def _no_retry_backoff_sleep(monkeypatch):
     """The LLM judge retries failed chunks with a real backoff sleep; no test
     should actually wait. Retries still happen (count is asserted where it

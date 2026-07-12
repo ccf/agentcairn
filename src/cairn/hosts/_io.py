@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Filesystem helpers shared by the host config writers and the plugin installer:
-back up a file before risky edits, and write atomically (temp + rename)."""
+"""Filesystem helpers shared by host config writers and plugin installers."""
 
 from __future__ import annotations
 
-import os
 import shutil
 from pathlib import Path
+
+from cairn.storage import atomic_write_text
 
 
 def backup(path: Path) -> None:
@@ -16,8 +16,6 @@ def backup(path: Path) -> None:
 
 
 def atomic_write(path: Path, text: str) -> None:
-    """Write text to a temp file in the same dir, then atomically rename into place,
-    so a crash/disk-full mid-write can never corrupt the existing file."""
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    os.replace(tmp, path)
+    """Secure atomic write that preserves user-managed config symlinks."""
+    target = path.resolve() if path.is_symlink() else path
+    atomic_write_text(target, text)

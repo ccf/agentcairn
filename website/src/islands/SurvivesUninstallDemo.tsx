@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 
 const stages = [
-  { cmd: "rm ~/.cache/agentcairn/index.duckdb", out: "index deleted.", label: "Delete the index" },
-  { cmd: "cairn reindex ~/vault", out: "rebuilding from Markdown… 128 notes indexed.", label: "Reindex" },
-  { cmd: "cairn recall \"auth fix\"", out: "restored — 0 facts lost. The vault was the truth.", label: "Recall" },
+  { cmd: "rm -f /tmp/cairn-rebuild-demo.duckdb", out: "demo index deleted.", label: "Delete the index" },
+  { cmd: "cairn reindex ~/vault --index /tmp/cairn-rebuild-demo.duckdb", out: "rebuilding from Markdown… 128 notes indexed.", label: "Reindex" },
+  { cmd: "cairn recall \"auth fix\" --index /tmp/cairn-rebuild-demo.duckdb", out: "restored — 0 facts lost. The vault was the truth.", label: "Recall" },
 ];
 
 export default function SurvivesUninstallDemo() {

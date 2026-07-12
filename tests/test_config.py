@@ -94,10 +94,20 @@ def test_cairn_env_file_layer_and_env_wins(tmp_path, monkeypatch):
 
 
 def test_cairn_env_passthrough_keys(tmp_path):
-    _write(tmp_path, 'anthropic_api_key = "sk-ant-test-12345678"\nollama_host = "http://x:1"\n')
+    _write(
+        tmp_path,
+        'anthropic_api_key = "sk-ant-test-12345678"\n'
+        'ollama_host = "http://x:1"\n'
+        'voyage_api_key = "pa-test"\n'
+        'openai_api_key = "sk-test"\n'
+        'openai_base_url = "https://embed.example/v1"\n',
+    )
     e = cfg.cairn_env()
     assert e["ANTHROPIC_API_KEY"] == "sk-ant-test-12345678"
     assert e["OLLAMA_HOST"] == "http://x:1"
+    assert e["VOYAGE_API_KEY"] == "pa-test"
+    assert e["OPENAI_API_KEY"] == "sk-test"
+    assert e["OPENAI_BASE_URL"] == "https://embed.example/v1"
 
 
 def test_cairn_env_type_coercion(tmp_path):
@@ -167,4 +177,21 @@ def test_openai_config_defaults_and_env():
         "text-embedding-3-small",
         "k",
         "https://x/v1",
+    )
+
+
+def test_cloud_embedder_resolvers_pick_up_config_file(tmp_path):
+    _write(
+        tmp_path,
+        'embed_model = "custom-embed"\n'
+        'voyage_api_key = "voyage-secret"\n'
+        'openai_api_key = "openai-secret"\n'
+        'openai_base_url = "https://embed.example/v1"\n',
+    )
+
+    assert voyage_config() == ("custom-embed", "voyage-secret")
+    assert openai_config() == (
+        "custom-embed",
+        "openai-secret",
+        "https://embed.example/v1",
     )

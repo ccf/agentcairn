@@ -33,6 +33,22 @@ def test_bearer_header_and_ordered_parse():
     assert headers["Content-Type"] == "application/json"
 
 
+def test_redacts_secrets_from_every_cloud_input_before_post():
+    captured = []
+    secret = "sk-proj-abcdefghijklmnopqrstuvwxyz123456"
+    payload = {"model": "m", "input": [f"document {secret}", f"query {secret}"]}
+
+    embed_request(URL, payload, "provider-key", label="X", post=fake_post_factory(captured))
+
+    sent = captured[0][1]["input"]
+    assert sent == [
+        "document [REDACTED:openai_key]",
+        "query [REDACTED:openai_key]",
+    ]
+    # Sanitizing egress must not mutate the caller's payload in place.
+    assert payload["input"] == [f"document {secret}", f"query {secret}"]
+
+
 def test_missing_key_raises():
     with pytest.raises(RuntimeError, match="API key"):
         embed_request(URL, {"model": "m", "input": ["a"]}, None, label="X", post=lambda *a: {})

@@ -3,6 +3,37 @@
 All notable changes to **agentcairn** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+## [0.24.0] - 2026-07-12
+
+### Added
+- Per-vault, cross-process writer coordination for CLI, MCP, and Hermes mutations;
+  contention fails fast with retry guidance instead of racing DuckDB or dedup state.
+- MCP first-read reconciliation, explicit freshness/retrieval diagnostics, and
+  write-through `remember` so a successful save is immediately recallable.
+
+### Changed
+- Automatic recall is project-scoped by default and renders every recalled line as
+  untrusted quoted evidence in Claude Code, OpenCode, and Hermes (plugin 0.1.1).
+  Cross-project automatic recall now requires an explicit
+  `auto_recall_scope = "all"` opt-in.
+- New AgentCairn-owned files/directories default to `0600`/`0700`; replacements are
+  atomic and preserve modes chosen for existing user files.
+- Codex and Antigravity plugins (0.1.1) defer vault selection to the shared config file
+  rather than pinning `~/agentcairn`. Cloud embedding keys/endpoints are now
+  file-configurable.
+
+### Fixed
+- Reconciliation is transactional, so embedding/model/FTS failures preserve the last
+  good index. Model or vector-dimension mismatches and provider failures visibly
+  degrade retrieval to BM25 instead of producing incompatible vector queries.
+- Cloud embedding payloads are secret-redacted at the egress boundary; LLM-generated
+  titles/distillations are redacted before filenames or Markdown are written; vault
+  symlinks that escape the vault are rejected before indexing or network egress.
+- Temporal/project adjustments now work for negative cross-encoder logits, and
+  reranker failure falls back to the fused order.
+
 ## [0.23.0] - 2026-06-29
 
 ### Added
@@ -318,7 +349,23 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Out-of-band capture from coding-agent transcripts (redacted, non-lossy `remember`).
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
-[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.9.6...HEAD
+[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.24.0...HEAD
+[0.24.0]: https://github.com/ccf/agentcairn/compare/v0.23.0...v0.24.0
+[0.23.0]: https://github.com/ccf/agentcairn/compare/v0.22.1...v0.23.0
+[0.22.1]: https://github.com/ccf/agentcairn/compare/v0.22.0...v0.22.1
+[0.22.0]: https://github.com/ccf/agentcairn/compare/v0.21.0...v0.22.0
+[0.21.0]: https://github.com/ccf/agentcairn/compare/v0.20.1...v0.21.0
+[0.20.1]: https://github.com/ccf/agentcairn/compare/v0.20.0...v0.20.1
+[0.20.0]: https://github.com/ccf/agentcairn/compare/v0.19.0...v0.20.0
+[0.19.0]: https://github.com/ccf/agentcairn/compare/v0.18.0...v0.19.0
+[0.18.0]: https://github.com/ccf/agentcairn/compare/v0.17.0...v0.18.0
+[0.17.0]: https://github.com/ccf/agentcairn/compare/v0.16.0...v0.17.0
+[0.16.0]: https://github.com/ccf/agentcairn/compare/v0.15.0...v0.16.0
+[0.15.0]: https://github.com/ccf/agentcairn/compare/v0.14.0...v0.15.0
+[0.14.0]: https://github.com/ccf/agentcairn/compare/v0.13.0...v0.14.0
+[0.13.0]: https://github.com/ccf/agentcairn/compare/v0.12.0...v0.13.0
+[0.12.0]: https://github.com/ccf/agentcairn/compare/v0.11.0...v0.12.0
+[0.11.0]: https://github.com/ccf/agentcairn/compare/v0.10.1...v0.11.0
 [0.10.1]: https://github.com/ccf/agentcairn/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/ccf/agentcairn/compare/v0.9.8...v0.10.0
 [0.9.8]: https://github.com/ccf/agentcairn/compare/v0.9.7...v0.9.8

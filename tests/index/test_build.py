@@ -90,3 +90,30 @@ def test_index_note_raises_on_embedder_count_mismatch(tmp_path):
     con = open_index(str(tmp_path / "i.duckdb"), dim=8, model_id="broken")
     with pytest.raises(ValueError):
         index_note(con, v / "a.md", Broken(), vault_dir=str(v))
+
+
+def test_index_vault_rejects_markdown_symlink_outside_vault_before_embedding(tmp_path):
+    outside = tmp_path / "private.md"
+    outside.write_text("---\ntitle: Private\npermalink: private\n---\nsecret material\n")
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "safe.md").write_text("---\ntitle: Safe\npermalink: safe\n---\nsafe body\n")
+    try:
+        (vault / "linked.md").symlink_to(outside)
+    except OSError as exc:  # pragma: no cover - platforms without symlink privileges
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    class Recording(FakeEmbedder):
+        def __init__(self):
+            super().__init__(dim=8)
+            self.calls = 0
+
+        def embed(self, texts):
+            self.calls += 1
+            return super().embed(texts)
+
+    emb = Recording()
+    con = open_index(str(tmp_path / "i.duckdb"), dim=emb.dim, model_id=emb.model_id)
+    with pytest.raises(ValueError, match="outside vault"):
+        index_vault(con, str(vault), emb)
+    assert emb.calls == 0

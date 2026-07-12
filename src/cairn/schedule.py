@@ -12,6 +12,7 @@ from pathlib import Path
 from xml.sax.saxutils import escape
 
 from cairn.paths import cache_root, resolve_vault
+from cairn.storage import ensure_private_dir
 
 PLIST_LABEL = "dev.agentcairn.sweep"
 CRON_MARKER = "# agentcairn-sweep"
@@ -94,7 +95,7 @@ def _plist_path() -> Path:
 def _macos_install(interval_min: int, vault: Path, log: Path) -> None:
     p = _plist_path()
     p.parent.mkdir(parents=True, exist_ok=True)
-    log.parent.mkdir(parents=True, exist_ok=True)
+    ensure_private_dir(log.parent)
     p.write_text(render_plist(resolve_cairn(), str(vault), interval_min, str(log)))
     _run(["launchctl", "unload", str(p)])  # best-effort; ignore returncode
     r = _run(["launchctl", "load", str(p)])
@@ -131,7 +132,7 @@ def _write_crontab(text: str) -> None:
 
 
 def _linux_install(interval_min: int, vault: Path, log: Path) -> None:
-    log.parent.mkdir(parents=True, exist_ok=True)
+    ensure_private_dir(log.parent)
     line = render_cron_line(resolve_cairn(), str(vault), interval_min, str(log))
     kept = [ln for ln in _read_crontab().splitlines() if CRON_MARKER not in ln]
     kept.append(line)

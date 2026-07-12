@@ -33,6 +33,35 @@ def _content_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _assert_within_vault(path: Path, vault_dir: str) -> None:
+    """Reject Markdown paths whose resolved target escapes the vault.
+
+    Obsidian vaults may contain symlinks. Following one outside the vault would
+    silently index—and, with a cloud embedder, upload—content the user never put
+    inside AgentCairn's trust boundary.
+    """
+    root = Path(vault_dir).resolve()
+    try:
+        target = path.resolve(strict=True)
+    except OSError as exc:
+        raise ValueError(f"cannot safely resolve vault note {path}: {exc}") from exc
+    if target != root and root not in target.parents:
+        raise ValueError(f"refusing to index Markdown symlink outside vault: {path}")
+
+
+def _vault_markdown_paths(vault_dir: str) -> list[Path]:
+    """Return a fully validated Markdown snapshot before any embedding/write.
+
+    Validation is deliberately eager: one escaping symlink fails the operation
+    before a legitimate earlier note can trigger partial cloud egress or before
+    reconcile can destructively rebuild an existing cache.
+    """
+    paths = sorted(Path(vault_dir).rglob("*.md"))
+    for path in paths:
+        _assert_within_vault(path, vault_dir)
+    return paths
+
+
 def _permalink_for(permalink_field: str | None, path: Path, vault_dir: str | None) -> str:
     """Derive a stable, unique permalink for a note.
 
@@ -72,6 +101,8 @@ def index_note(
     ensuring uniqueness across subdirectories.  Pass ``vault_dir`` so the
     fallback is relative to the vault root rather than the bare file stem.
     """
+    if vault_dir is not None:
+        _assert_within_vault(path, vault_dir)
     text = path.read_text()
     note = parse_note(text)
     permalink = _permalink_for(note.permalink, path, vault_dir)
@@ -121,7 +152,7 @@ def index_note(
 
 def index_vault(con: duckdb.DuckDBPyConnection, vault_dir: str, embedder: Embedder) -> IndexStats:
     stats = IndexStats()
-    for path in sorted(Path(vault_dir).rglob("*.md")):
+    for path in _vault_markdown_paths(vault_dir):
         stats.chunks += index_note(con, path, embedder, vault_dir=vault_dir)
         stats.notes += 1
     return stats
@@ -135,7 +166,7 @@ class ReconcileStats:
     rebuilt: bool = False
 
 
-def reconcile(
+def _reconcile_impl(
     con: duckdb.DuckDBPyConnection,
     vault_dir: str,
     embedder: Embedder,
@@ -150,6 +181,7 @@ def reconcile(
 
     model_id = model_id_override or embedder.model_id
     stats = ReconcileStats()
+    disk_paths = _vault_markdown_paths(vault_dir)
 
     if get_meta(con, "embedding_model") != model_id or get_meta(con, "embedding_dim") != str(
         embedder.dim
@@ -177,7 +209,7 @@ def reconcile(
     # Iterate the rglob list directly (not a stem-keyed dict) so that notes in
     # different subdirectories with the same filename are each processed.
     seen_permalinks: set[str] = set()
-    for path in sorted(Path(vault_dir).rglob("*.md")):
+    for path in disk_paths:
         text = path.read_text()
         permalink = _permalink_for(parse_note(text).permalink, path, vault_dir)
         seen_permalinks.add(permalink)
@@ -216,6 +248,38 @@ def reconcile(
         ).fetchone()[0]
         set_meta(con, "haystack_tokens", str(int(total)))
     return stats
+
+
+def reconcile(
+    con: duckdb.DuckDBPyConnection,
+    vault_dir: str,
+    embedder: Embedder,
+    *,
+    model_id_override: str | None = None,
+) -> ReconcileStats:
+    """Atomically bring the disposable index in sync with the Markdown vault.
+
+    The full reconcile—including a model-triggered table rebuild and FTS refresh—
+    is one DuckDB transaction. If embedding, parsing, or FTS construction fails,
+    readers continue to see the last known-good cache rather than a partially
+    deleted or mixed-model index.
+    """
+    con.execute("BEGIN TRANSACTION")
+    try:
+        stats = _reconcile_impl(
+            con,
+            vault_dir,
+            embedder,
+            model_id_override=model_id_override,
+        )
+        con.execute("COMMIT")
+        return stats
+    except BaseException:
+        try:
+            con.execute("ROLLBACK")
+        except Exception:
+            pass
+        raise
 
 
 def build_fts(con: duckdb.DuckDBPyConnection) -> None:

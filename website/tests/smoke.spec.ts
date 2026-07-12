@@ -5,15 +5,15 @@ test("page renders with brand and nav", async ({ page }) => {
   await expect(page.getByRole("link", { name: /agentcairn/ }).first()).toBeVisible();
 });
 
-test("hero shows the inversion headline and plugin install line", async ({ page }) => {
+test("hero shows the shared-memory headline and plugin install line", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("made it your files");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("One memory across your coding agents");
   await expect(page.getByText("claude plugin install agentcairn@agentcairn").first()).toBeVisible();
 });
 
 test("inversion + differentiators render", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: /made it your files/ })).toHaveCount(2); // hero + inversion
+  await expect(page.getByRole("heading", { name: /files are canonical/ })).toBeVisible();
   await expect(page.getByText("A free, deterministic graph")).toBeVisible();
 });
 
