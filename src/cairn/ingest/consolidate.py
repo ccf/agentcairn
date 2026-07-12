@@ -14,6 +14,7 @@ from enum import StrEnum
 from typing import Protocol
 
 from cairn.ingest.judge import _anthropic_request
+from cairn.ingest.redact import redact
 
 _CONSOLIDATE_GATE = 0.75  # cosine below this -> no classify call. Calibrated (0.10.1)
 # on the DISTILLED [context] signal: genuine "same fact, different sentence" dups
@@ -98,9 +99,14 @@ class LLMConsolidator:
     def classify(
         self, *, new_text: str, new_ts: str | None, neighbor: Neighbor
     ) -> ConsolidationVerdict:
+        # Existing neighbors may be hand-edited or predate AgentCairn's write
+        # redaction. Re-sanitize both dynamic fields at this provider boundary so
+        # consolidation cannot become a secret-egress side channel.
+        safe_new = redact(new_text).text
+        safe_existing = redact(neighbor.text).text
         body = (
-            f"NEW (timestamp {new_ts}):\n{new_text}\n\n"
-            f"EXISTING (timestamp {neighbor.timestamp}):\n{neighbor.text}"
+            f"NEW (timestamp {new_ts}):\n{safe_new}\n\n"
+            f"EXISTING (timestamp {neighbor.timestamp}):\n{safe_existing}"
         )
         payload = {
             "model": self._model,

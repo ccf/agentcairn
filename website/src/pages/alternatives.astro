@@ -5,7 +5,7 @@ import Prose from "../components/Prose.astro";
 
 const title = "agentcairn vs Mem0, Letta, Zep & basic-memory";
 const description =
-  "How agentcairn compares to Mem0, Letta, Zep, and basic-memory: local Markdown vault vs cloud DB, source-of-truth vs export, daemonless.";
+  "How agentcairn compares to Mem0, Letta, Zep, and basic-memory: a coding-focused local Markdown vault versus application and enterprise memory platforms.";
 
 const faq = [
   {
@@ -28,7 +28,7 @@ const rows = [
     cairn: "Markdown vault",
     basic: "Markdown files",
     mem0: "database",
-    letta: "database (Postgres)",
+    letta: "database + git-tracked MemFS",
     zep: "knowledge graph",
   },
   {
@@ -36,7 +36,7 @@ const rows = [
     cairn: "Yes",
     basic: "Yes",
     mem0: "No",
-    letta: "No",
+    letta: "MemFS in Letta Code",
     zep: "No",
   },
   {
@@ -130,11 +130,13 @@ const cols = ["Dimension", "agentcairn", "basic-memory", "Mem0", "Letta", "Zep"]
       <p class="mb-6">
         Formerly MemGPT. An Apache-2.0 framework for stateful agents — memory is
         one part of a broader agent platform, not a standalone memory store.
-        State lives in Postgres (pgvector). It ships a hosted cloud plus a
-        self-hostable server that is officially de-emphasized.
+        Its API platform persists agent state in a database; Letta Code also now
+        exposes git-tracked MemFS memory that can be edited as local files. It is
+        a broader agent runtime, while agentcairn stays a portable memory layer
+        shared by otherwise-independent coding agents.
         <a href="https://letta.com" class="underline">letta.com</a>
         &middot;
-        <a href="https://github.com/letta-ai/letta" class="underline">GitHub</a>
+        <a href="https://docs.letta.com/guides/get-started/intro" class="underline">docs</a>
       </p>
 
       <h3 class="font-serif text-[22px] leading-snug mb-2">Zep</h3>

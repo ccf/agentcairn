@@ -57,9 +57,6 @@ def install_opencode_plugin(
     if vault is not None:
         plugin_text = plugin_text.replace(_VAULT_PLACEHOLDER, vault)
 
-    plugin_dest.parent.mkdir(parents=True, exist_ok=True)
-    recall_dest.parent.mkdir(parents=True, exist_ok=True)
-
     atomic_write(plugin_dest, plugin_text)
     atomic_write(recall_dest, _opencode_asset("commands/recall.md"))
     atomic_write(remember_dest, _opencode_asset("commands/remember.md"))

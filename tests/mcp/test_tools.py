@@ -5,7 +5,13 @@ import pytest
 
 from cairn.embed import FakeEmbedder
 from cairn.index import open_index, reconcile
-from cairn.mcp.tools import build_context_tool, recall_tool, recent_tool, remember_tool, search_tool
+from cairn.mcp.tools import (
+    build_context_tool,
+    recall_tool,
+    recent_tool,
+    remember_tool,
+    search_tool,
+)
 from cairn.vault import parse_note
 
 
@@ -91,6 +97,8 @@ def test_remember_writes_redacted_note(tmp_path):
         "Always pin the store path. The old key was ghp_16C7e42F292c6912E7710c838347Ae178B4a.",
         title="store path rule",
         tags=["ops"],
+        project="checkout-service",
+        harness="test-agent",
     )
     assert out["permalink"]
     path = Path(out["path"])
@@ -104,6 +112,8 @@ def test_remember_writes_redacted_note(tmp_path):
     parsed = parse_note(body)
     assert parsed.frontmatter["type"] == "memory"
     assert "ops" in parsed.frontmatter["tags"]
+    assert parsed.frontmatter["project"] == "checkout-service"
+    assert parsed.frontmatter["harness"] == "test-agent"
 
 
 def test_remember_rejects_empty_text(tmp_path):
@@ -111,6 +121,54 @@ def test_remember_rejects_empty_text(tmp_path):
     vault.mkdir()
     with pytest.raises(ValueError):
         remember_tool(str(vault), "   ")
+
+
+def test_remember_write_through_is_immediately_recallable(tmp_path, monkeypatch):
+    from cairn import paths
+
+    monkeypatch.setattr(paths, "cache_root", lambda: tmp_path / "cache")
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    idx = tmp_path / "i.duckdb"
+
+    saved = remember_tool(
+        str(vault),
+        "Always deploy with the moonstone command.",
+        index_path=str(idx),
+        embedder="fake",
+    )
+
+    assert saved["index"]["status"] == "current"
+    recalled = recall_tool(str(idx), "moonstone command", embedder="fake", rerank=False)
+    assert saved["permalink"] in {note["permalink"] for note in recalled["notes"]}
+
+
+def test_remember_keeps_durable_note_when_index_update_fails(tmp_path, monkeypatch):
+    from cairn import paths
+
+    monkeypatch.setattr(paths, "cache_root", lambda: tmp_path / "cache")
+    vault = tmp_path / "vault"
+    vault.mkdir()
+
+    def fail_index(*args, **kwargs):
+        raise RuntimeError("embedding provider unavailable")
+
+    monkeypatch.setattr("cairn.mcp.tools._reconcile_unlocked", fail_index)
+    saved = remember_tool(
+        str(vault),
+        "The durable source survives an index outage.",
+        index_path=str(tmp_path / "i.duckdb"),
+        embedder="fake",
+    )
+
+    assert Path(saved["path"]).exists()
+    assert "durable source" in Path(saved["path"]).read_text()
+    assert saved["index"] == {
+        "status": "degraded",
+        "reason": "index_update_failed",
+        "error": "embedding provider unavailable",
+    }
+    assert "durable" in saved["note"]
 
 
 # ---------------------------------------------------------------------------

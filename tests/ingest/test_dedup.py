@@ -1,5 +1,7 @@
 # tests/ingest/test_dedup.py
 # SPDX-License-Identifier: Apache-2.0
+import stat
+
 from cairn.ingest.dedup import DedupLedger, content_hash
 
 
@@ -31,3 +33,10 @@ def test_ledger_add_is_idempotent(tmp_path):
     led.add(h)
     led.add(h)
     assert path.read_text().count(h) == 1
+
+
+def test_ledger_uses_private_cache_defaults(tmp_path):
+    path = tmp_path / "cache" / "ingested.sha256"
+    DedupLedger(path).add(content_hash("private"))
+    assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600

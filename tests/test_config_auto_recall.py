@@ -37,8 +37,16 @@ def test_auto_recall_k_bad_falls_back():
 
 
 def test_auto_recall_scope_default():
-    assert resolve_auto_recall_scope(env={}) == "all"
+    assert resolve_auto_recall_scope(env={}) == "project"
 
 
 def test_auto_recall_scope_override_lowercased():
     assert resolve_auto_recall_scope(env={"CAIRN_AUTO_RECALL_SCOPE": "Project"}) == "project"
+
+
+def test_auto_recall_scope_all_requires_explicit_opt_in():
+    assert resolve_auto_recall_scope(env={"CAIRN_AUTO_RECALL_SCOPE": " ALL "}) == "all"
+
+
+def test_auto_recall_scope_invalid_value_fails_closed_to_project():
+    assert resolve_auto_recall_scope(env={"CAIRN_AUTO_RECALL_SCOPE": "global"}) == "project"

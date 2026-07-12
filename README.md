@@ -14,7 +14,7 @@ agentcairn gives your coding agent durable, high-quality memory — but instead 
 
 ## Why agentcairn is different
 
-Most agent-memory systems make a database or cloud store the source of truth and treat files (if any) as a one-way export. agentcairn inverts that:
+Editable, file-backed memory is not unique to agentcairn. Its focus is the combination needed for coding-agent work: one inspectable vault shared across otherwise-independent agents, ambient transcript capture, provenance and temporal correctness, and a measured hybrid index that remains disposable:
 
 - **📂 Your vault is the source of truth — not an export.** Memory is human-readable Markdown with frontmatter and `[[wikilinks]]`. Edit it in Obsidian; the index honors your edits.
 - **♻️ The index is disposable.** DuckDB is a rebuildable cache (`cairn reindex`). Your memory survives a model upgrade, a corrupted index, a schema change, or uninstalling the tool — **zero data loss**, because the truth is just files on disk.
@@ -46,7 +46,10 @@ On install you pick a vault path (default `~/agentcairn`); it's **auto-created**
 a hybrid recall against what you just asked and injects the most relevant
 memories as context for that turn — not just the recency digest shown at session
 start. Trivially-short prompts (e.g. "yes", "go") are skipped. It is fail-open:
-if anything goes wrong it injects nothing and never blocks your prompt.
+if anything goes wrong it injects nothing and never blocks your prompt. Automatic
+recall is hard-limited to the current project by default. Each injected excerpt
+is quoted, tagged with its available permalink/project provenance, and explicitly
+framed as untrusted historical evidence — never as instructions for the agent.
 
 Configure it in `~/.agentcairn/config.toml` (flat top-level keys; env vars
 `CAIRN_AUTO_RECALL`, `CAIRN_AUTO_RECALL_K`, `CAIRN_AUTO_RECALL_SCOPE` override the file):
@@ -54,8 +57,11 @@ Configure it in `~/.agentcairn/config.toml` (flat top-level keys; env vars
 ```toml
 auto_recall       = true    # master on/off (default: true)
 auto_recall_k     = 3       # memories injected per prompt
-auto_recall_scope = "all"   # "all" (boost, non-lossy) or "project" (hard filter)
+auto_recall_scope = "project" # project-only (default); "all" is an explicit cross-project opt-in
 ```
+
+Manual `cairn recall` and the `recall` MCP tool remain cross-project by default;
+use their existing `--scope project` / `scope="project"` option when desired.
 
 > Not on Claude Code or Codex? agentcairn is also a standalone MCP server + CLI for any host — see [Using it directly](#using-it-directly).
 
@@ -71,9 +77,10 @@ flowchart LR
 
     T -- "redact → judge → distill → consolidate" --> V
     H -- "edit" --> V
-    V -- "parse / reconcile-on-spawn" --> I
-    I -- "READ_ONLY hybrid recall" --> M
-    M -. "remember (redacted write)" .-> V
+    V -- "transactional reconcile before first read" --> I
+    I -- "short-lived hybrid reads" --> M
+    M -. "remember: atomic Markdown write" .-> V
+    M -. "write-through under one writer lock" .-> I
 
     classDef truth fill:#eaf1ff,stroke:#317cff,color:#191919;
     classDef cache fill:#f5f5f3,stroke:#999999,color:#191919;
@@ -83,7 +90,7 @@ flowchart LR
 
 - **Capture** reads your agent harness's session transcripts (append-only, already on disk) *out-of-band* — robust by design, with no fragile live hooks — then redacts → dedups → judges (semantic durability; optional LLM distillation via `CAIRN_JUDGE=anthropic`) → gates → distills into the vault, non-lossily. `cairn sweep` auto-detects every present harness (Claude Code, Codex, Antigravity CLI, and Cursor are all supported, behind a `HarnessAdapter` seam) so you get unified memory across all four without any extra configuration. On the LLM tier it also **consolidates**: a new memory that duplicates an existing one is skipped, and a newer version of an evolving fact marks the older note `superseded_by` (kept + demoted in recall, never deleted) — fail-safe, so a wrong call never drops a distinct memory (`CAIRN_CONSOLIDATE=0` to disable). Plus an agent-driven `remember` tool for curated, high-value memories.
 - **Retrieval** fuses BM25 + semantic vectors with Reciprocal Rank Fusion, applies an optional graph-boost, and **degrades gracefully** down to keyword-only when no embedding model is available — so recall is *never* silently dead. An optional cross-encoder reranker adds precision.
-- **Hybrid intelligence:** offline local embeddings (FastEmbed / `nomic-embed-text-v1.5` by default) out of the box — strong on its own *and* in the hybrid fusion (with `nomic`, vector-only edges out BM25 even on short turns; see the benchmark). Set `CAIRN_EMBED_MODEL` to pick another FastEmbed model, or `CAIRN_EMBEDDER=ollama` for a local Ollama model. For higher recall quality at the cost of a network call, set `CAIRN_EMBEDDER=voyage` (default model `voyage-3`, requires `VOYAGE_API_KEY`) or `CAIRN_EMBEDDER=openai` (default `text-embedding-3-small`, requires `OPENAI_API_KEY`; set `OPENAI_BASE_URL` for any OpenAI-compatible endpoint). Both cloud embedders are opt-in — the default stays fully local. **Privacy:** with a cloud embedder enabled, your note text (already secret-redacted at write time) and your recall queries are sent to the provider. This is consistent with the optional `CAIRN_JUDGE=anthropic` LLM tier. **Cost:** switching embedder or model triggers a full-vault re-embed (dimension change) on the next `reindex`/`sweep` — real API cost and latency; plan accordingly.
+- **Hybrid intelligence:** offline local embeddings (FastEmbed / `nomic-embed-text-v1.5` by default) out of the box — strong on its own *and* in the hybrid fusion (with `nomic`, vector-only edges out BM25 even on short turns; see the benchmark). Set `CAIRN_EMBED_MODEL` to pick another FastEmbed model, or `CAIRN_EMBEDDER=ollama` for a local Ollama model. For higher recall quality at the cost of a network call, set `CAIRN_EMBEDDER=voyage` (default model `voyage-3`, requires `VOYAGE_API_KEY`) or `CAIRN_EMBEDDER=openai` (default `text-embedding-3-small`, requires `OPENAI_API_KEY`; set `OPENAI_BASE_URL` for any OpenAI-compatible endpoint). Both cloud embedders are opt-in — the default stays fully local. **Privacy:** with a cloud embedder enabled, note chunks and recall queries are secret-redacted again at the provider boundary before they leave the machine (including hand-edited notes; the Markdown itself is not modified). Vault symlinks that resolve outside the vault are rejected. The provider still receives the remaining redacted text, consistent with the optional `CAIRN_JUDGE=anthropic` tier. **Cost:** switching embedder or model triggers a full-vault re-embed on the next `reindex`/`sweep` — real API cost and latency; plan accordingly.
 - **Temporal memory:** notes may carry `valid_from`/`valid_until`/`superseded_by` frontmatter. Recall is validity-aware — it soft-demotes superseded and expired facts (the *current* fact wins) without ever hiding them (non-lossy), and annotates each result's status (`current`/`superseded`/`expired`/`not_yet_valid`) plus an `as_of` anchor so the agent can reason over time. Inert for notes with no validity fields.
 - **Provenance-aware recall:** notes carry `project`/`harness` provenance, and recall boosts your current project's memories (non-lossy — cross-project hits still surface, marked `[from: <project>]`). Pass `--project <repo>` to target another repo, or `--scope project` to hard-filter to just the current one.
 
@@ -136,9 +143,14 @@ judge = "anthropic"
 anthropic_api_key = "sk-ant-..."
 ```
 
+Cloud embedding settings use the same file (`voyage_api_key`,
+`openai_api_key`, and `openai_base_url`); keys are masked by `cairn config`.
+Codex and Antigravity plugin manifests deliberately do not pin a vault, so this
+shared config remains authoritative across hosts.
+
 ## Agents supported
 
-agentcairn works at two levels. **Plugin hosts** (Claude Code, Codex, and Antigravity) get a first-class plugin — a bundled MCP server (recall/search/`remember`), a memory skill, and (on Claude Code and Codex) ambient session hooks; `cairn install <host>` installs the plugin by calling the host's own CLI. **MCP hosts** (everything else) get the same recall/search/`remember` tools via the portable MCP server; `cairn install <host>` writes the MCP server config non-destructively (your other servers are preserved, the original is backed up to `<config>.bak`). The vault stays a single global `~/agentcairn`, so memory is shared across every host.
+agentcairn works at two levels. **Plugin hosts** (Claude Code, Codex, and Antigravity) get a first-class plugin — a bundled MCP server (recall/search/`remember`), a memory skill, and (on Claude Code and Codex) ambient session hooks; `cairn install <host>` installs the plugin by calling the host's own CLI. **MCP hosts** (everything else) get the same recall/search/`remember` tools via the portable MCP server; `cairn install <host>` writes the MCP server config non-destructively (your other servers are preserved, the original is backed up to `<config>.bak`). Every host resolves the same configured vault (`~/agentcairn` by default), so memory does not fragment by agent.
 
 | Host | Support | Set up with | Ambient capture |
 |---|---|---|---|

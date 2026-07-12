@@ -9,6 +9,7 @@ import math
 import os
 import sys
 from collections.abc import Mapping
+from contextlib import nullcontext
 from pathlib import Path
 
 import typer
@@ -27,8 +28,10 @@ from cairn.ingest.consolidate import (
 from cairn.ingest.dedup import DedupLedger
 from cairn.ingest.judge import _EMBED_BATCH, JudgedCache, resolve_judge
 from cairn.ingest.pipeline import ingest_transcripts
+from cairn.locking import VaultBusyError, vault_writer_lock
 from cairn.search import open_search, resolve_current_project, search
 from cairn.search.engine import semantic_neighbors
+from cairn.storage import atomic_write_text, ensure_private_dir
 from cairn.vault import parse_note, write_note
 
 
@@ -105,6 +108,11 @@ schedule_app = typer.Typer(
     "(the host-agnostic capture backstop)."
 )
 app.add_typer(schedule_app, name="schedule")
+
+
+def _exit_vault_busy(exc: VaultBusyError) -> None:
+    typer.secho(f"busy: {exc}", fg=typer.colors.YELLOW, err=True)
+    raise typer.Exit(75) from exc  # EX_TEMPFAIL: retrying later is the right action
 
 
 @schedule_app.command("install")
@@ -201,13 +209,13 @@ def _relink_note(path: Path, desired: list[str], *, dry_run: bool = False) -> st
             return "unchanged"
         note.frontmatter["related"] = desired
         if not dry_run:
-            path.write_text(write_note(note), encoding="utf-8")
+            atomic_write_text(path, write_note(note))
         return "linked"
     # desired is empty
     if "related" in note.frontmatter:
         if not dry_run:
             del note.frontmatter["related"]
-            path.write_text(write_note(note), encoding="utf-8")
+            atomic_write_text(path, write_note(note))
         return "cleared"
     return "unchanged"
 
@@ -239,13 +247,17 @@ def reindex(
     """Reconcile the DuckDB index with the vault (incremental)."""
     embedder = embedder or cairn_env().get("CAIRN_EMBEDDER") or "fastembed"
     idx = paths.index_for(index, vault)
-    idx.parent.mkdir(parents=True, exist_ok=True)
+    ensure_private_dir(idx.parent)
     emb = get_embedder(embedder)
-    con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
     try:
-        stats = reconcile(con, str(vault), emb)
-    finally:
-        con.close()  # release the write lock even if reconcile fails
+        with vault_writer_lock(vault, operation="cli-reindex"):
+            con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
+            try:
+                stats = reconcile(con, str(vault), emb)
+            finally:
+                con.close()  # release DuckDB even if reconcile fails
+    except VaultBusyError as exc:
+        _exit_vault_busy(exc)
     typer.echo(
         f"reindexed: {stats.added} note(s) added, {stats.updated} updated, "
         f"{stats.deleted} removed{' (full rebuild)' if stats.rebuilt else ''}"
@@ -346,6 +358,7 @@ def recall(
                         "title": h.heading_path,
                         "text": h.snippet,
                         "score": h.score,
+                        "project": h.project,
                     }
                     for h in hits
                 ],
@@ -448,16 +461,20 @@ def init(
     """Scaffold an Obsidian-ready agentcairn vault. Idempotent and non-destructive."""
     target = path or Path(cairn_env().get("CAIRN_VAULT") or (Path.home() / "agentcairn"))
     target = target.expanduser()
-    target.mkdir(parents=True, exist_ok=True)
-    obs = target / ".obsidian"
-    obs.mkdir(exist_ok=True)
-    app_json = obs / "app.json"
-    if not app_json.exists():
-        app_json.write_text("{}\n")
-    welcome = target / "welcome.md"
-    existed = welcome.exists()
-    if not existed:
-        welcome.write_text(_WELCOME)
+    try:
+        with vault_writer_lock(target, operation="cli-init"):
+            ensure_private_dir(target)
+            obs = target / ".obsidian"
+            ensure_private_dir(obs)
+            app_json = obs / "app.json"
+            if not app_json.exists():
+                atomic_write_text(app_json, "{}\n")
+            welcome = target / "welcome.md"
+            existed = welcome.exists()
+            if not existed:
+                atomic_write_text(welcome, _WELCOME)
+    except VaultBusyError as exc:
+        _exit_vault_busy(exc)
     suffix = "" if not existed else " (existing — left intact)"
     typer.echo(f"agentcairn vault ready at {target}{suffix}")
 
@@ -701,10 +718,7 @@ def config(
             else:
                 lines.append(f'# {k.key} = "{k.default}"')
             lines.append("")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.touch(mode=0o600)  # create 0600 BEFORE content lands (key may live here)
-        path.write_text("\n".join(lines), encoding="utf-8")
-        path.chmod(0o600)  # belt-and-braces: touch mode is umask-subject
+        atomic_write_text(path, "\n".join(lines))
         import cairn.config as _cfg
 
         _cfg._reset()
@@ -805,7 +819,6 @@ def sweep(
     """
     embedder = embedder or cairn_env().get("CAIRN_EMBEDDER") or "fastembed"
     led_path = ledger if ledger is not None else paths.default_ledger(vault)
-    led = DedupLedger(led_path)
     selected = _resolve_harnesses(harness, cairn_env())
     if transcripts_dir is not None and (selected is None or len(selected) != 1):
         raise typer.BadParameter("--transcripts-dir requires exactly one --harness")
@@ -818,32 +831,41 @@ def sweep(
     # (avoid a double model load).
     emb = get_embedder(embedder)
     idx = paths.index_for(index, vault)
-    idx.parent.mkdir(parents=True, exist_ok=True)
-    # Build consolidation deps before ingest. _DistilledNeighborIndex reads the
-    # vault directly (no DuckDB read handle needed), so no open/close dance here.
+    ensure_private_dir(idx.parent)
     consolidator = resolve_consolidator()
-    # subdir must match the subdir ingest_transcripts writes notes to (both default
-    # to "memories") — else the index would scan a different dir than the pipeline writes.
-    neighbor_index = (
-        _DistilledNeighborIndex(vault_root=vault, subdir="memories", embedder=emb)
-        if consolidator is not None
-        else None
-    )
-    rep = ingest_transcripts(
-        transcripts,
-        vault_root=vault,
-        ledger=led,
-        threshold=threshold,
-        judge=resolve_judge(embedder=emb),
-        judged_cache=JudgedCache(led_path.parent / f"{paths.vault_key(vault)}.judged.jsonl"),
-        consolidator=consolidator,
-        neighbor_index=neighbor_index,
-    )
-    con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
     try:
-        stats = reconcile(con, str(vault), emb)
-    finally:
-        con.close()  # release the write lock even if reconcile fails
+        # Serialize the complete vault+ledger+index mutation. A second sweep
+        # must not distill from a half-written first sweep.
+        with vault_writer_lock(vault, operation="cli-sweep"):
+            # Load the ledger only after acquiring the lock. Otherwise a process
+            # that began while another sweep was active could later acquire the
+            # lock with a stale in-memory hash set and duplicate its writes.
+            led = DedupLedger(led_path)
+            # This subdir must match the one ingest_transcripts writes.
+            neighbor_index = (
+                _DistilledNeighborIndex(vault_root=vault, subdir="memories", embedder=emb)
+                if consolidator is not None
+                else None
+            )
+            rep = ingest_transcripts(
+                transcripts,
+                vault_root=vault,
+                ledger=led,
+                threshold=threshold,
+                judge=resolve_judge(embedder=emb),
+                judged_cache=JudgedCache(
+                    led_path.parent / f"{paths.vault_key(vault)}.judged.jsonl"
+                ),
+                consolidator=consolidator,
+                neighbor_index=neighbor_index,
+            )
+            con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
+            try:
+                stats = reconcile(con, str(vault), emb)
+            finally:
+                con.close()  # release DuckDB even if reconcile fails
+    except VaultBusyError as exc:
+        _exit_vault_busy(exc)
     extra = ""
     if rep.semantic_deduped or rep.superseded:
         extra = f"; {rep.semantic_deduped} deduped, {rep.superseded} superseded"
@@ -948,31 +970,38 @@ def link(
     if not idx.exists():
         typer.echo(f"no index at {idx} — run `cairn reindex <vault>` first")
         raise typer.Exit(1)
-    con = open_search(str(idx))
     linked = unchanged = cleared = errors = 0
     try:
-        rows = con.execute(
-            "SELECT permalink, path FROM notes WHERE superseded_by IS NULL"
-        ).fetchall()
-        for permalink, path in rows:
-            if not path:
-                continue
+        # A real link run mutates many notes and must serialize with sweep,
+        # remember, ingest, and reconciliation. A dry run remains read-only.
+        lock = nullcontext() if dry_run else vault_writer_lock(vault_dir, operation="cli-link")
+        with lock:
+            con = open_search(str(idx))
             try:
-                nbrs = semantic_neighbors(con, permalink, k=top, min_score=min_score)
-                desired = [f"[[{n['permalink']}]]" for n in nbrs]
-                status = _relink_note(Path(path), desired, dry_run=dry_run)
-            except Exception as exc:  # best-effort per note
-                errors += 1
-                typer.echo(f"  skip {permalink}: {exc}")
-                continue
-            if status == "linked":
-                linked += 1
-            elif status == "cleared":
-                cleared += 1
-            else:
-                unchanged += 1
-    finally:
-        con.close()
+                rows = con.execute(
+                    "SELECT permalink, path FROM notes WHERE superseded_by IS NULL"
+                ).fetchall()
+                for permalink, path in rows:
+                    if not path:
+                        continue
+                    try:
+                        nbrs = semantic_neighbors(con, permalink, k=top, min_score=min_score)
+                        desired = [f"[[{n['permalink']}]]" for n in nbrs]
+                        status = _relink_note(Path(path), desired, dry_run=dry_run)
+                    except Exception as exc:  # best-effort per note
+                        errors += 1
+                        typer.echo(f"  skip {permalink}: {exc}")
+                        continue
+                    if status == "linked":
+                        linked += 1
+                    elif status == "cleared":
+                        cleared += 1
+                    else:
+                        unchanged += 1
+            finally:
+                con.close()
+    except VaultBusyError as exc:
+        _exit_vault_busy(exc)
     prefix = "[dry-run] " if dry_run else ""
     suffix = f" · {errors} errors" if errors else ""
     typer.echo(f"{prefix}linked {linked} · unchanged {unchanged} · cleared {cleared}{suffix}")
@@ -1012,7 +1041,6 @@ def ingest(
     # Keep ledger OUTSIDE the vault (dedup.py docstring + spec). Namespace
     # by vault path so different vaults use separate ledgers.
     led_path = ledger if ledger is not None else paths.default_ledger(vault)
-    led = DedupLedger(led_path)
     selected = _resolve_harnesses(harness, cairn_env())
     if transcripts_dir is not None and (selected is None or len(selected) != 1):
         raise typer.BadParameter("--transcripts-dir requires exactly one --harness")
@@ -1036,15 +1064,28 @@ def ingest(
         judge = resolve_judge(env=env, embedder_loader=loader)
     else:
         judge = resolve_judge(embedder_loader=loader)
-    rep = ingest_transcripts(
-        transcripts,
-        vault_root=vault,
-        ledger=led,
-        threshold=threshold,
-        judge=judge,
-        judged_cache=JudgedCache(led_path.parent / f"{paths.vault_key(vault)}.judged.jsonl"),
-        dry_run=dry_run,
-    )
+
+    def _run_ingest():
+        # Both caches are read only after the writer lock is held. Loading them
+        # before waiting could let a second process ingest against stale state.
+        return ingest_transcripts(
+            transcripts,
+            vault_root=vault,
+            ledger=DedupLedger(led_path),
+            threshold=threshold,
+            judge=judge,
+            judged_cache=JudgedCache(led_path.parent / f"{paths.vault_key(vault)}.judged.jsonl"),
+            dry_run=dry_run,
+        )
+
+    if dry_run:
+        rep = _run_ingest()
+    else:
+        try:
+            with vault_writer_lock(vault, operation="cli-ingest"):
+                rep = _run_ingest()
+        except VaultBusyError as exc:
+            _exit_vault_busy(exc)
     prefix = "[dry-run] " if dry_run else ""
     summaries_part = f"{rep.summaries} summaries · " if rep.summaries else ""
     typer.echo(

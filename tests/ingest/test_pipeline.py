@@ -359,6 +359,55 @@ def test_ingest_transcripts_judges_once_and_gates_by_combined_score(tmp_path):
     assert "CI status" not in blob
 
 
+def test_pipeline_redacts_model_generated_title_and_distillation_before_write(tmp_path):
+    """The LLM is outside the trusted write boundary. Even with redacted input it
+    may emit a credential-shaped string, so every generated field gets a final
+    redaction pass before it influences the slug, frontmatter, or body."""
+    from cairn.ingest.judge import Judgment
+    from cairn.ingest.pipeline import ingest_transcripts
+
+    secret = "sk-proj-abcdefghijklmnopqrstuvwxyz123456"
+
+    class LeakyJudge:
+        def judge(self, texts, *, contexts=None):
+            return [
+                Judgment(
+                    durability=1.0,
+                    title=f"Rotation policy {secret}",
+                    distilled=f"Always rotate the credential {secret}.",
+                )
+                for _ in texts
+            ]
+
+    transcript = Transcript(
+        session_id="s-model-output",
+        cwd="/Users/x/p",
+        git_branch="main",
+        path=tmp_path / "s-model-output.jsonl",
+        events=[
+            _ev(
+                EventKind.AUTHORED_USER,
+                "We decided to rotate deployment credentials every thirty days.",
+            )
+        ],
+    )
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    report = ingest_transcripts(
+        [transcript],
+        vault_root=vault,
+        ledger=DedupLedger(tmp_path / "led.sha256"),
+        judge=LeakyJudge(),
+    )
+
+    assert len(report.written) == 1
+    assert report.redactions == 2
+    blob = report.written[0].read_text()
+    assert secret not in blob
+    assert blob.count("[REDACTED:openai_key]") == 2
+    assert secret not in report.written[0].name
+
+
 def test_ingest_transcripts_without_judge_matches_legacy_behavior(tmp_path):
     from cairn.ingest.pipeline import ingest_transcripts
 

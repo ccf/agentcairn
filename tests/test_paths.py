@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
+import stat
 from pathlib import Path
 
 import duckdb
@@ -64,6 +65,8 @@ def test_migrate_legacy_index_rehomes_by_inferred_vault(monkeypatch, tmp_path):
     moved = paths.migrate_legacy_index(env={})
     assert moved == paths.default_index(vault_root)
     assert moved.exists() and not legacy.exists()
+    assert stat.S_IMODE(moved.stat().st_mode) == 0o600
+    assert stat.S_IMODE(moved.parent.stat().st_mode) == 0o700
 
 
 def test_migrate_legacy_index_noops_when_cairn_index_set(monkeypatch, tmp_path):

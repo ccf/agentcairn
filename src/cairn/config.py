@@ -34,7 +34,13 @@ def parse_bool(value: str) -> bool:
 # ---------------------------------------------------------------------------
 
 _DEFAULT_CONFIG_PATH = Path.home() / ".agentcairn" / "config.toml"
-_PASSTHROUGH = {"anthropic_api_key": "ANTHROPIC_API_KEY", "ollama_host": "OLLAMA_HOST"}
+_PASSTHROUGH = {
+    "anthropic_api_key": "ANTHROPIC_API_KEY",
+    "ollama_host": "OLLAMA_HOST",
+    "openai_api_key": "OPENAI_API_KEY",
+    "openai_base_url": "OPENAI_BASE_URL",
+    "voyage_api_key": "VOYAGE_API_KEY",
+}
 
 
 @dataclass(frozen=True)
@@ -93,8 +99,16 @@ KNOBS: tuple[Knob, ...] = (
         "ollama_host", "OLLAMA_HOST", "http://localhost:11434", "Ollama server (ollama embedder)."
     ),
     Knob(
+        "openai_base_url",
+        "OPENAI_BASE_URL",
+        "https://api.openai.com/v1",
+        "OpenAI-compatible embedding endpoint.",
+    ),
+    Knob(
         "anthropic_api_key", "ANTHROPIC_API_KEY", "", "API key for the LLM judge tier.", secret=True
     ),
+    Knob("voyage_api_key", "VOYAGE_API_KEY", "", "API key for Voyage embeddings.", secret=True),
+    Knob("openai_api_key", "OPENAI_API_KEY", "", "API key for OpenAI embeddings.", secret=True),
     Knob(
         "consolidate",
         "CAIRN_CONSOLIDATE",
@@ -116,8 +130,8 @@ KNOBS: tuple[Knob, ...] = (
     Knob(
         "auto_recall_scope",
         "CAIRN_AUTO_RECALL_SCOPE",
-        "all",
-        "Auto-recall scope: 'all' (boost, non-lossy) or 'project' (hard filter).",
+        "project",
+        "Auto-recall scope: 'project' (default hard filter) or 'all' (cross-project opt-in).",
     ),
 )
 _KNOWN_KEYS = {k.key for k in KNOBS}
@@ -228,6 +242,8 @@ def openai_config(env: Mapping[str, str] | None = None) -> tuple[str, str | None
 
 
 _DEFAULT_AUTO_RECALL_K = 3
+_DEFAULT_AUTO_RECALL_SCOPE = "project"
+_AUTO_RECALL_SCOPES = frozenset({"all", "project"})
 
 
 def resolve_rerank(explicit: bool | None = None, env: Mapping[str, str] | None = None) -> bool:
@@ -289,10 +305,15 @@ def resolve_auto_recall_k(env: Mapping[str, str] | None = None) -> int:
 
 
 def resolve_auto_recall_scope(env: Mapping[str, str] | None = None) -> str:
-    """Resolve auto-recall scope: CAIRN_AUTO_RECALL_SCOPE env/file → 'all'."""
+    """Resolve auto-recall scope, defaulting invalid values to ``project``.
+
+    ``all`` remains an explicit cross-project opt-in. Unknown values fail closed
+    to the project filter instead of silently widening automatic recall.
+    """
     if env is None:
         env = cairn_env()
-    return (env.get("CAIRN_AUTO_RECALL_SCOPE") or "all").strip().lower()
+    scope = (env.get("CAIRN_AUTO_RECALL_SCOPE") or _DEFAULT_AUTO_RECALL_SCOPE).strip().lower()
+    return scope if scope in _AUTO_RECALL_SCOPES else _DEFAULT_AUTO_RECALL_SCOPE
 
 
 _DEFAULT_JUDGE_MODEL = "claude-haiku-4-5"

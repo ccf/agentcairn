@@ -292,13 +292,16 @@ def test_plugin_manifest_drops_index_path_and_bumps_version():
     assert man["version"] != "0.1.0"  # bumped so `claude plugin update` ships the fix
 
 
-def test_mcp_manifests_have_no_cairn_index():
-    """The index is vault-derived; no plugin MCP manifest may pin CAIRN_INDEX."""
+def test_mcp_manifests_do_not_pin_a_derived_index_or_nonconfigurable_vault():
+    """Only Claude has user-config interpolation; other hosts use shared config."""
     for rel in (".mcp.json", ".mcp.codex.json", "mcp_config.json"):
         data = _json(PLUGIN / rel)
         blob = json.dumps(data)
         assert "CAIRN_INDEX" not in blob, f"{rel} still pins CAIRN_INDEX"
-        assert "CAIRN_VAULT" in blob, f"{rel} must still set CAIRN_VAULT"
+        if rel == ".mcp.json":
+            assert "${user_config.vault_path}" in blob
+        else:
+            assert "CAIRN_VAULT" not in blob, f"{rel} bypasses shared config.toml"
 
 
 def test_session_start_no_savings_line_when_empty(tmp_path):

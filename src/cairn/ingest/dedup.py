@@ -8,6 +8,8 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
+from cairn.storage import append_private_text
+
 
 def content_hash(text: str) -> str:
     """SHA-256 hex of the (already redacted) candidate text."""
@@ -28,6 +30,4 @@ class DedupLedger:
         if h in self._seen:
             return
         self._seen.add(h)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("a", encoding="utf-8") as f:
-            f.write(h + "\n")
+        append_private_text(self.path, h + "\n")

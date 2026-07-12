@@ -19,6 +19,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Protocol
 
+from cairn.storage import append_private_text
+
 
 @dataclass(frozen=True)
 class Judgment:
@@ -368,14 +370,12 @@ class JudgedCache:
         if self._mem.get(h) == (judgment, tier):
             return  # idempotent: no duplicate appends across runs
         self._mem[h] = (judgment, tier)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         row: dict = {"h": h, "d": judgment.durability, "tier": tier, "v": _JUDGE_CACHE_VERSION}
         if judgment.title:
             row["t"] = judgment.title
         if judgment.distilled:
             row["s"] = judgment.distilled
-        with self.path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(row) + "\n")
+        append_private_text(self.path, json.dumps(row) + "\n")
 
 
 _TIER_RANK = {"none": 0, "embedding": 1, "llm": 2}

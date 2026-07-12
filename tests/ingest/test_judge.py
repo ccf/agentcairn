@@ -1,6 +1,7 @@
 # tests/ingest/test_judge.py
 # SPDX-License-Identifier: Apache-2.0
 import json
+import stat
 
 from cairn.ingest.judge import (
     _DURABLE_PROTOTYPES,
@@ -613,6 +614,15 @@ def test_judged_cache_records_tier(tmp_path):
     assert c2.get("h1") == (Judgment(durability=0.3), "embedding")
     assert c2.get("h2")[1] == "llm"
     assert c2.get("missing") is None
+
+
+def test_judged_cache_uses_private_defaults(tmp_path):
+    from cairn.ingest.judge import JudgedCache, Judgment
+
+    path = tmp_path / "cache" / "j.jsonl"
+    JudgedCache(path).put("h", Judgment(durability=0.5))
+    assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
 
 
 def test_judged_cache_discards_stale_and_versionless_rows(tmp_path):

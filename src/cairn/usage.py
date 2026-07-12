@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from cairn.config import cairn_env
+from cairn.storage import append_private_text
 
 _CHARS_PER_TOKEN = 4
 _SCHEMA = 1
@@ -66,9 +67,7 @@ def record(event: str, *, full: int, recalled: int, k: int) -> None:
             "recalled": int(recalled),
         }
         p = ledger_path()
-        p.parent.mkdir(parents=True, exist_ok=True)
-        with p.open("a") as f:
-            f.write(json.dumps(row) + "\n")
+        append_private_text(p, json.dumps(row) + "\n")
     except Exception:
         pass  # analytics must never break recall
 

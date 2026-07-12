@@ -6,7 +6,7 @@ Ambient recall-and-capture for [OpenCode](https://opencode.ai).  A thin TypeScri
 
 | Hook | Behaviour |
 |------|-----------|
-| `experimental.chat.system.transform` | Before each LLM call, recalls relevant vault memories and injects them into the system prompt. |
+| `experimental.chat.system.transform` | Before each LLM call, recalls current-project memories and injects them as quoted, untrusted historical evidence—not instructions. |
 | `chat.message` | Buffers the latest user message text so the recall hook has a query string. |
 | `event` (session.idle / session.compacted) | After the session ends or is compacted, fires `cairn sweep` to ingest the transcript and reindex. Sweep is non-blocking and fire-and-forget. |
 
@@ -55,6 +55,11 @@ cp integrations/opencode/commands/remember.md  ~/.config/opencode/commands/
 
 - `/recall <query>` — search vault and surface relevant notes
 - `/remember <fact>` — write a durable note immediately
+
+Ambient recall always calls `cairn recall --scope project`. The manual `/recall`
+command keeps the CLI's cross-project default. Injected items are individually
+quoted and tagged with available permalink/project provenance so note content
+cannot blur into the surrounding system instructions.
 
 ## Running the tests
 

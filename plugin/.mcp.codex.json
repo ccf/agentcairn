@@ -1,9 +1,6 @@
 {
   "agentcairn": {
     "command": "uvx",
-    "args": ["agentcairn"],
-    "env": {
-      "CAIRN_VAULT": "~/agentcairn"
-    }
+    "args": ["agentcairn"]
   }
 }

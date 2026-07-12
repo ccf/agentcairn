@@ -56,11 +56,12 @@ def test_resolve_config_index_default(monkeypatch):
     monkeypatch.delenv("CAIRN_INDEX", raising=False)
     monkeypatch.delenv("CAIRN_VAULT", raising=False)
     monkeypatch.delenv("CAIRN_EMBEDDER", raising=False)
-    _, index, _ = resolve_config(index=None)
+    vault, index, _ = resolve_config(index=None)
     # No CAIRN_VAULT → vault defaults to ~/agentcairn; index derives from that vault.
     from pathlib import Path
 
     expected = str(paths.default_index(Path.home() / "agentcairn"))
+    assert vault == str(Path.home() / "agentcairn")
     assert index == expected
 
 
@@ -154,3 +155,76 @@ def test_server_rerank_env_off(monkeypatch):
     mcp = build_server(index="/tmp/i.duckdb")
     assert _tool_rerank_default(mcp, "search") is False
     assert _tool_rerank_default(mcp, "recall") is False
+
+
+def _tool_fn(mcp, name):
+    return mcp._tool_manager._tools[name].fn
+
+
+def test_first_read_reconciles_manual_vault_edits(tmp_path, monkeypatch):
+    from cairn import paths
+    from cairn.mcp.server import build_server
+
+    monkeypatch.setattr(paths, "cache_root", lambda: tmp_path / "cache")
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    index = tmp_path / "i.duckdb"
+    mcp = build_server(vault=str(vault), index=str(index), embedder="fake")
+
+    # Simulate an Obsidian/manual edit after server construction but before the
+    # first tool call. The lazy startup reconcile must honor it automatically.
+    (vault / "manual.md").write_text(
+        "---\ntitle: Manual\npermalink: manual\n---\nThe launch phrase is cobalt unicorn.\n"
+    )
+    result = _tool_fn(mcp, "search")("cobalt unicorn", rerank=False)
+
+    assert result["freshness"]["status"] == "current"
+    assert result["freshness"]["source"] == "startup_reconcile"
+    assert "manual" in {hit["permalink"] for hit in result["hits"]}
+
+
+def test_standalone_server_remember_uses_default_vault(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    from cairn import paths
+    from cairn.mcp.server import build_server
+
+    fake_home = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: fake_home))
+    monkeypatch.setattr(paths, "cache_root", lambda: tmp_path / "cache")
+    monkeypatch.setattr("cairn.mcp.server.cairn_env", lambda: {})
+    mcp = build_server(index=str(tmp_path / "i.duckdb"), embedder="fake")
+
+    saved = _tool_fn(mcp, "remember")("Standalone MCP remembers without CAIRN_VAULT.")
+
+    path = Path(saved["path"])
+    assert fake_home / "agentcairn" in path.parents
+    assert path.exists()
+    assert saved["index"]["status"] == "current"
+
+
+def test_startup_reconcile_retries_transient_duckdb_reader_contention(monkeypatch):
+    import duckdb
+
+    from cairn.mcp.server import _LazyReconciler
+
+    calls = 0
+
+    def reconcile(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise duckdb.IOException(
+                "Could not set lock on file: Conflicting lock is held in another process"
+            )
+        return {"status": "current", "added": 0, "updated": 0, "deleted": 0}
+
+    monkeypatch.setattr("cairn.mcp.server.tools.reconcile_index_tool", reconcile)
+    freshness = _LazyReconciler("/vault", "/index.duckdb", "fake")
+
+    first = freshness.ensure()
+    second = freshness.ensure()
+
+    assert first["reason"] == "index_reader_busy"
+    assert second["status"] == "current"
+    assert calls == 2

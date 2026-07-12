@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import json as _json
+import stat
 
 from cairn.hosts import detected_hosts, get_host
 from cairn.hosts.entry import mcp_entry
@@ -74,6 +75,41 @@ def test_json_writer_creates_and_writes(tmp_path):
     data = _json.loads(p.read_text())
     assert data["mcpServers"]["agentcairn"] == _ENTRY
     assert str(p) in summary
+
+
+def test_json_writer_new_config_is_private(tmp_path):
+    p = tmp_path / "sub" / "mcp.json"
+    write_json_mcp(p, _ENTRY)
+    assert stat.S_IMODE(p.stat().st_mode) == 0o600
+    assert stat.S_IMODE(p.parent.stat().st_mode) == 0o700
+
+
+def test_json_writer_preserves_existing_0600_mode(tmp_path):
+    p = tmp_path / "mcp.json"
+    p.write_text("{}", encoding="utf-8")
+    p.chmod(0o600)
+
+    write_json_mcp(p, _ENTRY)
+
+    assert stat.S_IMODE(p.stat().st_mode) == 0o600
+
+
+def test_json_writer_preserves_user_managed_config_symlink(tmp_path):
+    real = tmp_path / "dotfiles" / "mcp.json"
+    real.parent.mkdir()
+    real.write_text("{}")
+    link = tmp_path / "mcp.json"
+    try:
+        link.symlink_to(real)
+    except OSError as exc:  # pragma: no cover - Windows without symlink privileges
+        import pytest
+
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    write_json_mcp(link, _ENTRY)
+
+    assert link.is_symlink()
+    assert _json.loads(real.read_text())["mcpServers"]["agentcairn"] == _ENTRY
 
 
 def test_json_writer_preserves_other_servers_and_keys(tmp_path):

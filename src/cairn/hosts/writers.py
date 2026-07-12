@@ -34,7 +34,6 @@ def write_json_mcp(
     rendered = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
     if dry:
         return rendered
-    path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write(path, rendered)
     return f"wrote agentcairn → {path}"
 

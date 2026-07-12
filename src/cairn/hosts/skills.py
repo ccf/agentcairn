@@ -25,6 +25,5 @@ def install_skill(skill_root: Path, *, dry: bool = False) -> str:
     dest = skill_root / "using-agentcairn-memory" / "SKILL.md"
     if dry:
         return f"would install skill → {dest}"
-    dest.parent.mkdir(parents=True, exist_ok=True)
     atomic_write(dest, cursor_skill_text())
     return f"installed skill → {dest}"

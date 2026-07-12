@@ -5,12 +5,46 @@ embedding model + dim so a model/dim mismatch can trigger a rebuild."""
 
 from __future__ import annotations
 
+import os
+import threading
+from pathlib import Path
+
 import duckdb
+
+from cairn.storage import PRIVATE_FILE_MODE, ensure_private_dir
+
+_PRIVATE_CREATE_UMASK = 0o177
+_CONNECT_MODE_LOCK = threading.Lock()
 
 
 def open_index(path: str, *, dim: int, model_id: str) -> duckdb.DuckDBPyConnection:
-    con = duckdb.connect(path)
-    con.execute("INSTALL vss; LOAD vss;")
+    db_path = Path(path)
+    filesystem_backed = path != ":memory:"
+    existed = True
+    if filesystem_backed:
+        ensure_private_dir(db_path.parent)
+        existed = db_path.exists()
+    if filesystem_backed and not existed:
+        # DuckDB rejects a securely pre-created empty file as an invalid database.
+        # Hold a process-local guard while applying a restrictive creation umask,
+        # then restore the caller's umask immediately after connect. The umask is
+        # process-global, but making an unrelated concurrent create *more* private
+        # is safe; this guard keeps AgentCairn's own connects deterministic.
+        with _CONNECT_MODE_LOCK:
+            previous_umask = os.umask(_PRIVATE_CREATE_UMASK)
+            try:
+                con = duckdb.connect(path)
+            finally:
+                os.umask(previous_umask)
+    else:
+        con = duckdb.connect(path)
+    if filesystem_backed and not existed:
+        # DuckDB creates the file during connect(). Tighten only files this call
+        # created; never chmod an explicitly supplied pre-existing index.
+        try:
+            db_path.chmod(PRIVATE_FILE_MODE)
+        except OSError:
+            pass  # e.g. a filesystem that does not implement POSIX modes
     con.execute("INSTALL fts; LOAD fts;")
     con.execute(
         "CREATE TABLE IF NOT EXISTS notes ("
