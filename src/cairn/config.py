@@ -57,7 +57,7 @@ KNOBS: tuple[Knob, ...] = (
     Knob(
         "index",
         "CAIRN_INDEX",
-        "~/.cache/agentcairn/index.duckdb",
+        "~/.cache/agentcairn/indexes/<vault_key>.duckdb",
         "DuckDB index path (rebuildable cache).",
     ),
     Knob(

@@ -3,6 +3,7 @@ import pytest
 
 import cairn.config as _cfg
 import cairn.ingest.judge as _judge
+import cairn.paths as _paths
 
 
 @pytest.fixture(autouse=True)
@@ -23,6 +24,12 @@ def _isolated_usage_ledger(tmp_path, monkeypatch):
     stat. `cairn_env` reads CAIRN_USAGE_PATH from the live environment, so a
     setenv here redirects the ledger for the whole test."""
     monkeypatch.setenv("CAIRN_USAGE_PATH", str(tmp_path / "usage.jsonl"))
+
+
+@pytest.fixture(autouse=True)
+def _isolated_cache_root(tmp_path, monkeypatch):
+    """Never let vault-derived test indexes or ledgers escape into the real cache."""
+    monkeypatch.setattr(_paths, "cache_root", lambda: tmp_path / "cache")
 
 
 @pytest.fixture(autouse=True)

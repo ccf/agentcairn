@@ -104,6 +104,51 @@ def test_reindex_and_status(tmp_path):
     assert "notes: 1" in s.output
 
 
+def test_index_status_opens_read_only_and_closes(tmp_path, monkeypatch):
+    import duckdb
+
+    idx = tmp_path / "i.duckdb"
+    idx.touch()
+    opened = {}
+
+    class FakeConnection:
+        closed = False
+        row = None
+
+        def execute(self, sql, params=None):
+            if sql == "SELECT count(*) FROM notes":
+                self.row = (3,)
+            elif sql == "SELECT count(*) FROM chunks":
+                self.row = (5,)
+            elif params == ["embedding_model"]:
+                self.row = ("fake",)
+            elif params == ["embedding_dim"]:
+                self.row = ("8",)
+            else:  # pragma: no cover - makes an unexpected query actionable
+                raise AssertionError((sql, params))
+            return self
+
+        def fetchone(self):
+            return self.row
+
+        def close(self):
+            self.closed = True
+
+    def connect(path, *, read_only=False):
+        opened["path"] = path
+        opened["read_only"] = read_only
+        opened["connection"] = FakeConnection()
+        return opened["connection"]
+
+    monkeypatch.setattr(duckdb, "connect", connect)
+    result = runner.invoke(app, ["index-status", "--index", str(idx)])
+
+    assert result.exit_code == 0, result.output
+    assert opened["path"] == str(idx)
+    assert opened["read_only"] is True
+    assert opened["connection"].closed is True
+
+
 def test_reindex_reports_actionable_vault_contention(tmp_path):
     from cairn.locking import vault_writer_lock
 
@@ -1325,6 +1370,9 @@ def test_config_inspect_shows_sources(tmp_path, monkeypatch):
     assert "anthropic" in judge_line and "[file]" in judge_line  # file-sourced
     emb_line = next(ln for ln in lines if ln.strip().startswith("embedder "))
     assert "fake" in emb_line and "[env]" in emb_line  # env-sourced
+    index_line = next(ln for ln in lines if ln.strip().startswith("index "))
+    assert "~/.cache/agentcairn/indexes/<vault_key>.duckdb" in index_line
+    assert "[default]" in index_line
     assert "default" in out  # untouched knobs
     assert "sk-ant-test-abcdef12345678" not in out  # secret masked
     assert "5678" in out  # long secret (26 chars > 20): last4 shown

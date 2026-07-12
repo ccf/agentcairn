@@ -280,13 +280,18 @@ def index_status(
         raise typer.Exit(1)
     import duckdb
 
-    con = duckdb.connect(str(idx))
-    n = con.execute("SELECT count(*) FROM notes").fetchone()[0]
-    c = con.execute("SELECT count(*) FROM chunks").fetchone()[0]
-    typer.echo(f"index: {idx}")
-    typer.echo(f"model: {get_meta(con, 'embedding_model')} (dim {get_meta(con, 'embedding_dim')})")
-    typer.echo(f"notes: {n}")
-    typer.echo(f"chunks: {c}")
+    con = duckdb.connect(str(idx), read_only=True)
+    try:
+        n = con.execute("SELECT count(*) FROM notes").fetchone()[0]
+        c = con.execute("SELECT count(*) FROM chunks").fetchone()[0]
+        typer.echo(f"index: {idx}")
+        typer.echo(
+            f"model: {get_meta(con, 'embedding_model')} (dim {get_meta(con, 'embedding_dim')})"
+        )
+        typer.echo(f"notes: {n}")
+        typer.echo(f"chunks: {c}")
+    finally:
+        con.close()
 
 
 @app.command()

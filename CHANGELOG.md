@@ -5,6 +5,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+### Fixed
+- `cairn config` now reports the vault-derived index default, and `cairn index-status`
+  opens DuckDB read-only and always closes its connection.
+- The test suite isolates vault-derived caches and stubs plugin-hook CLI boundaries,
+  preventing local test runs from leaking gigabytes of temporary indexes or depending
+  on a globally installed `cairn`/DuckDB extension cache.
+
 ## [0.24.0] - 2026-07-12
 
 ### Added

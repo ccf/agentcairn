@@ -27,7 +27,7 @@ def _shim_dir(tmp_path: Path, body: str) -> Path:
     return d
 
 
-def test_session_start_emits_digest(tmp_path, monkeypatch):
+def test_session_start_emits_digest(tmp_path):
     vault = tmp_path / "vault"
     vault.mkdir()
     (vault / "a.md").write_text(
@@ -36,9 +36,27 @@ def test_session_start_emits_digest(tmp_path, monkeypatch):
     (vault / "b.md").write_text(
         "---\ntitle: Vault is the source of truth\npermalink: vault-truth\n---\nFiles are truth.\n"
     )
-    # `shift 2` drops `--from agentcairn>=0.2`; remaining $@ is `cairn <subcmd> …`
-    # so `exec "$@"` correctly invokes the local cairn binary.
-    shim = _shim_dir(tmp_path, 'shift 2\nexec "$@"')
+    # This is a shell-hook contract test, so keep its `uvx ... cairn` dependency
+    # hermetic: return the same JSON shape as `cairn recent` and let unit tests
+    # cover DuckDB indexing. Invoking a global cairn here made results depend on
+    # its version and whether that HOME already had DuckDB's FTS extension.
+    recent_json = json.dumps(
+        {
+            "notes": [
+                {"permalink": "pin-duckdb", "title": "Pin DuckDB to 1.1"},
+                {"permalink": "vault-truth", "title": "Vault is the source of truth"},
+            ]
+        }
+    )
+    shim = _shim_dir(
+        tmp_path,
+        f"""shift 2
+case "${{2:-}}" in
+  recent) printf '%s\\n' '{recent_json}' ;;
+  warm|savings) exit 0 ;;
+  *) exit 2 ;;
+esac""",
+    )
     env = dict(
         os.environ,
         HOME=str(tmp_path),
@@ -46,18 +64,8 @@ def test_session_start_emits_digest(tmp_path, monkeypatch):
         CAIRN_EMBEDDER="fake",
     )
 
-    # Build the vault-scoped index where `cairn recent` reads it.
-    # HOME=tmp_path → cache_root() = tmp_path/.cache/agentcairn
-    # → index at tmp_path/.cache/agentcairn/indexes/<vault_key>.duckdb
-    subprocess.run(
-        ["cairn", "reindex", str(vault), "--embedder", "fake"],
-        env=env,
-        check=True,
-    )
-
     # The session-start fast-path guard checks for the indexes dir (or legacy
-    # index.duckdb). Creating it after reindex ensures the dir exists so the
-    # script takes the fast digest path instead of the cold-start branch.
+    # index.duckdb). Create the directory so the script takes the digest path.
     (tmp_path / ".cache" / "agentcairn" / "indexes").mkdir(parents=True, exist_ok=True)
 
     res = subprocess.run(
