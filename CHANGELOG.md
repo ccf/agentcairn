@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.24.1] - 2026-07-12
+
 ### Fixed
 - `cairn config` now reports the vault-derived index default, and `cairn index-status`
   opens DuckDB read-only and always closes its connection.
@@ -356,7 +358,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Out-of-band capture from coding-agent transcripts (redacted, non-lossy `remember`).
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
-[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.24.0...HEAD
+[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.24.1...HEAD
+[0.24.1]: https://github.com/ccf/agentcairn/compare/v0.24.0...v0.24.1
 [0.24.0]: https://github.com/ccf/agentcairn/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/ccf/agentcairn/compare/v0.22.1...v0.23.0
 [0.22.1]: https://github.com/ccf/agentcairn/compare/v0.22.0...v0.22.1
