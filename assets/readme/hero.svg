@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="500" viewBox="0 0 1200 500" role="img" aria-labelledby="hero-title hero-desc">
+  <title id="hero-title">agentcairn — one memory across your coding agents</title>
+  <desc id="hero-desc">A calm editorial title beside a cairn made from a Markdown vault, a rebuildable DuckDB index, and a cited recall result.</desc>
+
+  <rect width="1200" height="500" rx="28" fill="#FAFAF8"/>
+  <rect x="1" y="1" width="1198" height="498" rx="27" fill="none" stroke="#DDDCD7" stroke-width="2"/>
+
+  <g aria-hidden="true" transform="translate(56 38)">
+    <path d="M2 31 C5 23 14 20 29 21 C42 22 49 27 47 35 C44 41 9 42 4 37 C2 35 1 33 2 31Z" fill="#191919"/>
+    <path d="M10 19 C12 12 20 9 31 10 C40 11 44 15 42 22 C39 27 14 28 11 23 C10 22 9 20 10 19Z" fill="#545450"/>
+    <path d="M19 8 C21 3 27 1 33 3 C38 4 40 8 37 12 C34 16 21 16 19 12 C18 11 18 9 19 8Z" fill="#8B8B85"/>
+  </g>
+
+  <text x="116" y="72" fill="#191919" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="27" font-weight="650" letter-spacing="-0.6">agentcairn</text>
+  <text x="56" y="124" fill="#6A6A65" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" letter-spacing="1.4">ONE VAULT · EVERY SUPPORTED AGENT · LOCAL-FIRST</text>
+
+  <text x="56" y="202" fill="#191919" font-family="Georgia, 'Times New Roman', serif" font-size="58" font-weight="400" letter-spacing="-1.5">One memory across</text>
+  <text x="56" y="267" fill="#191919" font-family="Georgia, 'Times New Roman', serif" font-size="58" font-weight="400" letter-spacing="-1.5">your coding agents.</text>
+
+  <text x="56" y="319" fill="#191919" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="26" font-weight="600">Plain Markdown under your control.</text>
+  <text x="56" y="358" fill="#5F5F5A" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="18">The vault is canonical. DuckDB is the disposable cache.</text>
+  <text x="56" y="385" fill="#5F5F5A" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="18">Inspect a fact, edit it by hand, and let every agent follow the same trail.</text>
+
+  <g transform="translate(56 420)">
+    <rect width="258" height="44" rx="11" fill="#FFFFFF" stroke="#D6D6D0" stroke-width="1.5"/>
+    <text x="17" y="28" fill="#317CFF" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16">MARKDOWN · DUCKDB · MCP</text>
+  </g>
+  <text x="334" y="448" fill="#5F5F5A" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16">INSPECTABLE · REBUILDABLE</text>
+
+  <path d="M935 165 C935 182 935 190 935 207" fill="none" stroke="#317CFF" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="935" cy="185" r="5" fill="#E89B3C"/>
+  <path d="M935 319 C935 329 935 333 935 342" fill="none" stroke="#317CFF" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="935" cy="330" r="5" fill="#317CFF"/>
+
+  <g transform="rotate(-1 985 112)">
+    <rect x="830" y="58" width="310" height="114" rx="20" fill="#191919"/>
+    <text x="854" y="88" fill="#9ABEFF" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" letter-spacing="1">RECALL · CURRENT</text>
+    <text x="854" y="121" fill="#FFFFFF" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="18">Rotated jwt-secret during deploy.</text>
+    <text x="854" y="149" fill="#C8C8C3" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16">↳ auth-fix.md · api</text>
+  </g>
+
+  <g transform="rotate(0.8 960 263)">
+    <rect x="770" y="207" width="380" height="112" rx="21" fill="#FFFFFF" stroke="#D6D6D0" stroke-width="1.5"/>
+    <text x="796" y="239" fill="#5F5F5A" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" letter-spacing="1">INDEX · REBUILDABLE CACHE</text>
+    <text x="796" y="276" fill="#191919" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="27" font-weight="650">DuckDB</text>
+    <text x="932" y="276" fill="#5F5F5A" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16">vector + BM25 + rerank</text>
+    <text x="796" y="301" fill="#5F5F5A" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16">safe to rebuild</text>
+  </g>
+
+  <g transform="rotate(-0.6 925 399)">
+    <rect x="700" y="342" width="450" height="114" rx="22" fill="#EAF1FF" stroke="#317CFF" stroke-width="1.7"/>
+    <text x="728" y="373" fill="#2563EB" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" letter-spacing="1">VAULT · SOURCE OF TRUTH</text>
+    <text x="728" y="405" fill="#191919" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17">auth-fix.md</text>
+    <text x="728" y="434" fill="#4F4F4A" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16">Fixed login by rotating </text>
+    <text x="958" y="434" fill="#2563EB" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16">[[jwt-secret]]</text>
+  </g>
+
+</svg>
