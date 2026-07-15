@@ -56,7 +56,7 @@ codex plugin marketplace add ccf/agentcairn
 codex plugin add agentcairn@agentcairn
 ```
 
-Codex gets the bundled MCP tools and memory skill, verified SessionStart recall, and a SessionEnd handler with `cairn sweep` as the out-of-band capture backstop.
+Codex gets the bundled MCP tools and memory skill, live-verified SessionStart recall, and SessionEnd capture with `cairn sweep` as the out-of-band backstop.
 
 The default vault is `~/agentcairn` and is created on first use. A new empty vault has nothing useful to recall yet, so prove the whole loop explicitly:
 
@@ -108,7 +108,7 @@ Every host resolves the same configured vault. `cairn install` previews detected
 | Host | Integration | Set up with | Ambient memory |
 |---|---|---|---|
 | **Claude Code** | Plugin + MCP + skill | `cairn install claude-code` | ✅ per-turn + SessionStart recall; SessionEnd/PreCompact capture |
-| **Codex** | Plugin + MCP + skill | `cairn install codex` | ◐ SessionStart verified; SessionEnd handler + sweep |
+| **Codex** | Plugin + MCP + skill | `cairn install codex` | ✅ SessionStart recall; SessionEnd capture + sweep |
 | **Cursor** | MCP + skill + ingest | `cairn install cursor` | ◐ out-of-band sweep |
 | **OpenCode** | Plugin + MCP + ingest | `cairn install opencode` | ✅ per-turn recall + idle/compact capture |
 | **Hermes Agent** | Native `MemoryProvider` | [`integrations/hermes/`](integrations/hermes/) | ✅ auto-recall + session-end capture |
@@ -117,7 +117,7 @@ Every host resolves the same configured vault. `cairn install` previews detected
 | Claude Desktop | MCP server | `cairn install claude-desktop` | — |
 | Any other MCP host | Portable MCP server | `uvx agentcairn` | host-dependent |
 
-Codex SessionStart was verified live end-to-end with agentcairn 0.24.2 / plugin 0.1.2. Its installed SessionEnd handler uses the same corrected command-string dispatch and passes handler probes; `cairn sweep` remains the capture backstop. See the [OpenCode integration](integrations/opencode/) and [Hermes integration](integrations/hermes/) for their native lifecycle details.
+Codex SessionStart was verified live end-to-end with agentcairn 0.24.2 / plugin 0.1.2. The installed SessionEnd command dispatch and detached sweep pass exact handler probes; `cairn sweep` remains the out-of-band capture backstop. See the [OpenCode integration](integrations/opencode/) and [Hermes integration](integrations/hermes/) for their native lifecycle details.
 
 ## Using it directly
 
