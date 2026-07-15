@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="1030" viewBox="0 0 600 1030" role="img" aria-labelledby="workflow-mobile-title workflow-mobile-desc">
+  <title id="workflow-mobile-title">How agentcairn moves memory between supported coding agents</title>
+  <desc id="workflow-mobile-desc">Supported agents feed redacted durable context into a canonical Markdown vault. A disposable DuckDB index powers cited recall, while remember writes through to Markdown.</desc>
+
+  <rect width="600" height="1030" rx="26" fill="#FAFAF8"/>
+  <rect x="1" y="1" width="598" height="1028" rx="25" fill="none" stroke="#DDDCD7" stroke-width="2"/>
+
+  <text x="36" y="48" fill="#5F5F5A" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="24" letter-spacing="1.3">THE MEMORY TRAIL</text>
+  <text x="36" y="92" fill="#191919" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="36" font-weight="650">Capture once. Inspect the files.</text>
+  <text x="36" y="134" fill="#191919" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="36" font-weight="650">Recall anywhere.</text>
+
+  <g transform="translate(48 170)">
+    <rect width="504" height="120" rx="20" fill="#FFFFFF" stroke="#D6D6D0" stroke-width="2"/>
+    <text x="24" y="37" fill="#5F5F5A" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="24" letter-spacing="1">SUPPORTED AGENTS</text>
+    <text x="24" y="73" fill="#191919" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="24">Claude Code · Codex · Cursor</text>
+    <text x="24" y="103" fill="#191919" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="24">OpenCode · Hermes · Antigravity</text>
+  </g>
+
+  <path d="M300 290 V340" fill="none" stroke="#317CFF" stroke-width="3" stroke-linecap="round"/>
+  <path d="M291 328 L300 340 L309 328" fill="none" stroke="#317CFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="320" y="323" fill="#5F5F5A" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="24">redact</text>
+
+  <g transform="translate(48 340)">
+    <rect width="504" height="175" rx="22" fill="#EAF1FF" stroke="#317CFF" stroke-width="2.4"/>
+    <text x="24" y="40" fill="#2563EB" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="24" letter-spacing="1">MARKDOWN VAULT · TRUTH</text>
+    <text x="24" y="83" fill="#191919" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="30" font-weight="650">Files you own</text>
+    <text x="24" y="119" fill="#4F4F4A" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="24">frontmatter · [[wikilinks]]</text>
+    <line x1="24" y1="137" x2="480" y2="137" stroke="#BED2FA" stroke-width="2"/>
+    <text x="24" y="166" fill="#4F4F4A" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="24">You and Obsidian can edit it.</text>
+  </g>
+
+  <path d="M300 515 V565" fill="none" stroke="#317CFF" stroke-width="3" stroke-linecap="round"/>
+  <path d="M291 553 L300 565 L309 553" fill="none" stroke="#317CFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="320" y="548" fill="#5F5F5A" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="24">sync</text>
+
+  <g transform="translate(48 565)">
+    <rect width="504" height="150" rx="20" fill="#FFFFFF" stroke="#D6D6D0" stroke-width="2"/>
+    <text x="24" y="39" fill="#5F5F5A" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="24" letter-spacing="1">DUCKDB · REBUILDABLE CACHE</text>
+    <text x="24" y="80" fill="#191919" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="30" font-weight="650">Hybrid index</text>
+    <text x="24" y="115" fill="#4F4F4A" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="24">BM25 · vectors · graph · reranker</text>
+    <text x="24" y="141" fill="#4F4F4A" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="22">safe to delete and rebuild</text>
+    <circle cx="464" cy="128" r="10" fill="#E89B3C"/>
+  </g>
+
+  <path d="M300 715 V765" fill="none" stroke="#317CFF" stroke-width="3" stroke-linecap="round"/>
+  <path d="M291 753 L300 765 L309 753" fill="none" stroke="#317CFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="320" y="748" fill="#5F5F5A" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="24">rank</text>
+
+  <g transform="translate(48 765)">
+    <rect width="504" height="160" rx="20" fill="#191919"/>
+    <text x="24" y="39" fill="#9ABEFF" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="24" letter-spacing="1">MCP · CITED RECALL</text>
+    <text x="24" y="80" fill="#FFFFFF" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="30" font-weight="650">Relevant context</text>
+    <text x="24" y="116" fill="#D2D2CD" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="24">current first · project-aware</text>
+    <text x="24" y="146" fill="#D2D2CD" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="22">linked to its Markdown source</text>
+  </g>
+
+  <path d="M300 925 V970 H24 V427 H47" fill="none" stroke="#A9A9A3" stroke-width="3" stroke-dasharray="8 9" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M36 418 L48 427 L36 436" fill="none" stroke="#A9A9A3" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="170" y="951" width="382" height="38" rx="19" fill="#FAFAF8"/>
+  <text x="184" y="978" fill="#5F5F5A" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="24">remember · write-through</text>
+
+  <text x="48" y="1014" fill="#5F5F5A" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="24">Markdown survives an index rebuild.</text>
+</svg>
