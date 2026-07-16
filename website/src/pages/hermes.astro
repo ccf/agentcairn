@@ -35,8 +35,8 @@ const faq = [
     <h1 class="font-serif text-[40px] leading-tight mb-6">agentcairn for Hermes Agent</h1>
     <Prose>
       <p>
-        agentcairn is a native
-        <a href="https://github.com/NousResearch/hermes-agent" class="underline">Hermes Agent</a>
+        agentcairn is a native{" "}
+        <a href="https://github.com/NousResearch/hermes-agent" class="underline">Hermes Agent</a>{" "}
         <code>MemoryProvider</code>: durable, local-first memory for Hermes,
         backed by your own plain-Markdown vault — the same vault your Claude
         Code, Codex, and Cursor agents already use.
@@ -67,7 +67,7 @@ const faq = [
         </li>
         <li>
           <strong>A shared vault across agents.</strong> Point Hermes, Claude
-          Code, Codex, Cursor, and other supported hosts at the same
+          Code, Codex, Cursor, and other supported hosts at the same{" "}
           <code>CAIRN_VAULT</code> so relevant memory can follow you across tools.
         </li>
         <li>
@@ -98,7 +98,7 @@ const faq = [
           as agentcairn's normal capture.
         </li>
         <li>
-          <strong>Curated tools.</strong> <code>memory_save</code>,
+          <strong>Curated tools.</strong> <code>memory_save</code>,{" "}
           <code>memory_recall</code>, and <code>memory_search</code> are exposed
           as Hermes tools for on-demand, agent-driven memory operations.
         </li>
@@ -109,7 +109,7 @@ const faq = [
   <Section id="install" eyebrow="Install">
     <Prose>
       <p>
-        The provider ships in
+        The provider ships in{" "}
         <a href="https://github.com/ccf/agentcairn/tree/main/integrations/hermes" class="underline"><code>integrations/hermes/</code></a>.
         Hermes can install that repository subdirectory directly, and provider
         setup installs agentcairn into the same environment:
@@ -125,14 +125,14 @@ const faq = [
         Python 3.12 or newer. Hermes accepts Python 3.11+, and its managed CLI
         installer currently provisions 3.11, so that default environment cannot
         install this provider yet. Run Hermes in a 3.12+ environment before the
-        commands above. Check
-        <a href="https://github.com/NousResearch/hermes-agent/blob/main/website/docs/getting-started/installation.md" class="underline">Hermes&rsquo;s current installation documentation</a>
-        and the
-        <a href="https://github.com/ccf/agentcairn/tree/main/integrations/hermes" class="underline">integration README</a>
+        commands above. Check{" "}
+        <a href="https://github.com/NousResearch/hermes-agent/blob/main/website/docs/getting-started/installation.md" class="underline">Hermes&rsquo;s current installation documentation</a>{" "}
+        and the{" "}
+        <a href="https://github.com/ccf/agentcairn/tree/main/integrations/hermes" class="underline">integration README</a>{" "}
         before changing a managed environment.
       </p>
       <p class="mt-6">
-        All config keys are optional. By default it uses
+        All config keys are optional. By default it uses{" "}
         <code>~/agentcairn</code> (or <code>$CAIRN_VAULT</code>), local FastEmbed
         embeddings, and no secrets. A local Ollama embedder is also supported.
         Optional cloud embedders and the Anthropic durability judge belong to
@@ -142,9 +142,9 @@ const faq = [
       </p>
       <p>
         <a href="/agent-memory/" class="underline">What is agent memory?</a>
-        &middot;
+        {" "}&middot;{" "}
         <a href="/obsidian-ai-memory/" class="underline">Read your memory in Obsidian</a>
-        &middot;
+        {" "}&middot;{" "}
         <a href="/alternatives/" class="underline">How agentcairn compares</a>
       </p>
     </Prose>
