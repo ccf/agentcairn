@@ -1,14 +1,14 @@
 # agentcairn — Hermes memory provider
 
-agentcairn is a [Hermes](https://github.com/hermesagent/hermes) `MemoryProvider` plugin that gives Hermes local-first, vault-native memory backed by your own plain-Markdown Obsidian vault.
+agentcairn is a [Hermes](https://github.com/NousResearch/hermes-agent) `MemoryProvider` plugin that gives Hermes local-first, vault-native memory backed by your own plain-Markdown Obsidian vault.
 
-**It is the only Hermes memory provider that is:**
+Its design emphasizes:
 
 - **Vault-native and human-editable.** Memories are plain Markdown files with YAML frontmatter and `[[wikilinks]]` — open them in Obsidian, fix a wrong fact by hand, drop in your own notes, and the agent picks it all up on the next session.
-- **Local-first by default.** No cloud account, no network call, no always-on server required. The only storage is files on your disk.
+- **Local-first by default.** No cloud account, network call, or always-on server is required. Canonical Markdown and the derived retrieval index stay on your disk.
 - **Deterministic graph.** Your `[[wikilinks]]` and frontmatter *are* the graph — no LLM entity extraction, no hallucinated edges.
 - **Secret-redacted before every write.** Regex + entropy + URL-credential detection runs before any text reaches the vault.
-- **Non-lossy.** Distillation only adds derived notes; it never drops facts it didn't extract at write time.
+- **History-preserving.** Newer facts supersede older notes without silently deleting the prior Markdown.
 - **Cross-agent.** It writes to the same `CAIRN_VAULT` used by the Claude Code, Codex, and Cursor plugins — one unified brain across agents.
 
 ## How it works
@@ -21,14 +21,17 @@ agentcairn is a [Hermes](https://github.com/hermesagent/hermes) `MemoryProvider`
 
 ## Install
 
+agentcairn requires Python 3.12 or newer. Hermes supports Python 3.11+, but its
+managed CLI installer currently provisions a Python 3.11 environment. Make sure
+the Hermes environment itself uses Python 3.12+ before installing this provider;
+do not replace a managed environment without first reviewing the
+[current Hermes installation documentation](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/getting-started/installation.md).
+
 ```bash
-# 1. Install agentcairn into Hermes's Python environment
-pip install agentcairn
+# 1. Install the plugin directly from this repository subdirectory
+hermes plugins install ccf/agentcairn/integrations/hermes
 
-# 2. Copy the plugin
-cp -r integrations/hermes ~/.hermes/plugins/memory/agentcairn
-
-# 3. Register it
+# 2. Register it; Hermes installs the declared agentcairn dependency
 hermes memory setup agentcairn
 ```
 

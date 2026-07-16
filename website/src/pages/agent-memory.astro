@@ -3,9 +3,9 @@ import ContentPage from "../layouts/ContentPage.astro";
 import Section from "../components/Section.astro";
 import Prose from "../components/Prose.astro";
 
-const title = "Long-Term Memory for AI Coding Agents — agentcairn";
+const title = "Shared Long-Term Memory for AI Coding Agents — agentcairn";
 const description =
-  "What agent memory is, why coding agents forget, and how to add durable recall — local-first, with your data as the source of truth.";
+  "How durable agent memory works, why built-in memories stay siloed, and how coding agents can share local-first recall from a Markdown vault you own.";
 
 const faq = [
   {
@@ -14,7 +14,7 @@ const faq = [
   },
   {
     q: "Why do AI coding agents forget between sessions?",
-    a: "A context window is ephemeral: it is discarded when the session ends. Without an external memory layer, each new session starts cold and the agent has no record of earlier work.",
+    a: "A context window is ephemeral. Some coding agents now add native memory, but that memory usually stays inside one host or project. A shared memory layer makes selected durable context portable across supported agents.",
   },
   {
     q: "How is a local-first memory vault different from a cloud memory database?",
@@ -26,7 +26,7 @@ const faq = [
   },
   {
     q: "Which AI agents work with agentcairn?",
-    a: "Claude Code and Codex install as plugins. Cursor and other MCP hosts connect through the bundled MCP server, sharing one global vault.",
+    a: "Claude Code and Codex install as plugins, OpenCode and Hermes have native integrations, and Cursor plus other MCP hosts connect to the same configured vault.",
   },
 ];
 ---
@@ -35,9 +35,10 @@ const faq = [
     <h1 class="font-serif text-[40px] leading-tight mb-6">Long-term memory for AI coding agents</h1>
     <Prose>
       <p>
-        Coding agents are good at the task in front of them and forgetful about
-        everything else. This page explains what agent memory is, why agents
-        forget by default, and what to look for when you add durable recall.
+        Coding agents are good at the task in front of them, but durable context
+        is still fragmented. This page explains what agent memory is, where
+        native host memory helps, and what to look for when context needs to
+        follow you across tools.
       </p>
     </Prose>
   </Section>
@@ -46,11 +47,17 @@ const faq = [
     <Prose>
       <p>
         A model reasons over a context window — a finite buffer of tokens. When
-        a session ends, that buffer is discarded. Nothing persists by default.
-        The next session starts cold: the decisions you made, the approaches you
-        ruled out, and the conventions you settled on are simply gone. You
-        re-explain them, and the agent repeats mistakes it already learned to
-        avoid.
+        a session ends, that buffer is discarded. Some coding agents now persist
+        selected context in their own native memory files or stores. That is a
+        real improvement, but the memory is generally scoped to that host and
+        project. A decision learned in Claude Code does not automatically follow
+        you into Codex, Cursor, or OpenCode, and each host applies its own
+        lifecycle and controls.
+      </p>
+      <p>
+        The remaining problem is therefore not simply persistence. It is
+        portability, provenance, and selective recall across tools without
+        loading an entire history into every new context window.
       </p>
     </Prose>
   </Section>
@@ -117,8 +124,9 @@ const faq = [
           impossible to recover.
         </li>
         <li>
-          <strong>Secret redaction.</strong> Tokens, keys, and credentials should
-          be scrubbed before anything is written to storage.
+          <strong>Secret handling.</strong> Automated writes should redact
+          recognized tokens, keys, and credentials before storage, while making
+          the limits of pattern-based redaction clear.
         </li>
       </ul>
     </Prose>
@@ -135,13 +143,17 @@ const faq = [
         uninstalling the tool.
       </p>
       <p>
-        It works across coding agents: Claude Code and Codex as plugins, Cursor
-        and other MCP hosts via the bundled server, all sharing one global vault.
+        It works across coding agents: Claude Code and Codex as plugins,
+        OpenCode and Hermes through native integrations, and Cursor plus other
+        MCP hosts via the bundled server. They resolve the same configured vault,
+        which defaults to <code>~/agentcairn</code>.
       </p>
       <p>
-        <a href="/obsidian-ai-memory" class="underline">AI memory in Obsidian</a>
+        <a href="/claude-code-memory/" class="underline">Import Claude Code auto-memory</a>
         &middot;
-        <a href="/alternatives" class="underline">How agentcairn compares</a>
+        <a href="/obsidian-ai-memory/" class="underline">AI memory in Obsidian</a>
+        &middot;
+        <a href="/alternatives/" class="underline">How agentcairn compares</a>
       </p>
     </Prose>
   </Section>

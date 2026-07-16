@@ -7,7 +7,14 @@
   },
   // Static-assets-only Worker: serve the built `dist/` directly. No worker
   // entrypoint (`main`) because the site is fully static (no SSR).
+  //
+  // Protocol redirects are not supported by Workers Static Assets `_redirects`
+  // rules. The Cloudflare zone must also have SSL/TLS > Edge Certificates >
+  // Always Use HTTPS enabled so first-time HTTP requests reach this Worker over
+  // HTTPS. HSTS is then applied from `public/_headers` on HTTPS responses.
   "assets": {
-    "directory": "dist"
+    "directory": "dist",
+    // Keep routing, canonical tags, and sitemap URLs on one URL convention.
+    "html_handling": "force-trailing-slash"
   }
 }

@@ -3,109 +3,112 @@ import ContentPage from "../layouts/ContentPage.astro";
 import Section from "../components/Section.astro";
 import Prose from "../components/Prose.astro";
 
-const title = "agentcairn vs Mem0, Letta, Zep & basic-memory";
+const title = "agentcairn vs PMB, codemem, basic-memory & Mem0";
 const description =
-  "How agentcairn compares to Mem0, Letta, Zep, and basic-memory: a coding-focused local Markdown vault versus application and enterprise memory platforms.";
+  "Compare agentcairn with local coding-memory peers PMB, codemem, and basic-memory, plus adjacent platforms Mem0, Letta, and Zep/Graphiti.";
 
 const faq = [
   {
+    q: "What are the closest alternatives to agentcairn?",
+    a: "PMB and codemem are close product peers because they also provide local, cross-session memory inside coding-agent workflows. basic-memory is the closest data-model peer because it also centers human-editable Markdown and MCP.",
+  },
+  {
     q: "Is agentcairn a Mem0 alternative?",
-    a: "Yes — both give AI agents long-term memory, but agentcairn stores it as a local Markdown vault you own rather than in a vector database, and is built specifically for coding agents.",
+    a: "For a personal coding-agent workflow, possibly. For an application that needs a memory library, self-hosted API, or managed platform, Mem0 is built for that broader deployment model and may be the better fit.",
   },
   {
     q: "Can I move my memory off agentcairn?",
-    a: "Yes — your memory is plain Markdown files in a folder you control. There's nothing to export; the DuckDB index is a rebuildable cache, not the source of truth.",
+    a: "Yes. The durable memory is plain Markdown in a folder you control. The DuckDB index is derived and can be deleted or rebuilt; it is not the source of truth.",
   },
   {
-    q: "How is agentcairn different from basic-memory?",
-    a: "They share a local-first, Markdown-as-source-of-truth design. agentcairn is Apache-2.0 (basic-memory is AGPL-3.0) and is purpose-built for coding-agent memory — multi-harness plugins, out-of-band transcript capture, secret redaction, and provenance-aware recall.",
+    q: "Why are Mem0, Letta, and Zep not in the direct-peers table?",
+    a: "They solve adjacent but broader problems: application memory services, complete stateful-agent runtimes, and managed context-graph infrastructure. The table stays focused on tools that directly serve local coding-agent memory workflows.",
   },
 ];
 
 const rows = [
   {
-    dim: "Source of truth",
-    cairn: "Markdown vault",
+    dim: "Durable data",
+    cairn: "canonical Markdown vault",
+    pmb: "SQLite events + adjacent LanceDB vectors",
+    codemem: "SQLite + sqlite-vec",
     basic: "Markdown files",
-    mem0: "database",
-    letta: "database + git-tracked MemFS",
-    zep: "knowledge graph",
   },
   {
-    dim: "Plain files you own/edit",
-    cairn: "Yes",
-    basic: "Yes",
-    mem0: "No",
-    letta: "MemFS in Letta Code",
-    zep: "No",
+    dim: "Human-readable source",
+    cairn: "Yes — Markdown edits feed recall",
+    pmb: "Database; inspect through CLI/dashboard",
+    codemem: "Database; inspect through CLI/viewer",
+    basic: "Yes — two-way Markdown",
   },
   {
-    dim: "Runs as",
-    cairn: "daemonless CLI + on-demand MCP",
-    basic: "local CLI + MCP (optional cloud)",
-    mem0: "library / self-host / cloud",
-    letta: "self-host (de-emphasized) + cloud",
-    zep: "hosted SaaS (self-host CE deprecated)",
+    dim: "Coding-agent integration",
+    cairn: "Claude Code, Codex, OpenCode, Cursor, Hermes, and more",
+    pmb: "Claude Code, Cursor, Codex, Zed, and MCP hosts",
+    codemem: "OpenCode + Claude Code; Codex early beta",
+    basic: "Claude, Codex, Cursor, and other MCP clients; native Hermes plugin",
   },
   {
-    dim: "Retrieval",
-    cairn: "hybrid BM25+vector (RRF) + reranker + wikilink graph",
-    basic: "hybrid full-text+vector + wikilink graph",
-    mem0: "hybrid (semantic+BM25+entity)",
-    letta: "pgvector-based",
-    zep: "temporal knowledge graph",
+    dim: "Ambient capture",
+    cairn: "host hooks plus out-of-band transcript sweep",
+    pmb: "hooks journal work and inject recall",
+    codemem: "plugins/hooks feed a shared event pipeline",
+    basic: "Hermes: recall + per-turn/session capture; tool-driven through MCP elsewhere",
   },
   {
-    dim: "License",
+    dim: "Retrieval shape",
+    cairn: "BM25 + vectors + optional reranker + wikilinks",
+    pmb: "BM25 + vectors + entity graph + optional reranker",
+    codemem: "SQLite FTS5 BM25 + sqlite-vec + reranking",
+    basic: "hybrid full-text + vectors + Markdown knowledge graph",
+  },
+  {
+    dim: "Open-source license",
     cairn: "Apache-2.0",
+    pmb: "Apache-2.0",
+    codemem: "MIT",
     basic: "AGPL-3.0",
-    mem0: "Apache-2.0",
-    letta: "Apache-2.0",
-    zep: "Graphiti Apache-2.0; Zep Cloud proprietary",
-  },
-  {
-    dim: "Focus",
-    cairn: "memory for coding agents",
-    basic: "local-first knowledge/memory",
-    mem0: "memory layer for LLM apps",
-    letta: "stateful-agents framework",
-    zep: "enterprise agent memory",
   },
 ];
 
-const cols = ["Dimension", "agentcairn", "basic-memory", "Mem0", "Letta", "Zep"];
+const cols = ["Dimension", "agentcairn", "PMB", "codemem", "basic-memory"];
 ---
 <ContentPage title={title} description={description} faq={faq}>
   <Section id="intro">
     <h1 class="font-serif text-[40px] leading-tight mb-6">agentcairn vs other agent-memory tools</h1>
     <Prose>
       <p>
-        Most agent-memory tools keep your memory in a database. agentcairn keeps
-        it as a Markdown vault you own, where the files are the source of truth —
-        not an export.
+        Several tools now address local memory for coding agents. The useful
+        distinction is not a benchmark headline; it is what stays durable, how
+        context enters the system, which hosts get ambient behavior, and whether
+        you want editable files or a managed database interface.
+      </p>
+      <p class="text-[15px] text-[var(--color-ink-muted)]">
+        Last reviewed July 16, 2026 against each project&rsquo;s public website,
+        documentation, and repository. Product details change; follow the linked
+        primary sources before making an architectural decision.
       </p>
     </Prose>
   </Section>
 
-  <Section id="comparison" eyebrow="At a glance">
+  <Section id="comparison" eyebrow="Direct local peers">
     <div class="overflow-x-auto" tabindex="0">
-      <table class="w-full min-w-[760px] table-fixed border-collapse text-[14px] leading-snug">
+      <table class="w-full min-w-[820px] table-fixed border-collapse text-[14px] leading-snug">
         <thead>
           <tr>
             {cols.map((c, i) => (
-              <th class={"border border-[var(--color-rule)] px-3 py-2 text-left align-top font-sans font-semibold " + (i === 0 ? "w-[15%]" : "w-[17%]")}>{c}</th>
+              <th class={"border border-[var(--color-border)] px-3 py-2 text-left align-top font-sans font-semibold " + (i === 0 ? "w-[16%]" : "w-[21%]")}>{c}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((r) => (
             <tr class="text-[var(--color-ink-muted)]">
-              <th scope="row" class="border border-[var(--color-rule)] px-3 py-2 text-left align-top font-sans font-semibold text-[var(--color-ink)]">{r.dim}</th>
-              <td class="border border-[var(--color-rule)] px-3 py-2 align-top text-[var(--color-ink)]">{r.cairn}</td>
-              <td class="border border-[var(--color-rule)] px-3 py-2 align-top">{r.basic}</td>
-              <td class="border border-[var(--color-rule)] px-3 py-2 align-top">{r.mem0}</td>
-              <td class="border border-[var(--color-rule)] px-3 py-2 align-top">{r.letta}</td>
-              <td class="border border-[var(--color-rule)] px-3 py-2 align-top">{r.zep}</td>
+              <th scope="row" class="border border-[var(--color-border)] px-3 py-2 text-left align-top font-sans font-semibold text-[var(--color-ink)]">{r.dim}</th>
+              <td class="border border-[var(--color-border)] px-3 py-2 align-top text-[var(--color-ink)]">{r.cairn}</td>
+              <td class="border border-[var(--color-border)] px-3 py-2 align-top">{r.pmb}</td>
+              <td class="border border-[var(--color-border)] px-3 py-2 align-top">{r.codemem}</td>
+              <td class="border border-[var(--color-border)] px-3 py-2 align-top">{r.basic}</td>
             </tr>
           ))}
         </tbody>
@@ -113,77 +116,97 @@ const cols = ["Dimension", "agentcairn", "basic-memory", "Mem0", "Letta", "Zep"]
     </div>
   </Section>
 
-  <Section id="tools" eyebrow="The tools, fairly">
+  <Section id="peers" eyebrow="The direct peers, fairly">
     <Prose>
-      <h3 class="font-serif text-[22px] leading-snug mb-2">Mem0</h3>
+      <h3 class="font-serif text-[22px] leading-snug mb-2">PMB</h3>
       <p class="mb-6">
-        An Apache-2.0 open-source memory layer for LLM apps, available as an
-        embeddable library, a self-hosted server, or a managed cloud platform.
-        Memory lives in a vector database (not human-readable files). Hybrid
-        retrieval (semantic + BM25 + entity). It is not cloud-only.
-        <a href="https://mem0.ai" class="underline">mem0.ai</a>
-        &middot;
-        <a href="https://github.com/mem0ai/mem0" class="underline">GitHub</a>
+        A local-first coding-agent memory built around SQLite events, adjacent
+        LanceDB vectors, MCP, ambient hooks, and a local graph/timeline dashboard.
+        It emphasizes automatic prompt-time recall, fast asynchronous journaling,
+        and measuring whether remembered lessons are followed. The durable
+        interface is a portable database rather than editable Markdown.
+        <a href="https://pmbai.dev/" class="underline">Official site</a>
       </p>
 
-      <h3 class="font-serif text-[22px] leading-snug mb-2">Letta</h3>
+      <h3 class="font-serif text-[22px] leading-snug mb-2">codemem</h3>
       <p class="mb-6">
-        Formerly MemGPT. An Apache-2.0 framework for stateful agents — memory is
-        one part of a broader agent platform, not a standalone memory store.
-        Its API platform persists agent state in a database; Letta Code also now
-        exposes git-tracked MemFS memory that can be edited as local files. It is
-        a broader agent runtime, while agentcairn stays a portable memory layer
-        shared by otherwise-independent coding agents.
-        <a href="https://letta.com" class="underline">letta.com</a>
+        A local-first companion for agent-heavy engineering work. OpenCode and
+        Claude Code are stable integrations; Codex is explicitly early beta.
+        Plugins and hooks feed typed memories into SQLite, retrieval combines
+        FTS5 BM25 with sqlite-vec, and an optional viewer and peer-to-peer sync
+        make the database inspectable and portable across machines.
+        <a href="https://codemem.sh/" class="underline">Official site</a>
         &middot;
-        <a href="https://docs.letta.com/guides/get-started/intro" class="underline">docs</a>
-      </p>
-
-      <h3 class="font-serif text-[22px] leading-snug mb-2">Zep</h3>
-      <p class="mb-6">
-        A context-engineering platform built on a temporal knowledge graph. The
-        shipping product, Zep Cloud, is a proprietary hosted service. Its
-        open-source engine, Graphiti (Apache-2.0), can be used on its own, but
-        the self-hostable Zep Community Edition is deprecated. So &ldquo;open
-        source&rdquo; applies to Graphiti, not the hosted product.
-        <a href="https://getzep.com" class="underline">getzep.com</a>
+        <a href="https://codemem.sh/docs/integrations/" class="underline">Integration status</a>
       </p>
 
       <h3 class="font-serif text-[22px] leading-snug mb-2">basic-memory</h3>
-      <p class="mb-6">
-        agentcairn&rsquo;s closest peer — local-first, with Markdown files as the
-        source of truth and a derivative local index, plus a wikilink knowledge
-        graph and hybrid retrieval. The differences are narrow and factual: it is
-        AGPL-3.0 (vs agentcairn&rsquo;s permissive Apache-2.0), and it is a
-        general human+AI knowledge system, whereas agentcairn is purpose-built
-        for coding-agent memory — multi-harness plugins (Claude Code, Codex,
-        Cursor), out-of-band session-transcript capture, secret redaction before
-        write, bi-temporal validity, and provenance-aware recall.
-        <a href="https://github.com/basicmachines-co/basic-memory" class="underline">GitHub</a>
+      <p>
+        The closest data-model peer. Both products center readable Markdown and
+        expose it through MCP. basic-memory also has a native Hermes plugin with
+        search-before-answer recall and automatic capture, while its default
+        search combines full-text and vectors. It is a broader human-and-AI
+        knowledge system with two-way notes, semantic links, a local product,
+        and optional hosted sync. agentcairn is narrower: coding-agent session
+        lifecycles across its supported hosts, provenance-aware capture,
+        temporal supersession, and a replaceable retrieval cache.
+        <a href="https://github.com/basicmachines-co/basic-memory" class="underline">Project and license</a>
         &middot;
-        <a href="https://docs.basicmemory.com" class="underline">docs</a>
+        <a href="https://docs.basicmemory.com/integrations/hermes" class="underline">Hermes plugin</a>
+        &middot;
+        <a href="https://docs.basicmemory.com/concepts/semantic-search" class="underline">Search modes</a>
       </p>
     </Prose>
   </Section>
 
-  <Section id="when-not" eyebrow="When not to choose agentcairn">
+  <Section id="adjacent" eyebrow="Adjacent platforms">
     <Prose>
-      <p>agentcairn is local-first memory for coding agents. It is the wrong tool when:</p>
-      <ul class="list-disc pl-6 space-y-2">
-        <li>You want a hosted, managed multi-tenant SaaS &rarr; Mem0 or Zep.</li>
-        <li>You need a full stateful-agent framework, not just memory &rarr; Letta.</li>
-        <li>You need enterprise graph memory at scale &rarr; Zep.</li>
-        <li>You want a drop-in memory API for a general (non-coding-agent) LLM app &rarr; Mem0.</li>
-      </ul>
+      <p>
+        <strong>Mem0</strong> is a configurable memory library, self-hosted
+        service, and managed platform for LLM applications.
+        <strong>Letta</strong> is a stateful-agent platform with its own coding
+        agent and memory systems. <strong>Graphiti</strong> is an open-source
+        temporal context-graph framework; <strong>Zep</strong> operates managed
+        context-graph infrastructure at enterprise scale. These can be the right
+        choice, but they are not drop-in equivalents to a local coding-agent
+        memory companion.
+      </p>
+      <p>
+        <a href="https://docs.mem0.ai/open-source/overview" class="underline">Mem0 OSS</a>
+        &middot;
+        <a href="https://docs.letta.com/letta-agent-sdk/overview" class="underline">Letta</a>
+        &middot;
+        <a href="https://help.getzep.com/zep-vs-graphiti" class="underline">Zep and Graphiti</a>
+      </p>
     </Prose>
   </Section>
 
-  <Section id="learn-more" eyebrow="Learn more">
+  <Section id="choose" eyebrow="Choose by boundary">
     <Prose>
+      <ul class="list-disc pl-6 space-y-2">
+        <li>
+          Choose <strong>agentcairn</strong> when the durable source should be an
+          editable Markdown vault shared by supported coding-agent integrations.
+        </li>
+        <li>
+          Choose <strong>PMB</strong> when automatic coding-agent memory, a local
+          database/dashboard, and lesson follow-through are the desired model.
+        </li>
+        <li>
+          Choose <strong>codemem</strong> when its OpenCode/Claude workflow,
+          typed SQLite memory, viewer, and optional peer sync fit your stack.
+        </li>
+        <li>
+          Choose <strong>basic-memory</strong> when the broader product is a
+          human-and-AI Markdown knowledge system with optional hosted sync.
+        </li>
+      </ul>
       <p>
-        <a href="/agent-memory" class="underline">What agent memory is</a>
+        <a href="/agent-memory/" class="underline">How agent memory works</a>
         &middot;
-        <a href="/obsidian-ai-memory" class="underline">AI memory in Obsidian</a>
+        <a href="/claude-code-memory/" class="underline">Bridge Claude Code memory</a>
+        &middot;
+        <a href="/obsidian-ai-memory/" class="underline">Inspect the vault in Obsidian</a>
       </p>
     </Prose>
   </Section>

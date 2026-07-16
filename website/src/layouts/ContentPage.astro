@@ -4,20 +4,46 @@ import Nav from "../components/Nav.astro";
 import Footer from "../components/Footer.astro";
 import Section from "../components/Section.astro";
 import CommandBox from "../components/CommandBox.astro";
-// Default CTA is host-neutral (`--all` configures every detected agent). A page
-// may override `cta` if it's specific to one host.
-const { title, description, faq, cta = "cairn install --all" } = Astro.props;
+// The default is host-neutral and works without a prior persistent install. Pages
+// can provide a host-specific command or pass `cta={false}` when their own
+// installation section is the clearer next step.
+const {
+  title,
+  description,
+  faq,
+  ogType,
+  ogImage,
+  ogImageAlt,
+  ogImageWidth,
+  ogImageHeight,
+  cta = [
+    "uvx --from agentcairn cairn install        # detect + preview; writes nothing",
+    "uvx --from agentcairn cairn install --all  # configure detected hosts",
+  ].join("\n"),
+  ctaBody = "Detect supported hosts first, then configure them without a prior persistent install:",
+} = Astro.props;
 ---
-<Base title={title} description={description} faq={faq}>
+<Base
+  title={title}
+  description={description}
+  faq={faq}
+  ogType={ogType}
+  ogImage={ogImage}
+  ogImageAlt={ogImageAlt}
+  ogImageWidth={ogImageWidth}
+  ogImageHeight={ogImageHeight}
+>
   <Nav />
   <main id="main">
-    <p class="px-6 pt-6"><a href="/" class="text-[var(--color-ink-muted)] hover:underline">← agentcairn</a></p>
+    <p class="mx-auto max-w-[var(--container-frame)] px-8 pt-6"><a href="/" class="text-[var(--color-ink-muted)] hover:underline">← agentcairn</a></p>
     <slot />
-    <Section id="cta" eyebrow="Get started">
-      <p class="font-serif text-[16px] mb-3">Install agentcairn into your agent in one command:</p>
-      <CommandBox command={cta} />
-      <p class="mt-4 font-serif text-[16px]"><a href="https://github.com/ccf/agentcairn" class="underline">GitHub</a> · <a href="/#quickstart" class="underline">Full quickstart</a></p>
-    </Section>
+    {cta && (
+      <Section id="cta" eyebrow="Get started">
+        <p class="font-serif text-[16px] mb-3">{ctaBody}</p>
+        <CommandBox command={cta} />
+        <p class="mt-4 font-serif text-[16px]"><a href="https://github.com/ccf/agentcairn" class="underline">GitHub</a> · <a href="/#quickstart" class="underline">Full quickstart</a></p>
+      </Section>
+    )}
   </main>
   <Footer />
 </Base>

@@ -3,12 +3,9 @@ import ContentPage from "../layouts/ContentPage.astro";
 import Section from "../components/Section.astro";
 import Prose from "../components/Prose.astro";
 
-const title = "AI Agent Memory in Your Obsidian Vault — agentcairn";
+const title = "AI Coding Agent Memory in Obsidian — agentcairn";
 const description =
-  "Your coding agent's memory as plain Markdown in an Obsidian vault you own — readable, editable, and the source of truth (not a one-way export).";
-// Host-neutral and functional: `cairn install --all` configures every detected
-// agent (this page's readers may use any). Bare `cairn install` only lists hosts.
-const cta = "cairn install --all";
+  "Inspect and edit shared coding-agent memory as plain Markdown in an Obsidian vault you own, with provenance, currency, and related links.";
 
 const faq = [
   {
@@ -33,7 +30,7 @@ const faq = [
   },
 ];
 ---
-<ContentPage title={title} description={description} cta={cta} faq={faq}>
+<ContentPage title={title} description={description} faq={faq}>
   <Section id="intro">
     <h1 class="font-serif text-[40px] leading-tight mb-6">Your AI agent's memory, in an Obsidian vault</h1>
     <Prose>
@@ -98,8 +95,8 @@ const faq = [
         A rebuildable DuckDB index reconciles to the vault and provides fast
         hybrid retrieval (BM25 + vector + RRF, with an optional cross-encoder
         reranker). The index is a disposable cache; the vault is always the
-        truth. <code>cairn reindex</code> rebuilds it from the Markdown with zero
-        data loss.
+        truth. <code>cairn reindex</code> rebuilds the cache from that Markdown
+        without changing the durable vault files.
       </p>
       <p>
         This works with any host. Plugin hosts like Claude Code and Codex get a
@@ -108,9 +105,11 @@ const faq = [
         for every detected agent). They all share one vault.
       </p>
       <p>
-        <a href="/agent-memory" class="underline">What is agent memory?</a>
+        <a href="/claude-code-memory/" class="underline">Import Claude Code auto-memory</a>
         &middot;
-        <a href="/alternatives" class="underline">How agentcairn compares</a>
+        <a href="/agent-memory/" class="underline">What is agent memory?</a>
+        &middot;
+        <a href="/alternatives/" class="underline">How agentcairn compares</a>
       </p>
     </Prose>
   </Section>

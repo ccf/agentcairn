@@ -10,6 +10,7 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   output: "static",
   site: "https://agentcairn.dev",
+  trailingSlash: "always",
   integrations: [react(), sitemap()],
   vite: { plugins: [tailwindcss()] },
 });
