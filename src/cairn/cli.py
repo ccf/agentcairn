@@ -109,6 +109,9 @@ schedule_app = typer.Typer(
 )
 app.add_typer(schedule_app, name="schedule")
 
+import_app = typer.Typer(help="Preview and import memory owned by another agent host.")
+app.add_typer(import_app, name="import")
+
 
 def _exit_vault_busy(exc: VaultBusyError) -> None:
     typer.secho(f"busy: {exc}", fg=typer.colors.YELLOW, err=True)
@@ -763,6 +766,181 @@ def serve(
         index=str(index) if index else None,
         embedder=embedder,
     ).run()
+
+
+def _echo_native_memory_plan(plan, *, applied: bool, index_status: dict | None = None) -> None:
+    prefix = "imported" if applied else "preview"
+    typer.echo(f"Claude Code auto memory: {plan.discovery.root}")
+    typer.echo(f"Project: {plan.discovery.project or 'unknown'} ({plan.discovery.project_root})")
+    typer.echo(
+        f"{prefix}: {plan.discovered} discovered · {plan.count('added')} added · "
+        f"{plan.count('updated')} updated · {plan.count('unchanged')} unchanged · "
+        f"{plan.count('repaired')} repaired · {plan.count('expired')} expired · "
+        f"{plan.redactions} redactions"
+    )
+    visible = [action for action in plan.actions if action.kind != "unchanged"]
+    for action in visible[:20]:
+        typer.echo(f"  {action.kind:9} {action.relative_path} (v{action.version})")
+    if len(visible) > 20:
+        typer.echo(f"  … {len(visible) - 20} more change(s)")
+    if not applied:
+        typer.echo("Preview only; no files written. Re-run with --apply to import and index.")
+    elif index_status is not None:
+        if index_status.get("status") == "current":
+            typer.echo(
+                "index: current · "
+                f"{index_status['added']} added · {index_status['updated']} updated · "
+                f"{index_status['deleted']} removed"
+            )
+        elif index_status.get("status") == "not_requested":
+            typer.echo("index: not requested (--no-reindex)")
+        else:
+            typer.secho(
+                "index: stale — Markdown import is durable; run `cairn reindex <vault>` "
+                f"({index_status.get('error', 'update failed')})",
+                fg=typer.colors.YELLOW,
+                err=True,
+            )
+
+
+@import_app.command("claude-memory")
+def import_claude_memory(
+    project: Path = typer.Option(
+        None,
+        "--project",
+        help="Repository path whose Claude memory to import (default: current directory).",
+    ),
+    source: Path = typer.Option(
+        None,
+        "--source",
+        help="Explicit Claude auto-memory directory containing MEMORY.md and topic files.",
+    ),
+    vault: Path = typer.Option(
+        None,
+        "--vault",
+        help="AgentCairn vault (default: CAIRN_VAULT or ~/agentcairn).",
+    ),
+    apply: bool = typer.Option(
+        False,
+        "--apply",
+        help="Apply the previewed import. Without this flag, nothing is written.",
+    ),
+    reindex_import: bool = typer.Option(
+        True,
+        "--reindex/--no-reindex",
+        help="Reconcile the vault index after applying (default: enabled).",
+    ),
+    index: Path = typer.Option(None, "--index", help="Index .duckdb path."),
+    embedder: str = typer.Option(
+        None,
+        "--embedder",
+        help="Embedding provider used for post-import reconciliation.",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Emit a machine-readable plan/report."),
+) -> None:
+    """Import Claude Code auto memory as provenance-rich, versioned Markdown.
+
+    This is a one-way, read-only bridge. It imports Claude's MEMORY.md and topic
+    files, never CLAUDE.md instructions, and previews without writing by default.
+    """
+    from cairn.native_memory import ClaudeCodeMemorySource, apply_import_plan, plan_import
+
+    project_root = (project or Path.cwd()).expanduser()
+    vault_root = paths.resolve_vault(vault).resolve()
+    manifest_path = paths.native_memory_manifest(vault_root, "claude-code")
+    try:
+        discovery = ClaudeCodeMemorySource(memory_dir=source).discover(project_root)
+    except FileNotFoundError as exc:
+        if as_json:
+            typer.echo(
+                json.dumps(
+                    {
+                        "source": "claude-code",
+                        "applied": False,
+                        "discovered": 0,
+                        "message": str(exc),
+                    }
+                )
+            )
+        else:
+            typer.echo(str(exc))
+            typer.echo("Nothing changed. Use --source <dir> if Claude uses a custom location.")
+        return
+    except (OSError, ValueError) as exc:
+        typer.secho(f"Claude memory discovery failed: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from exc
+
+    if not apply:
+        plan = plan_import(
+            discovery,
+            vault_root=vault_root,
+            manifest_path=manifest_path,
+        )
+        if as_json:
+            typer.echo(json.dumps(plan.to_dict(applied=False), indent=2))
+        else:
+            _echo_native_memory_plan(plan, applied=False)
+        return
+
+    embedding = embedder or cairn_env().get("CAIRN_EMBEDDER") or "fastembed"
+    idx = paths.index_for(index, vault_root)
+    emb = None
+    embed_error: Exception | None = None
+    if reindex_import:
+        try:
+            # Model loading stays outside the writer lock. A failure degrades the
+            # index update, but never prevents the canonical Markdown import.
+            emb = get_embedder(embedding)
+            _ = emb.dim
+            ensure_private_dir(idx.parent)
+        except Exception as exc:
+            embed_error = exc
+
+    try:
+        with vault_writer_lock(vault_root, operation="cli-import-claude-memory"):
+            # Re-plan under the lock so another AgentCairn writer cannot make the
+            # manifest/vault snapshot stale between planning and application.
+            plan = plan_import(
+                discovery,
+                vault_root=vault_root,
+                manifest_path=manifest_path,
+            )
+            apply_import_plan(plan, vault_root=vault_root)
+            if not reindex_import:
+                index_status = {"status": "not_requested"}
+            elif embed_error is not None or emb is None:
+                index_status = {
+                    "status": "degraded",
+                    "error": str(embed_error or "embedder unavailable"),
+                }
+            else:
+                try:
+                    con = open_index(str(idx), dim=emb.dim, model_id=emb.model_id)
+                    try:
+                        stats = reconcile(con, str(vault_root), emb)
+                    finally:
+                        con.close()
+                    index_status = {
+                        "status": "current",
+                        "added": stats.added,
+                        "updated": stats.updated,
+                        "deleted": stats.deleted,
+                        "rebuilt": stats.rebuilt,
+                    }
+                except Exception as exc:
+                    index_status = {"status": "degraded", "error": str(exc)}
+    except VaultBusyError as exc:
+        _exit_vault_busy(exc)
+    except (OSError, ValueError) as exc:
+        typer.secho(f"Claude memory import failed: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from exc
+
+    if as_json:
+        out = plan.to_dict(applied=True)
+        out["index"] = index_status
+        typer.echo(json.dumps(out, indent=2))
+    else:
+        _echo_native_memory_plan(plan, applied=True, index_status=index_status)
 
 
 def _warn_if_llm_tier_unavailable(rep) -> None:

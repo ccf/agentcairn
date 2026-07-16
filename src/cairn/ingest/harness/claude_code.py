@@ -8,6 +8,7 @@ AUTHORED_USER only when it carries NONE of the harness's injection markers."""
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from cairn.ingest.sanitize import sanitize_text
 
 _CLAUDE_ROOT = Path.home() / ".claude" / "projects"
 _CONTENT_TYPES = {"user", "assistant"}
+_MAX_PROJECT_PREFIX = 200
 
 # Backstop for legacy transcripts (Claude Code <=2.1.150): injected slash-command
 # and tool rows carried NO structural flags, so they are structurally identical to
@@ -35,12 +37,51 @@ _LEGACY_TAG_PREFIXES = (
 
 
 def encode_cwd(cwd: str) -> str:
-    """Claude Code encodes a project dir by replacing every '/' with '-'.
-    e.g. '/Users/ccf/git/agentcairn' -> '-Users-ccf-git-agentcairn'. Trailing
-    slashes are stripped first, so '/Users/x/proj/' maps to the same dir as
-    '/Users/x/proj'."""
+    """Encode a project path using Claude Code's current project-dir scheme.
+
+    Claude replaces every non-ASCII-alphanumeric character with ``-``. Paths
+    whose encoded form exceeds 200 characters receive Claude's base-36 signed
+    JavaScript string hash of the original path. Trailing slashes are normalized
+    for CLI callers before encoding.
+    """
+    normalized = cwd.rstrip("/") or "/"
+    safe = "".join(
+        chr(unit) if 48 <= unit <= 57 or 65 <= unit <= 90 or 97 <= unit <= 122 else "-"
+        for unit in _utf16_code_units(normalized)
+    )
+    if len(safe) <= _MAX_PROJECT_PREFIX:
+        return safe
+    return f"{safe[:_MAX_PROJECT_PREFIX]}-{_base36(abs(_js_string_hash(normalized)))}"
+
+
+def legacy_encode_cwd(cwd: str) -> str:
+    """Claude Code's older slash-only encoding, retained for existing stores."""
     normalized = cwd.rstrip("/") or "/"
     return normalized.replace("/", "-")
+
+
+def _js_string_hash(value: str) -> int:
+    """Return ``int32(31*h + codeUnit)`` over JavaScript UTF-16 code units."""
+    result = 0
+    for code_unit in _utf16_code_units(value):
+        result = (31 * result + code_unit) & 0xFFFFFFFF
+    return result - 0x100000000 if result & 0x80000000 else result
+
+
+def _utf16_code_units(value: str) -> list[int]:
+    raw = value.encode("utf-16-le", errors="surrogatepass")
+    return [raw[offset] | (raw[offset + 1] << 8) for offset in range(0, len(raw), 2)]
+
+
+def _base36(value: int) -> str:
+    digits = "0123456789abcdefghijklmnopqrstuvwxyz"
+    if value == 0:
+        return "0"
+    out = ""
+    while value:
+        value, digit = divmod(value, 36)
+        out = digits[digit] + out
+    return out
 
 
 def _extract_text(content: object) -> str:
@@ -90,7 +131,8 @@ class ClaudeCodeAdapter:
     name = "claude-code"
 
     def default_root(self) -> Path:
-        return _CLAUDE_ROOT
+        configured = os.environ.get("CLAUDE_CONFIG_DIR")
+        return Path(configured).expanduser() / "projects" if configured else _CLAUDE_ROOT
 
     def is_present(self) -> bool:
         return self.default_root().is_dir()
@@ -100,7 +142,8 @@ class ClaudeCodeAdapter:
         if not base.is_dir():
             return []
         if project is not None:
-            dirs = [base / encode_cwd(project)]
+            names = dict.fromkeys((encode_cwd(project), legacy_encode_cwd(project)))
+            dirs = [base / name for name in names]
         else:
             dirs = [d for d in base.iterdir() if d.is_dir()]
         files = [f for d in dirs if d.is_dir() for f in d.glob("*.jsonl")]

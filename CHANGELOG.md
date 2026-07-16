@@ -5,6 +5,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+### Added
+- **One-way Claude Code auto-memory import.** `cairn import claude-memory` safely
+  previews the current repository, while `--apply` imports and indexes its `MEMORY.md`
+  and topic files with redaction, source provenance, version supersession, and deletion
+  expiry. It never modifies Claude's files or imports `CLAUDE.md`/rules; `--project`,
+  `--source`, and `--no-reindex` cover explicit targeting and batch workflows.
+
 ## [0.24.2] - 2026-07-12
 
 ### Fixed
