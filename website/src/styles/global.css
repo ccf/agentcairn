@@ -321,6 +321,10 @@ body > a[href="#main"]:focus {
   scrollbar-width: thin;
 }
 
+.command-scroll code {
+  font-variant-ligatures: none;
+}
+
 .command-scroll-hint {
   display: none;
   margin: 0.5rem 0 0;

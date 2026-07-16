@@ -81,6 +81,18 @@ test("copy control announces clipboard failures without hiding the command", asy
   await expect(command).toBeVisible();
 });
 
+test("uvx commands render option spacing clearly and copy the exact command", async ({ page }) => {
+  const commandText = "uvx --from agentcairn cairn import claude-memory";
+  await page.goto("/claude-code-memory/");
+
+  const command = page.getByText(commandText, { exact: true }).first();
+  await expect(command).toHaveCSS("font-variant-ligatures", "none");
+  await expect(command).toHaveText(commandText);
+  await expect(
+    page.getByRole("button", { name: `Copy command: ${commandText}`, exact: true }).first(),
+  ).toHaveAttribute("data-copy", commandText);
+});
+
 test("hero shows the shared-memory headline and plugin install line", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("One memory across your coding agents");
