@@ -1,0 +1,172 @@
+---
+import ContentPage from "../layouts/ContentPage.astro";
+import Section from "../components/Section.astro";
+import Prose from "../components/Prose.astro";
+import CommandBox from "../components/CommandBox.astro";
+
+const title = "Import Claude Code Memory into Other Agents — agentcairn";
+const description =
+  "Preview and import Claude Code auto-memory into a shared local Markdown vault for Codex, Cursor, OpenCode, and other supported coding agents.";
+const cta = "uvx --from agentcairn cairn import claude-memory";
+
+const faq = [
+  {
+    q: "Does agentcairn change Claude Code's memory files?",
+    a: "No. The importer is a one-way, read-only bridge. It reads Claude Code's auto-memory and writes versioned notes into your agentcairn vault; it never writes back to Claude's files.",
+  },
+  {
+    q: "Does it import CLAUDE.md or project rules?",
+    a: "No. It imports MEMORY.md and topic Markdown files from Claude Code's auto-memory directory. CLAUDE.md, CLAUDE.local.md, and .claude/rules are instructions, so they are deliberately excluded.",
+  },
+  {
+    q: "What happens when Claude Code updates or removes a memory?",
+    a: "A changed source creates a new imported version and marks the previous one superseded. A missing source expires the imported version. Prior history stays inspectable in the Markdown vault.",
+  },
+  {
+    q: "Can I preview the import without changing anything?",
+    a: "Yes. Preview is the default. The command scans only the current repository and reports additions, updates, unchanged files, expirations, and redactions. Nothing is written until you add --apply.",
+  },
+  {
+    q: "Is imported memory encrypted?",
+    a: "No. The vault is readable plaintext Markdown by design. Agentcairn redacts recognized credential patterns before automated writes, but unknown patterns and manual edits remain your responsibility.",
+  },
+];
+---
+<ContentPage
+  title={title}
+  description={description}
+  faq={faq}
+  cta={cta}
+  ctaBody="Preview this repository's Claude Code auto-memory without a prior persistent install:"
+>
+  <Section id="intro">
+    <h1 class="font-serif text-[40px] leading-tight mb-6">
+      Bring Claude Code&rsquo;s memory to every supported agent
+    </h1>
+    <Prose>
+      <p>
+        Claude Code&rsquo;s auto-memory is useful, but it stays inside Claude Code.
+        Agentcairn v0.25 adds a one-way bridge into the same Markdown vault used
+        by Codex, Cursor, OpenCode, Hermes, and other supported hosts.
+      </p>
+      <p>
+        The bridge complements Claude&rsquo;s native memory rather than replacing it:
+        Claude keeps learning as before, while you choose when to copy that
+        durable context into shared cross-agent recall.
+      </p>
+      <p>
+        Auto-memory was introduced in Claude Code 2.1.59 and must have created
+        files for this repository before there is anything to import. See{" "}
+        <a href="https://code.claude.com/docs/en/memory" class="underline">Claude Code&rsquo;s auto-memory documentation</a>{" "}
+        to inspect or manage it with <code>/memory</code>.
+      </p>
+    </Prose>
+  </Section>
+
+  <Section id="preview" eyebrow="Preview first">
+    <Prose>
+      <p>
+        Run the importer from a repository where Claude Code has created
+        auto-memory. Preview is the default and performs no writes:
+      </p>
+    </Prose>
+    <div class="mt-5">
+      <CommandBox command="uvx --from agentcairn cairn import claude-memory" />
+    </div>
+    <Prose>
+      <p class="mt-5">
+        The report shows what would be added, updated, left unchanged, repaired,
+        or expired. Apply that exact plan only when it looks right:
+      </p>
+    </Prose>
+    <div class="mt-5">
+      <CommandBox command="uvx --from agentcairn cairn import claude-memory --apply" />
+    </div>
+  </Section>
+
+  <Section id="scope" eyebrow="What crosses the bridge">
+    <Prose>
+      <ul class="list-disc pl-6 space-y-2">
+        <li>
+          <strong>Claude auto-memory only.</strong> <code>MEMORY.md</code> and
+          its topic Markdown files are eligible.
+        </li>
+        <li>
+          <strong>Instructions stay out.</strong> <code>CLAUDE.md</code>,{" "}
+          <code>CLAUDE.local.md</code>, and <code>.claude/rules/</code> are not
+          memories and are never imported.
+        </li>
+        <li>
+          <strong>One repository at a time.</strong> The current repository is
+          the default. Use <code>--project ../other</code> to target another one.
+        </li>
+        <li>
+          <strong>Explicit source when needed.</strong> Use{" "}
+          <code>--source &lt;dir&gt;</code> for a custom or managed Claude memory
+          directory. Ambiguous discovery fails closed instead of guessing.
+        </li>
+      </ul>
+    </Prose>
+  </Section>
+
+  <Section id="history" eyebrow="Provenance and history">
+    <Prose>
+      <p>
+        Imported notes record Claude Code, the project, and the source file as
+        provenance. Recognized credentials are redacted before the plaintext
+        Markdown is written. Model-authored context remains labeled as imported
+        evidence rather than being mistaken for a user instruction.
+      </p>
+      <p>
+        Re-running the command is idempotent for unchanged files. A changed file
+        creates a new version and supersedes the old one; a source file that
+        disappears expires its imported note. The prior versions remain
+        inspectable instead of being silently overwritten.
+      </p>
+      <p>
+        Agentcairn stores lifecycle metadata inside{" "}
+        <code>.agentcairn/native-memory/</code> in the vault. That registry also
+        prevents an unchanged source from resurrecting a note you deliberately
+        deleted.
+      </p>
+    </Prose>
+  </Section>
+
+  <Section id="recall" eyebrow="Recall it elsewhere">
+    <Prose>
+      <p>
+        After <code>--apply</code>, the importer normally reconciles the DuckDB
+        cache so supported hosts connected to that vault can recall the new
+        Markdown. If embedding or reconciliation fails, the CLI warns instead
+        of hiding the problem: the Markdown remains durable, and the next
+        successful reconcile makes it available for indexed recall. Codex can
+        then recall a decision Claude learned; Cursor can search it; Obsidian
+        can show you the underlying note and provenance.
+      </p>
+      <p>
+        Everything stays local with the default FastEmbed configuration. If you
+        opt into a cloud embedder, redacted note chunks and recall queries are
+        sent to that provider. If you enable the Anthropic durability judge for
+        ingest or sweep, candidate redacted session text is sent for judgment.
+      </p>
+      <p>
+        <a href="/#hosts" class="underline">See supported agents</a>
+        {" "}&middot;{" "}
+        <a href="/obsidian-ai-memory/" class="underline">Inspect memory in Obsidian</a>
+        {" "}&middot;{" "}
+        <a href="/agent-memory/" class="underline">How cross-agent memory works</a>
+      </p>
+    </Prose>
+  </Section>
+
+  <Section id="faq" eyebrow="FAQ">
+    <Prose>
+      {faq.map((f) => (
+        <div class="mb-6">
+          <h3 class="font-serif text-[22px] leading-snug mb-2">{f.q}</h3>
+          <p>{f.a}</p>
+        </div>
+      ))}
+    </Prose>
+  </Section>
+</ContentPage>

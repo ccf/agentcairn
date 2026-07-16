@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 PLUGIN = Path(__file__).resolve().parents[2] / "integrations" / "hermes" / "__init__.py"
+MANIFEST = PLUGIN.with_name("plugin.yaml")
 
 
 def load_plugin():
@@ -33,6 +34,11 @@ def provider(tmp_path, monkeypatch):
 def test_name_and_availability(provider):
     assert provider.name == "agentcairn"
     assert provider.is_available() is True
+
+
+def test_manifest_declares_agentcairn_dependency():
+    manifest = MANIFEST.read_text(encoding="utf-8")
+    assert "pip_dependencies:\n  - agentcairn\n" in manifest
 
 
 def test_register_registers_one_provider():

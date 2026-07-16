@@ -1,13 +1,13 @@
 export const site = {
   name: "agentcairn",
-  title: "agentcairn — local-first memory for AI agents",
+  title: "Shared Memory for AI Coding Agents — agentcairn",
   description:
-    "Your agent's memory as plain Markdown you own. A rebuildable DuckDB index gives fast hybrid retrieval; the vault is the source of truth.",
+    "One durable memory across your coding agents. Your Markdown vault is canonical; a rebuildable DuckDB cache provides fast, local-first recall.",
   url: "https://agentcairn.dev",
   repo: "https://github.com/ccf/agentcairn",
   pypi: "https://pypi.org/project/agentcairn/",
   obsidian: "https://community.obsidian.md/plugins/agentcairn",
-  ogImageAlt: "agentcairn — local-first memory for AI agents",
+  ogImageAlt: "agentcairn — one memory across your coding agents",
   themeColor: "#ffffff",
 };
 
@@ -17,16 +17,15 @@ export const nav = [
   { label: "How it works", href: "/#how" },
   { label: "Benchmarks", href: "/#measured" },
   { label: "Quickstart", href: "/#quickstart" },
-  { label: "Any host", href: "/#hosts" },
+  { label: "Supported agents", href: "/#hosts" },
 ];
 
 // Guide / niche pages surfaced in the top nav (and footer). Helps users find
 // them and gives the niche pages internal-link equity for SEO.
 export const navGuides = [
-  { label: "Agent memory", href: "/agent-memory" },
-  { label: "Obsidian", href: "/obsidian-ai-memory" },
-  { label: "Hermes", href: "/hermes" },
-  { label: "Alternatives", href: "/alternatives" },
+  { label: "Claude import", href: "/claude-code-memory/" },
+  { label: "Obsidian", href: "/obsidian-ai-memory/" },
+  { label: "Alternatives", href: "/alternatives/" },
   { label: "GitHub", href: site.repo },
 ];
 
@@ -47,10 +46,11 @@ export const footer = {
   definition:
     "a stack of stones raised to mark a trail or a place worth remembering, left for whoever comes next.",
   guides: [
-    { label: "What is agent memory?", href: "/agent-memory" },
-    { label: "AI memory in Obsidian", href: "/obsidian-ai-memory" },
-    { label: "agentcairn for Hermes", href: "/hermes" },
-    { label: "vs Mem0, Letta, Zep, basic-memory", href: "/alternatives" },
+    { label: "Bring Claude Code memory with you", href: "/claude-code-memory/" },
+    { label: "What is agent memory?", href: "/agent-memory/" },
+    { label: "AI memory in Obsidian", href: "/obsidian-ai-memory/" },
+    { label: "agentcairn for Hermes", href: "/hermes/" },
+    { label: "Compare memory approaches", href: "/alternatives/" },
   ],
 };
 
@@ -64,16 +64,16 @@ export const inversion = {
 };
 
 export const differentiators = [
-  { title: "Obsidian Vault is the source of truth", body: "Human-readable Markdown with frontmatter and [[wikilinks]]. Edit it by hand; the index honors your edits." },
-  { title: "The index is disposable", body: "DuckDB is a rebuildable cache. `cairn reindex` restores everything — zero data loss." },
-  { title: "Non-lossy by construction", body: "The full note is always retained. Distillation only adds derived notes that link back." },
-  { title: "Redaction before every write", body: "Secrets scrubbed (regex + entropy + URL-cred) before body, title, or tags reach the vault." },
+  { title: "Plain Markdown is the source of truth", body: "Human-readable files with frontmatter and [[wikilinks]]. Edit them by hand or open them as an Obsidian vault; the index honors your edits." },
+  { title: "The index is disposable", body: "DuckDB is a rebuildable cache. `cairn reindex` restores it from the canonical Markdown without deleting the vault." },
+  { title: "History stays inspectable", body: "Derived notes do not silently erase stored notes. Superseded and expired facts remain visible in the vault." },
+  { title: "Secret-aware automated writes", body: "Recognized credentials are redacted before automated body, title, or tag writes. Unknown patterns and hand edits remain your responsibility." },
   { title: "A free, deterministic graph", body: "Your [[wikilinks]] are the graph — no LLM extraction, no hallucinated entities." },
   { title: "Daemonless, zero external DB", body: "One embedded DuckDB does vector + BM25 + graph. No server, no Neo4j/Postgres/Qdrant." },
 ];
 
 export const howItWorks = {
-  body: "Capture reads your agent's session transcripts out-of-band, then redacts → dedups → importance-gates → distills into the vault. Retrieval fuses BM25 + vectors with RRF, with an optional cross-encoder reranker. The disposable index reconciles before the first MCP read, and remember writes through immediately; the server exposes remember · recall · search · build_context · recent.",
+  body: "Capture uses host hooks and native lifecycles where available, plus out-of-band transcript sweeps, then redacts → dedups → importance-gates → distills into the vault. Retrieval fuses BM25 + vectors with RRF, with an optional cross-encoder reranker. The disposable index reconciles before the first MCP read, and remember writes through immediately; the server exposes remember · recall · search · build_context · recent.",
 };
 
 export const benchmark = {
@@ -133,17 +133,17 @@ export const agents = {
     "start, capture at session end). Antigravity has no plugin hooks, so capture runs out-of-band " +
     "via `cairn sweep`. Every other MCP host gets the same recall/search/`remember` tools via the " +
     "portable server; `cairn install` wires it in non-destructively (your other servers are " +
-    "preserved, the original backed up to `<config>.bak`). [Hermes Agent](/hermes) gets a native " +
+    "preserved, the original backed up to `<config>.bak`). [Hermes Agent](/hermes/) gets a native " +
     "agentcairn `MemoryProvider`, and the [agentcairn-obsidian](https://github.com/ccf/agentcairn-obsidian) " +
-    "plugin lets you read and navigate that memory inside Obsidian. One global `~/agentcairn` vault, " +
-    "shared across every host.",
+    "plugin lets you read and navigate that memory inside Obsidian. Every host resolves the same " +
+    "configured vault (default `~/agentcairn`).",
   rows: [
     { host: "Claude Code", support: "Plugin", setup: "cairn install claude-code", ambient: "full" },
-    { host: "Codex", support: "Plugin", setup: "cairn install codex", ambient: "partial" },
+    { host: "Codex", support: "Plugin", setup: "cairn install codex", ambient: "full" },
     { host: "Cursor", support: "MCP server + skill + ingest", setup: "cairn install cursor", ambient: "partial" },
     { host: "OpenCode", support: "Plugin + MCP + ingest", setup: "cairn install opencode", ambient: "full" },
-    { host: "Hermes Agent", support: "MemoryProvider plugin", setup: "see integrations/hermes/", ambient: "full" },
-    { host: "Antigravity", support: "Plugin + ingest", setup: "cairn install antigravity", ambient: "partial" },
+    { host: "Hermes Agent", support: "MemoryProvider plugin (Python 3.12+)", setup: "see the Hermes guide", ambient: "full" },
+    { host: "Antigravity", support: "Plugin + ingest", setup: "cairn install antigravity --source <plugin dir>", ambient: "partial" },
     { host: "VS Code (Copilot)", support: "MCP server", setup: "cairn install vscode", ambient: "none" },
     { host: "Claude Desktop", support: "MCP server", setup: "cairn install claude-desktop", ambient: "none" },
   ],
@@ -155,17 +155,19 @@ export const agents = {
   ],
   note:
     "Plugin hosts (Claude Code, Codex, Antigravity) install via the host's own CLI — the MCP " +
-    "server is bundled in the plugin. MCP hosts take a JSON mcpServers entry (VS Code uses its " +
-    "servers key), written non-destructively, idempotent, backup-first. Ambient recall-at-start + " +
-    "capture-at-end is fully wired on Claude Code; on Codex the hooks ship and capture also " +
-    "runs out-of-band via `cairn sweep`, with live recall-at-start being verified. Antigravity has " +
+    "server is bundled in the plugin. MCP configuration is merged using each host's native " +
+    "schema, non-destructively, idempotently, and backup-first. Ambient recall-at-start + " +
+    "capture-at-end is fully wired on Claude Code and Codex; Codex SessionStart recall is verified " +
+    "live, and capture also runs out-of-band via `cairn sweep`. Antigravity has " +
     "no recognized plugin hooks — capture runs out-of-band via `cairn sweep` (◐). `agy plugin " +
     "install` takes a local directory (not a git repo), so install with `cairn install antigravity " +
     "--source <plugin dir>`; it also removes any stale mcp_config.json entry. Cursor has no " +
     "plugin hooks either — `cairn sweep` ingests sessions out-of-band from Cursor's global " +
     "`state.vscdb` SQLite store (`cursorDiskKV` user bubbles); Cursor remains an MCP host (not a " +
     "plugin host), but `cairn install cursor` also installs the `using-agentcairn-memory` skill to " +
-    "`~/.cursor/skills/` alongside writing `~/.cursor/mcp.json`.",
+    "`~/.cursor/skills/` alongside writing `~/.cursor/mcp.json`. Hermes gets in-process recall and " +
+    "capture through its native MemoryProvider lifecycle, but the current agentcairn package " +
+    "requires a Hermes environment running Python 3.12 or newer; see the Hermes guide.",
   obsidian: {
     body:
       "Because the vault is plain Markdown, you can read what every agent remembers in " +
@@ -181,8 +183,8 @@ export const agents = {
   },
 };
 export const trust = [
-  { k: "Redaction before write", v: "regex + entropy + URL-credential" },
-  { k: "No network listener", v: "stdio MCP; short-lived read-only query handles" },
-  { k: "No telemetry", v: "nothing phones home" },
-  { k: "Index outside the vault", v: "the .duckdb cache is never synced" },
+  { k: "Plaintext by design", v: "readable Markdown, not encrypted storage" },
+  { k: "Secret-aware writes", v: "recognized credentials redacted before automated writes" },
+  { k: "Local by default", v: "stdio MCP; no required daemon or external database" },
+  { k: "No product telemetry", v: "cloud embedders and judges are explicit opt-ins" },
 ];

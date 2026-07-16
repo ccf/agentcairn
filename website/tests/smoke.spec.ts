@@ -34,10 +34,11 @@ test("uninstall demo advances through stages", async ({ page }) => {
 test("quickstart renders; removed roadmap/prior-art sections are absent", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("cairn doctor")).toBeVisible();
-  // The removed prior-art comparison section stays gone. "basic-memory" still
-  // appears once on the home page — but only as the new /alternatives SEO link
-  // label, not as the old prior-art section content.
-  await expect(page.getByText("basic-memory")).toHaveCount(1);
-  await expect(page.getByRole("link", { name: /vs Mem0, Letta, Zep, basic-memory/ })).toHaveAttribute("href", "/alternatives");
+  // The removed prior-art section stays gone while the focused comparison page
+  // remains discoverable through the footer.
+  await expect(page.getByRole("link", { name: /Compare memory approaches/ })).toHaveAttribute(
+    "href",
+    "/alternatives/",
+  );
   await expect(page.getByText("Roadmap & honest status")).toHaveCount(0);
 });
