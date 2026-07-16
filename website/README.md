@@ -33,3 +33,8 @@ curl -sI https://agentcairn.dev/ | grep -i strict-transport-security
 
 CI (`.github/workflows/site.yml`) is the **test gate only** (`astro check` + build +
 Playwright/axe on PRs and `main`); it does not deploy.
+
+`wrangler.jsonc` and `npm run deploy` provide an optional manual deployment to
+Cloudflare Workers Static Assets. They mirror the same `dist/` output and header
+policy, but they are not the production deployment source of truth while the
+Pages Git integration is enabled.

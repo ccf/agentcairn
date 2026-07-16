@@ -5,7 +5,7 @@ agentcairn is a [Hermes](https://github.com/NousResearch/hermes-agent) `MemoryPr
 Its design emphasizes:
 
 - **Vault-native and human-editable.** Memories are plain Markdown files with YAML frontmatter and `[[wikilinks]]` — open them in Obsidian, fix a wrong fact by hand, drop in your own notes, and the agent picks it all up on the next session.
-- **Local-first by default.** No cloud account, network call, or always-on server is required. Canonical Markdown and the derived retrieval index stay on your disk.
+- **Local-first by default.** No cloud account or always-on server is required. Embedding runs locally after FastEmbed's model is available in its local cache; canonical Markdown and the derived retrieval index stay on your disk.
 - **Deterministic graph.** Your `[[wikilinks]]` and frontmatter *are* the graph — no LLM entity extraction, no hallucinated edges.
 - **Secret-redacted before every write.** Regex + entropy + URL-credential detection runs before any text reaches the vault.
 - **History-preserving.** Newer facts supersede older notes without silently deleting the prior Markdown.
