@@ -55,6 +55,16 @@ def default_ledger(vault: Path | str) -> Path:
     return cache_root() / "ledgers" / f"{vault_key(vault)}.sha256"
 
 
+def native_memory_manifest(vault: Path | str, source: str) -> Path:
+    """Private cache mirror of a vault's native-memory lifecycle registry.
+
+    ``source`` is an internal adapter id, not user input. The canonical registry
+    lives under ``<vault>/.agentcairn`` so manual note deletions remain respected
+    even if this cache copy is cleared.
+    """
+    return cache_root() / "native-memory" / vault_key(vault) / f"{source}.json"
+
+
 def migrate_legacy_index(env: Mapping[str, str] | None = None) -> Path | None:
     """One-time best-effort: if the legacy global `<cache>/index.duckdb` exists and
     CAIRN_INDEX is unset, infer its vault root from a stored note path and move it to

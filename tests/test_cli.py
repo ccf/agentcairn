@@ -2176,3 +2176,95 @@ def test_schedule_uninstall_runtime_error_clean(monkeypatch):
     assert "error" in combined and "crontab write failed" in combined
     assert "Traceback" not in res.stdout
     assert res.exception is None or isinstance(res.exception, SystemExit)
+
+
+# ---------------------------------------------------------------------------
+# cairn import claude-memory
+# ---------------------------------------------------------------------------
+
+
+def test_import_claude_memory_previews_without_writing(tmp_path):
+    from cairn import paths
+
+    project = tmp_path / "project"
+    project.mkdir()
+    source = tmp_path / "claude-memory"
+    source.mkdir()
+    (source / "MEMORY.md").write_text("# Runtime\n\nUse four workers.\n", encoding="utf-8")
+    vault = tmp_path / "vault"
+    index = tmp_path / "index.duckdb"
+
+    result = runner.invoke(
+        app,
+        [
+            "import",
+            "claude-memory",
+            "--project",
+            str(project),
+            "--source",
+            str(source),
+            "--vault",
+            str(vault),
+            "--index",
+            str(index),
+            "--embedder",
+            "fake",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "preview: 1 discovered" in result.output
+    assert "1 added" in result.output
+    assert "Preview only; no files written" in result.output
+    assert not vault.exists()
+    assert not index.exists()
+    assert not paths.native_memory_manifest(vault, "claude-code").exists()
+
+
+def test_import_claude_memory_apply_writes_and_indexes_immediately(tmp_path):
+    import duckdb
+
+    project = tmp_path / "project"
+    project.mkdir()
+    source = tmp_path / "claude-memory"
+    source.mkdir()
+    (source / "MEMORY.md").write_text(
+        "# Launch\n\nThe launch phrase is cobalt unicorn.\n", encoding="utf-8"
+    )
+    vault = tmp_path / "vault"
+    index = tmp_path / "index.duckdb"
+
+    result = runner.invoke(
+        app,
+        [
+            "import",
+            "claude-memory",
+            "--project",
+            str(project),
+            "--source",
+            str(source),
+            "--vault",
+            str(vault),
+            "--index",
+            str(index),
+            "--embedder",
+            "fake",
+            "--apply",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "imported: 1 discovered" in result.output
+    assert "index: current" in result.output
+    notes = list((vault / "memories" / "imported" / "claude-code").rglob("*.md"))
+    assert len(notes) == 1
+    assert index.is_file()
+
+    con = duckdb.connect(str(index), read_only=True)
+    try:
+        row = con.execute("SELECT project, harness FROM notes").fetchone()
+        chunk_text = "\n".join(row[0] for row in con.execute("SELECT text FROM chunks").fetchall())
+    finally:
+        con.close()
+    assert row == ("project", "claude-code")
+    assert "cobalt unicorn" in chunk_text

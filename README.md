@@ -132,6 +132,18 @@ cairn recall "how did we fix the auth bug?" --vault ~/agentcairn
 cairn doctor --vault ~/agentcairn
 ```
 
+### Bring Claude Code's memory with you
+
+Claude Code's auto-memory can seed the shared vault without changing its source files. The command previews only the current repository by default; add `--apply` to write the redacted notes and refresh the index.
+
+```bash
+cairn import claude-memory                         # preview; writes nothing
+cairn import claude-memory --apply                 # import this repository
+cairn import claude-memory --project ../other --apply
+```
+
+The one-way import reads `MEMORY.md` and its topic Markdown files—never `CLAUDE.md` or `.claude/rules/`. Imported notes retain Claude Code, project, and source-file provenance. When a source changes, the prior version remains inspectable but is superseded; when one disappears, its imported version expires. A small `.agentcairn/native-memory/` registry preserves that lifecycle without indexing source content twice. Use `--source <dir>` for a custom, managed, or session-overridden Claude memory directory, or `--no-reindex` when batching imports.
+
 Prefer an ephemeral process:
 
 ```bash
