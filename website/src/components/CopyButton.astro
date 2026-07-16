@@ -2,12 +2,47 @@
 const { text } = Astro.props;
 ---
 <button
-  class="font-mono text-[11px] text-[var(--color-ink-faint)] border-l border-[var(--color-border)] pl-3 hover:text-[var(--color-ink)]"
-  data-copy={text} aria-label={`Copy: ${text}`}>copy</button>
+  type="button"
+  class="copy-button font-mono text-[12px] text-[var(--color-ink-faint)] hover:text-[var(--color-ink)]"
+  data-copy={text}
+  aria-label={`Copy command: ${text}`}
+>
+  <span data-copy-label>copy</span>
+  <span class="sr-only" data-copy-status aria-live="polite"></span>
+</button>
 <script>
-  document.querySelectorAll("[data-copy]").forEach((b) =>
-    b.addEventListener("click", async () => {
-      await navigator.clipboard.writeText(b.getAttribute("data-copy") || "");
-      const prev = b.textContent; b.textContent = "copied"; setTimeout(() => (b.textContent = prev), 1200);
-    }));
+  document.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((button) => {
+    if (button.dataset.copyReady === "true") return;
+    button.dataset.copyReady = "true";
+
+    button.addEventListener("click", async () => {
+      const value = button.dataset.copy || "";
+      const label = button.querySelector<HTMLElement>("[data-copy-label]");
+      const status = button.querySelector<HTMLElement>("[data-copy-status]");
+      let copied = false;
+
+      try {
+        await navigator.clipboard.writeText(value);
+        copied = true;
+      } catch {
+        // Clipboard access can be denied outside a secure context or by browser
+        // policy. Keep the command visible and announce the manual-copy fallback.
+        copied = false;
+      }
+
+      if (label) label.textContent = copied ? "copied" : "copy failed";
+      if (status) {
+        status.textContent = copied
+          ? "Command copied to the clipboard."
+          : "Copy failed. Select and copy the command manually.";
+      }
+      button.dataset.copyState = copied ? "success" : "error";
+
+      window.setTimeout(() => {
+        if (label) label.textContent = "copy";
+        if (status) status.textContent = "";
+        button.removeAttribute("data-copy-state");
+      }, 1800);
+    });
+  });
 </script>

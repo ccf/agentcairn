@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 42" role="img" aria-labelledby="title">
+  <title id="title">Three stacked cairn stones</title>
+  <path d="M2 31C5 23 14 20 29 21c13 1 20 6 18 14-3 6-38 7-43 2-2-2-3-4-2-6Z" fill="#191919"/>
+  <path d="M10 19c2-7 10-10 21-9 9 1 13 5 11 12-3 5-28 6-31 1-1-1-2-3-1-4Z" fill="#545450"/>
+  <path d="M19 8c2-5 8-7 14-5 5 1 7 5 4 9-3 4-16 4-18 0-1-1-1-3 0-4Z" fill="#8B8B85"/>
+</svg>

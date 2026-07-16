@@ -1,11 +1,76 @@
 ---
 import { nav, navGuides } from "../lib/content";
+
+const normalizedPath = (href: string) => href.replace(/\/+$/, "");
+const featuredGuides = navGuides.filter((item) => normalizedPath(item.href) === "/claude-code-memory");
+const github = navGuides.find((item) => item.label === "GitHub" || item.href.includes("github.com"));
+const moreGuides = navGuides.filter((item) => !featuredGuides.includes(item) && item !== github);
 ---
-<nav class="mx-auto flex max-w-[var(--container-frame)] items-center justify-between gap-6 px-8 py-6 border-b border-[var(--color-border-faint)]">
-  <a href="/" class="font-sans font-medium tracking-tight text-[16px] shrink-0">🪨 agentcairn</a>
-  <div class="font-mono text-[13px] text-[var(--color-ink-muted)] flex flex-wrap justify-end gap-x-6 gap-y-2">
+<nav aria-label="Primary" class="site-nav mx-auto flex max-w-[var(--container-frame)] items-center justify-between gap-6 px-[var(--page-pad)] py-5 border-b border-[var(--color-border-faint)]">
+  <a href="/" class="brand-link font-sans font-semibold tracking-[-0.025em] text-[16px] shrink-0">
+    <img src="/cairn-mark.svg" width="42" height="34" alt="" aria-hidden="true" />
+    <span>agentcairn</span>
+  </a>
+
+  <div class="hidden lg:flex font-mono text-[13px] text-[var(--color-ink-muted)] items-center justify-end gap-x-5">
     {nav.map((n) => <a href={n.href} class="hover:text-[var(--color-ink)]">{n.label}</a>)}
-    <span class="text-[var(--color-border)] select-none" aria-hidden="true">·</span>
-    {navGuides.map((n) => <a href={n.href} class="hover:text-[var(--color-ink)]">{n.label}</a>)}
+    {featuredGuides.map((n) => <a href={n.href} class="hover:text-[var(--color-ink)]">{n.label}</a>)}
+    {moreGuides.length > 0 && (
+      <details class="desktop-more">
+        <summary>More</summary>
+        <div class="desktop-more__panel">
+          {moreGuides.map((n) => <a href={n.href}>{n.label}</a>)}
+        </div>
+      </details>
+    )}
+    {github && <a href={github.href} class="hover:text-[var(--color-ink)]">{github.label}</a>}
   </div>
+
+  <details class="mobile-menu lg:hidden">
+    <summary class="mobile-menu__trigger font-mono text-[12px] text-[var(--color-ink-muted)]">
+      <span>Menu</span>
+      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+        <path d="M2 5l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </summary>
+    <div class="mobile-menu__panel">
+      <p class="mobile-menu__label">Product</p>
+      {nav.map((n) => <a href={n.href}>{n.label}</a>)}
+      <div class="mobile-menu__rule" aria-hidden="true"></div>
+      <p class="mobile-menu__label">Guides & project</p>
+      {navGuides.map((n) => <a href={n.href}>{n.label}</a>)}
+    </div>
+  </details>
 </nav>
+
+<script>
+  document.querySelectorAll<HTMLDetailsElement>(".mobile-menu, .desktop-more").forEach((menu) => {
+    menu.querySelectorAll("a").forEach((link) =>
+      link.addEventListener("click", () => {
+        menu.removeAttribute("open");
+
+        // A same-page hash link would otherwise leave keyboard focus inside
+        // content that just became hidden when the disclosure closed.
+        const targetUrl = new URL(link.href, window.location.href);
+        const isSamePage = targetUrl.origin === window.location.origin
+          && targetUrl.pathname === window.location.pathname
+          && targetUrl.hash.length > 1;
+        if (!isSamePage) return;
+
+        window.requestAnimationFrame(() => {
+          const target = document.getElementById(decodeURIComponent(targetUrl.hash.slice(1)));
+          if (!target) return;
+          target.setAttribute("tabindex", "-1");
+          target.focus({ preventScroll: true });
+          target.addEventListener("blur", () => target.removeAttribute("tabindex"), { once: true });
+        });
+      }),
+    );
+    menu.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        menu.removeAttribute("open");
+        menu.querySelector<HTMLElement>("summary")?.focus();
+      }
+    });
+  });
+</script>
