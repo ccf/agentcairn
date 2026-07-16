@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-07-16
+
 ### Added
 - **One-way Claude Code auto-memory import.** `cairn import claude-memory` safely
   previews the current repository, while `--apply` imports and indexes its `MEMORY.md`
@@ -372,7 +374,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Out-of-band capture from coding-agent transcripts (redacted, non-lossy `remember`).
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
-[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.24.2...HEAD
+[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.25.0...HEAD
+[0.25.0]: https://github.com/ccf/agentcairn/compare/v0.24.2...v0.25.0
 [0.24.2]: https://github.com/ccf/agentcairn/compare/v0.24.1...v0.24.2
 [0.24.1]: https://github.com/ccf/agentcairn/compare/v0.24.0...v0.24.1
 [0.24.0]: https://github.com/ccf/agentcairn/compare/v0.23.0...v0.24.0
