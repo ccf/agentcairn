@@ -1,11 +1,74 @@
 ---
 import Section from "./Section.astro";
 import Prose from "./Prose.astro";
-import SurvivesUninstallDemo from "../islands/SurvivesUninstallDemo.tsx";
+
+const stages = [
+  {
+    cmd: "rm -f /tmp/cairn-rebuild-demo.duckdb",
+    out: "demo index deleted.",
+  },
+  {
+    cmd: "cairn reindex ~/vault --index /tmp/cairn-rebuild-demo.duckdb",
+    out: "rebuilding from Markdown… 128 notes indexed.",
+  },
+  {
+    cmd: 'cairn recall "auth fix" --index /tmp/cairn-rebuild-demo.duckdb',
+    out: "restored — 0 facts lost. The vault was the truth.",
+  },
+];
 ---
 <Section id="survives" eyebrow="Survives uninstall" eyebrowHeading={false}>
-  <h2 class="font-sans font-medium text-[24px] md:text-[28px] tracking-[-0.015em] max-w-[24ch] mb-4">Delete the index. Reindex. Everything's back.</h2>
-  <div class="prose-measure mb-6"><Prose><p>The index is a cache. The proof is destructive: remove it, rebuild it, lose nothing — because the truth was never in the database.</p></Prose></div>
-  <!-- client:load (not client:visible): demo is below the fold; client:visible races the e2e scroll+click before hydration -->
-  <div class="prose-measure"><SurvivesUninstallDemo client:load /></div>
+  <h2 class="section-title section-title--narrow mb-5">Delete the index. Reindex. Everything's back.</h2>
+  <div class="prose-measure mb-7"><Prose><p>The index is a cache. The proof is destructive: remove it, rebuild it, lose nothing — because the truth was never in the database.</p></Prose></div>
+  <div class="prose-measure uninstall-demo" data-testid="uninstall-demo">
+    <ol class="uninstall-demo__stages" id="uninstall-demo-stages">
+      {stages.map((stage, index) => (
+        <li class="uninstall-stage" data-stage={index}>
+          <div><span class="uninstall-prompt" aria-hidden="true">$</span> {stage.cmd}</div>
+          <div class="uninstall-output">{stage.out}</div>
+        </li>
+      ))}
+    </ol>
+    <button
+      type="button"
+      class="uninstall-next"
+      data-next-stage
+      aria-controls="uninstall-demo-stages"
+      hidden
+    >Reindex →</button>
+    <noscript><p class="uninstall-noscript">The complete rebuild proof is shown because JavaScript is off.</p></noscript>
+  </div>
 </Section>
+
+<script>
+  document.querySelectorAll<HTMLElement>("[data-testid='uninstall-demo']").forEach((demo) => {
+    if (demo.dataset.enhanced === "true") return;
+    demo.dataset.enhanced = "true";
+
+    const stages = [...demo.querySelectorAll<HTMLElement>("[data-stage]")];
+    const next = demo.querySelector<HTMLButtonElement>("[data-next-stage]");
+    if (!next || stages.length < 2) return;
+
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) return;
+
+    let current = 0;
+    stages.slice(1).forEach((stage) => { stage.hidden = true; });
+    next.hidden = false;
+
+    next.addEventListener("click", () => {
+      current += 1;
+      const stage = stages[current];
+      if (!stage) return;
+      stage.hidden = false;
+      stage.setAttribute("aria-live", "polite");
+
+      if (current === stages.length - 1) {
+        next.textContent = "Proof complete";
+        next.disabled = true;
+      } else {
+        next.textContent = "Recall →";
+      }
+    });
+  });
+</script>

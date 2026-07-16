@@ -4,10 +4,10 @@
 import CopyButton from "./CopyButton.astro";
 const { command } = Astro.props;
 ---
-<div
-  class="font-mono text-[14px] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-4 py-3 flex items-start gap-3 w-fit max-w-full overflow-x-auto"
-  tabindex="0"
->
-  <code class="whitespace-pre leading-[1.7]">{command}</code>
+<div class="command-shell font-mono text-[14px]" role="group" aria-label="Copyable command">
+  <div class="command-scroll" tabindex="0">
+    <code class="whitespace-pre leading-[1.7]">{command}</code>
+  </div>
   <CopyButton text={command} />
 </div>
+<p class="command-scroll-hint">Swipe to view the full command →</p>

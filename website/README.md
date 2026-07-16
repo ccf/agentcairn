@@ -14,6 +14,11 @@ npm run check      # astro/TS check
 npm test           # Playwright e2e (smoke, reduced-motion, a11y)
 ```
 
+`package.json` overrides the YAML parser nested under `yaml-language-server` to
+2.9.0. Its upstream dependency is pinned to vulnerable 2.7.1; the override keeps
+the development-only Astro checker on the patched parser until that pin moves
+(GHSA-48c2-rrv3-qjmp).
+
 ## Deploy
 Deployed via **Cloudflare Pages Git integration** (connect the repo in the Cloudflare
 dashboard): root directory `website`, build command `npm run build`, output directory `dist`,

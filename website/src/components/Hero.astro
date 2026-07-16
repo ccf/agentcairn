@@ -2,16 +2,24 @@
 import { hero } from "../lib/content";
 import CopyButton from "./CopyButton.astro";
 import HeroDiagram from "./HeroDiagram.astro";
+
+const sentenceBreak = hero.h1.indexOf(". ");
+const primary = sentenceBreak >= 0 ? hero.h1.slice(0, sentenceBreak + 1) : hero.h1;
+const secondary = sentenceBreak >= 0 ? hero.h1.slice(sentenceBreak + 2) : "";
 ---
-<header class="mx-auto max-w-[var(--container-frame)] px-8 pt-[90px] pb-14">
-  <p class="eyebrow mb-7">{hero.eyebrow}</p>
-  <h1 class="font-sans font-medium text-[32px] md:text-[38px] leading-[1.15] tracking-[-0.02em] max-w-[18ch] mb-6">{hero.h1}</h1>
-  <p class="prose-measure font-serif text-[20px] leading-[1.55] text-[var(--color-ink-muted)] mb-9">{hero.subhead}</p>
-  <div class="flex items-center gap-5 flex-wrap">
-    <div class="font-mono text-[14px] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-4 py-3 flex items-start gap-3">
+<header class="mx-auto max-w-[var(--container-frame)] px-[var(--page-pad)] pt-[clamp(4rem,9vw,6.5rem)] pb-[clamp(2.5rem,5vw,3.5rem)]">
+  <p class="eyebrow mb-6">{hero.eyebrow}</p>
+  <h1 class="hero-title mb-7">
+    <span class="hero-title__primary">{primary}</span>{" "}
+    {secondary && <span class="hero-title__secondary">{secondary}</span>}
+  </h1>
+  <p class="prose-measure font-serif text-[clamp(1.125rem,2.3vw,1.3rem)] leading-[1.55] text-[var(--color-ink-muted)] mb-9">{hero.subhead}</p>
+  <div class="command-shell hero-command font-mono text-[14px]" role="group" aria-label="Claude Code plugin installation commands">
+    <div class="command-scroll" tabindex="0">
       <code class="whitespace-pre leading-[1.7]">{hero.install.map((c) => `$ ${c}`).join("\n")}</code>
-      <CopyButton text={hero.install.join("\n")} />
     </div>
+      <CopyButton text={hero.install.join("\n")} />
   </div>
+  <p class="command-scroll-hint">Swipe to view the full commands →</p>
   <HeroDiagram />
 </header>
