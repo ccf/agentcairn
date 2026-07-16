@@ -4,6 +4,6 @@ import Prose from "./Prose.astro";
 import { inversion } from "../lib/content";
 ---
 <Section id="inversion" eyebrow={inversion.eyebrow} eyebrowHeading={false}>
-  <h2 class="section-title max-w-[24ch] mb-5">{inversion.h2}</h2>
+  <h2 class="section-title section-title--narrow mb-5">{inversion.h2}</h2>
   <Prose>{inversion.body.map((p) => <p class="mb-6" set:html={p.replace(/\*(.+?)\*/g, "<em>$1</em>")} />)}</Prose>
 </Section>

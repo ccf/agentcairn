@@ -5,7 +5,8 @@ import { benchmark } from "../lib/content";
 <Section id="measured" eyebrow="Benchmarks measured">
   <div class="prose-measure">
     <h3 class="font-sans text-[13px] text-[var(--color-ink-muted)] mb-2">Retrieval — LoCoMo</h3>
-    <div class="table-scroll" tabindex="0" role="region" aria-label="LoCoMo retrieval benchmark results">
+    <p id="locomo-scroll-hint" class="table-scroll-hint table-scroll-hint--compact mb-2">Swipe to see every metric →</p>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="LoCoMo retrieval benchmark results" aria-describedby="locomo-scroll-hint">
     <table class="min-w-[520px] w-full table-fixed border-collapse font-mono text-[13px]">
       <thead><tr class="text-[var(--color-ink-muted)] text-left border-b border-[var(--color-border)]">
         <th class="py-2 font-normal w-2/5">arm</th><th class="py-2 font-normal">r@5</th><th class="py-2 font-normal">r@10</th><th class="py-2 font-normal">MRR</th>
@@ -22,7 +23,8 @@ import { benchmark } from "../lib/content";
     <p class="font-serif text-[14px] text-[var(--color-ink-faint)] mt-3">{benchmark.locomoCaption}</p>
 
     <h3 class="font-sans text-[13px] text-[var(--color-ink-muted)] mb-2 mt-8">Retrieval — LongMemEval-S</h3>
-    <div class="table-scroll" tabindex="0" role="region" aria-label="LongMemEval-S retrieval benchmark results">
+    <p id="longmemeval-scroll-hint" class="table-scroll-hint table-scroll-hint--compact mb-2">Swipe to see every metric →</p>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="LongMemEval-S retrieval benchmark results" aria-describedby="longmemeval-scroll-hint">
     <table class="min-w-[620px] w-full table-fixed border-collapse font-mono text-[13px]">
       <thead><tr class="text-[var(--color-ink-muted)] text-left border-b border-[var(--color-border)]">
         <th class="py-2 font-normal w-2/5">arm</th><th class="py-2 font-normal">session r@5</th><th class="py-2 font-normal">session MRR</th><th class="py-2 font-normal">turn r@5</th>
@@ -39,7 +41,8 @@ import { benchmark } from "../lib/content";
     <p class="font-serif text-[14px] text-[var(--color-ink-faint)] mt-3">{benchmark.longmemevalCaption}</p>
 
     <h3 class="font-sans text-[13px] text-[var(--color-ink-muted)] mb-2 mt-8">Context efficiency</h3>
-    <div class="table-scroll" tabindex="0" role="region" aria-label="Context efficiency benchmark results">
+    <p id="context-scroll-hint" class="table-scroll-hint table-scroll-hint--compact mb-2">Swipe to see every metric →</p>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Context efficiency benchmark results" aria-describedby="context-scroll-hint">
     <table class="min-w-[500px] w-full table-fixed border-collapse font-mono text-[13px]">
       <thead><tr class="text-[var(--color-ink-muted)] text-left border-b border-[var(--color-border)]">
         <th class="py-2 font-normal w-2/5">dataset</th><th class="py-2 font-normal">haystack</th><th class="py-2 font-normal">recalled</th><th class="py-2 font-normal">reduction</th>

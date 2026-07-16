@@ -45,6 +45,23 @@ test("desktop navigation takes over at the large breakpoint", async ({ page }) =
   await expect(page.locator("details.desktop-more summary")).toBeVisible();
 });
 
+test("wide content keeps a visible horizontal-scroll cue where it overflows", async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 900 });
+  await page.goto("/");
+  await expect(page.locator("#hosts-scroll-hint")).toBeVisible();
+  await expect(page.locator("#locomo-scroll-hint")).toBeHidden();
+
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await expect(page.locator("#hosts-scroll-hint")).toBeHidden();
+  await expect(page.locator("#locomo-scroll-hint")).toBeHidden();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator("#locomo-scroll-hint")).toBeVisible();
+  await expect(page.locator(".command-scroll-hint").first()).toBeVisible();
+  await page.goto("/alternatives/");
+  await expect(page.locator("#comparison-scroll-hint")).toBeVisible();
+});
+
 test("copy control announces clipboard failures without hiding the command", async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "clipboard", {
@@ -68,6 +85,38 @@ test("hero shows the shared-memory headline and plugin install line", async ({ p
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("One memory across your coding agents");
   await expect(page.getByText("claude plugin install agentcairn@agentcairn").first()).toBeVisible();
+});
+
+test("desktop hero and sections keep the centered site frame", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+
+  for (const locator of [page.locator("main > header"), page.locator("#why"), page.locator("footer")]) {
+    const box = await locator.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.width).toBeGreaterThanOrEqual(1099);
+    expect(box!.width).toBeLessThanOrEqual(1101);
+    expect(box!.x).toBeGreaterThanOrEqual(169);
+    expect(box!.x).toBeLessThanOrEqual(171);
+  }
+
+  const heading = await page.getByRole("heading", { level: 1 }).boundingBox();
+  expect(heading).not.toBeNull();
+  expect(heading!.width).toBeGreaterThan(700);
+  expect(heading!.height).toBeLessThan(300);
+});
+
+test("content-page headings render punctuation instead of entity source text", async ({ page }) => {
+  await page.goto("/agent-memory/");
+  await expect(page.getByRole("heading", { name: "What “agent memory” is" })).toBeVisible();
+  await expect(page.getByText(/&(?:l|r)dquo;/)).toHaveCount(0);
+  const pageTitle = page.getByRole("heading", { level: 1 });
+  const sectionTitle = page.getByRole("heading", { level: 2 }).first();
+  await expect(pageTitle).toHaveCSS("font-family", /Newsreader/);
+  await expect(page.getByRole("heading", { level: 3 }).first()).toHaveCSS("font-family", /Newsreader/);
+  const pageTitleSize = Number.parseFloat(await pageTitle.evaluate((node) => getComputedStyle(node).fontSize));
+  const sectionTitleSize = Number.parseFloat(await sectionTitle.evaluate((node) => getComputedStyle(node).fontSize));
+  expect(pageTitleSize).toBeGreaterThan(sectionTitleSize);
 });
 
 test("inversion + differentiators render", async ({ page }) => {

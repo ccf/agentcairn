@@ -75,7 +75,7 @@ const cols = ["Dimension", "agentcairn", "PMB", "codemem", "basic-memory"];
 ---
 <ContentPage title={title} description={description} faq={faq}>
   <Section id="intro">
-    <h1 class="font-serif text-[40px] leading-tight mb-6">agentcairn vs other agent-memory tools</h1>
+    <h1 class="page-title mb-6">agentcairn vs other agent-memory tools</h1>
     <Prose>
       <p>
         Several tools now address local memory for coding agents. The useful
@@ -92,7 +92,8 @@ const cols = ["Dimension", "agentcairn", "PMB", "codemem", "basic-memory"];
   </Section>
 
   <Section id="comparison" eyebrow="Direct local peers">
-    <div class="overflow-x-auto" tabindex="0">
+    <p id="comparison-scroll-hint" class="table-scroll-hint table-scroll-hint--wide mb-2">Swipe to compare every tool →</p>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Local agent-memory tool comparison" aria-describedby="comparison-scroll-hint">
       <table class="w-full min-w-[820px] table-fixed border-collapse text-[14px] leading-snug">
         <thead>
           <tr>

@@ -25,13 +25,13 @@ function inline(s: string) {
 }
 ---
 <Section id="hosts" eyebrow={agents.eyebrow} eyebrowHeading={false}>
-  <h2 class="section-title max-w-[26ch] mb-5">{agents.h2}</h2>
+  <h2 class="section-title mb-5">{agents.h2}</h2>
   <p
     class="prose-measure font-serif text-[16px] leading-[1.55] text-[var(--color-ink-muted)]"
     set:html={inline(agents.body)}
   />
-  <p id="hosts-scroll-hint" class="table-scroll-hint sm:hidden mt-6">Swipe to compare every host →</p>
-  <div class="table-scroll prose-measure mt-2 sm:mt-6" tabindex="0" role="region" aria-label="Supported agents" aria-describedby="hosts-scroll-hint">
+  <p id="hosts-scroll-hint" class="table-scroll-hint table-scroll-hint--hosts mt-6">Swipe to compare every host →</p>
+  <div class="table-scroll hosts-table mt-2" tabindex="0" role="region" aria-label="Supported agents" aria-describedby="hosts-scroll-hint">
     <table class="min-w-[760px] w-full border-collapse font-mono text-[13px]">
       <caption class="sr-only">Supported coding-agent hosts, integration level, setup command, and ambient memory support</caption>
       <thead><tr class="text-[var(--color-ink-muted)] text-left border-b border-[var(--color-border)]">
