@@ -1,11 +1,28 @@
 ---
 name: using-agentcairn-memory
-description: Use when starting a non-trivial task or finishing a decision/fix — recall prior memory before working, and remember durable facts worth carrying across sessions.
+description: Use when AgentCairn memory tools are loaded and starting a non-trivial task or finishing a decision/fix — recall prior memory before working, and remember durable facts worth carrying across sessions.
+metadata:
+  internal: true
 ---
 
 # Using agentcairn memory
 
 You have a persistent memory backed by agentcairn (a Markdown vault the user owns). Use it.
+
+## Require the full integration
+
+This skill assumes AgentCairn's MCP tools are already loaded. Before following
+the memory workflow, confirm that `recall` and `remember` are available.
+
+If the tools are missing:
+
+- Do not invent tool calls or imply that this behavior skill installed the
+  AgentCairn runtime, MCP server, plugin, or hooks.
+- Explain that the full AgentCairn integration is not loaded.
+- Invoke `$agentcairn-setup` if available, or direct the user to the native
+  AgentCairn installation instructions.
+- Stop the memory workflow until installation is complete and the host has been
+  restarted.
 
 ## Recall before you work
 Before designing, debugging, or re-deriving something non-trivial, **search memory first**:
