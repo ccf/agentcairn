@@ -33,6 +33,7 @@ jobs:
       # read only JSON/Markdown (no cairn package), so --no-project keeps CI fast.
       - run: >-
           uv run --no-project --with pytest pytest
+          --noconftest
           plugin/tests/
           tests/test_plugin_assets.py
           tests/test_skill_distribution.py
