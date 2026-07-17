@@ -133,7 +133,7 @@ Codex SessionStart was verified live end-to-end with agentcairn 0.24.2 / plugin 
 
 ## Using it directly
 
-The plugin is the easiest route, but agentcairn is also a standalone CLI and on-demand MCP server. Standalone installs require Python 3.12+.
+The plugin is the easiest route, but agentcairn is also a standalone CLI and on-demand MCP server. Standalone installs require Python 3.11+.
 
 ```bash
 uv tool install agentcairn
@@ -229,7 +229,7 @@ Full metrics, embedding sweeps, latency measurements, licenses, commands, and ca
 
 - **The vault is plaintext by design, not encrypted storage.** AgentCairn redacts recognized credential patterns before its automated body/title/tag writes; unknown patterns and hand edits remain your responsibility.
 - **Cloud features are explicit egress.** The default stays local. Opting into a cloud embedder or LLM judge sends the remaining redacted text to that provider.
-- **The project is beta.** Standalone use requires Python 3.12+, and the first local model load can take time. The published retrieval evidence is strongest for conversational memory, not a universal code-search claim.
+- **The project is beta.** Standalone use requires Python 3.11+, and the first local model load can take time. The published retrieval evidence is strongest for conversational memory, not a universal code-search claim.
 - **Ambient behavior varies by host.** The matrix above is intentional: Cursor and Antigravity rely on sweep capture; generic MCP hosts may expose tools without lifecycle hooks.
 - **Automation is platform-specific.** Managed scheduling targets macOS launchd and Linux user crontab; use your own scheduler elsewhere.
 

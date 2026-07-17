@@ -1,6 +1,6 @@
 """agentcairn as a Hermes Agent MemoryProvider — local-first, vault-native memory.
 Install with `hermes plugins install ccf/agentcairn/integrations/hermes`, then
-run `hermes memory setup agentcairn` from a Python 3.12+ Hermes environment."""
+run `hermes memory setup agentcairn` from the standard Hermes environment."""
 
 from __future__ import annotations
 

@@ -1,4 +1,5 @@
 import importlib.util
+import os
 from pathlib import Path
 
 import pytest
@@ -51,6 +52,16 @@ def test_register_registers_one_provider():
 
     mod.register(Ctx())
     assert len(seen) == 1 and seen[0].name == "agentcairn"
+
+
+def test_subclasses_real_hermes_provider_when_required():
+    if not os.environ.get("CAIRN_HERMES_CONTRACT"):
+        pytest.skip("set CAIRN_HERMES_CONTRACT=1 for the real Hermes contract")
+
+    from agent.memory_provider import MemoryProvider
+
+    mod = load_plugin()
+    assert issubclass(mod.CairnMemoryProvider, MemoryProvider)
 
 
 def test_prefetch_returns_a_saved_memory(provider):
