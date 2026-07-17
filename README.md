@@ -58,6 +58,18 @@ codex plugin add agentcairn@agentcairn
 
 Codex gets the bundled MCP tools and memory skill, live-verified SessionStart recall, and SessionEnd capture with `cairn sweep` as the out-of-band backstop.
 
+### Agent-assisted setup
+
+Already use [skills.sh](https://skills.sh/) or a `find-skills` workflow? Install the public setup assistant:
+
+```bash
+npx skills add ccf/agentcairn --skill agentcairn-setup -g
+```
+
+Then ask your agent: `Use $agentcairn-setup to preview, install, and verify AgentCairn for this coding agent.`
+
+This installs setup guidance only—not the AgentCairn runtime, MCP server, plugin, or hooks. The assistant delegates those changes to AgentCairn's preview-first native installer and verifies the resulting integration. The Claude Code and Codex plugin commands above remain the shortest path.
+
 The default vault is `~/agentcairn` and is created on first use. A new empty vault has nothing useful to recall yet, so prove the whole loop explicitly:
 
 ```text

@@ -2,9 +2,25 @@ name: plugin
 on:
   push:
     branches: [main]
-    paths: ["plugin/**", ".claude-plugin/**", ".github/workflows/plugin.yml"]
+    paths:
+      - "plugin/**"
+      - "skills/**"
+      - "src/cairn/assets/**"
+      - ".claude-plugin/**"
+      - ".agents/plugins/**"
+      - "tests/test_plugin_assets.py"
+      - "tests/test_skill_distribution.py"
+      - ".github/workflows/plugin.yml"
   pull_request:
-    paths: ["plugin/**", ".claude-plugin/**", ".github/workflows/plugin.yml"]
+    paths:
+      - "plugin/**"
+      - "skills/**"
+      - "src/cairn/assets/**"
+      - ".claude-plugin/**"
+      - ".agents/plugins/**"
+      - "tests/test_plugin_assets.py"
+      - "tests/test_skill_distribution.py"
+      - ".github/workflows/plugin.yml"
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -15,7 +31,36 @@ jobs:
           python-version: "3.12"
       # --with pytest provisions pytest into the isolated env; the plugin tests
       # read only JSON/Markdown (no cairn package), so --no-project keeps CI fast.
-      - run: uv run --no-project --with pytest pytest plugin/tests/ -q
+      - run: >-
+          uv run --no-project --with pytest pytest
+          --noconftest
+          plugin/tests/
+          tests/test_plugin_assets.py
+          tests/test_skill_distribution.py
+          -q
+      - name: Verify isolated skills.sh installation
+        env:
+          DISABLE_TELEMETRY: "1"
+        run: |
+          fake_home="$(mktemp -d)"
+          export HOME="$fake_home"
+          export XDG_STATE_HOME="$RUNNER_TEMP/skills-state"
+          export npm_config_cache="$RUNNER_TEMP/npm-cache"
+          export npm_config_ignore_scripts="true"
+          npx --yes skills@1.5.19 add "$GITHUB_WORKSPACE" \
+            --agent codex --global --yes --copy
+          test -f "$fake_home/.agents/skills/agentcairn-setup/SKILL.md"
+          test -f "$fake_home/.agents/skills/agentcairn-setup/agents/openai.yaml"
+          test ! -e "$fake_home/.agents/skills/using-agentcairn-memory"
+          unexpected="$(find "$fake_home" -type f \
+            ! -path "$fake_home/.agents/skills/agentcairn-setup/SKILL.md" \
+            ! -path "$fake_home/.agents/skills/agentcairn-setup/agents/openai.yaml" \
+            -print)"
+          if [ -n "$unexpected" ]; then
+            echo "skills.sh wrote unexpected files:" >&2
+            echo "$unexpected" >&2
+            exit 1
+          fi
       - name: shellcheck hook scripts
         run: |
           sudo apt-get update && sudo apt-get install -y shellcheck

@@ -1,0 +1,4 @@
+interface:
+  display_name: "AgentCairn Setup"
+  short_description: "Install and repair persistent cross-agent memory"
+  default_prompt: "Use $agentcairn-setup to preview, install, and verify AgentCairn for my current coding agent."

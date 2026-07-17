@@ -5,6 +5,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+### Added
+- **Agent-assisted setup through skills.sh.** The public `agentcairn-setup`
+  skill discovers the current harness, previews one targeted native install,
+  delegates all writes to `cairn install`, and verifies the runtime, plugin/MCP
+  layer, restart boundary, and loaded tools. It remains setup guidance only;
+  native plugins and the AgentCairn CLI continue to own runtime installation.
+
+### Changed
+- The plugin-delivered `using-agentcairn-memory` skill is internal to normal
+  skills.sh discovery and now fails closed when its MCP tools are unavailable,
+  directing users to the setup assistant instead of implying that a standalone
+  behavior skill installed the runtime. Native plugin manifests advance to
+  Claude Code 0.4.1, Codex 0.1.3, and Antigravity 0.1.2.
+
+### Fixed
+- Correct the Hermes index-rebuild example to pass the vault as the positional
+  argument to `cairn reindex`.
+
 ## [0.25.0] - 2026-07-16
 
 ### Added

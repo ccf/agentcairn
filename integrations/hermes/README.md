@@ -58,7 +58,7 @@ The optional LLM judge (`CAIRN_JUDGE=anthropic` + `ANTHROPIC_API_KEY`) applies t
 To rebuild the index from the Markdown files alone (e.g., after moving the vault or upgrading agentcairn):
 
 ```bash
-cairn reindex --vault ~/agentcairn
+cairn reindex ~/agentcairn
 ```
 
 ## Notes
