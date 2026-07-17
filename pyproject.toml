@@ -4,13 +4,14 @@ dynamic = ["version"]
 description = "Local-first agent memory: an Obsidian markdown vault as source of truth, with a rebuildable DuckDB index."
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 authors = [{ name = "Charles C. Figueiredo", email = "ccf@ccf.io" }]
 keywords = ["agent-memory", "mcp", "obsidian", "duckdb", "rag", "local-first", "claude", "llm"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries",
@@ -23,7 +24,7 @@ dependencies = [
     "markdown-it-py>=3.0",
     "fastembed>=0.4",
     "duckdb>=1.1",
-    "mcp>=1.27.2",
+    "mcp>=1.26.0",
     "tomlkit>=0.15.0",
 ]
 
@@ -56,7 +57,7 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py311"
 src = ["src", "tests"]
 
 [tool.ruff.lint]

@@ -2,11 +2,17 @@
 import asyncio
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
-REPO = Path(__file__).resolve().parents[2]
+
+def _console_script(name: str) -> str:
+    suffix = ".exe" if os.name == "nt" else ""
+    script = Path(sys.executable).with_name(f"{name}{suffix}")
+    assert script.exists(), f"missing installed console script: {script}"
+    return str(script)
 
 
 def _seed_vault(tmp_path: Path) -> tuple[Path, Path]:
@@ -20,9 +26,7 @@ def _seed_vault(tmp_path: Path) -> tuple[Path, Path]:
     # Build the index so the server can open it at startup (tools.py:_open requires it).
     result = subprocess.run(
         [
-            "uv",
-            "run",
-            "cairn",
+            _console_script("cairn"),
             "reindex",
             str(vault),
             "--embedder",
@@ -30,7 +34,6 @@ def _seed_vault(tmp_path: Path) -> tuple[Path, Path]:
             "--index",
             str(index_path),
         ],
-        cwd=str(REPO),
         capture_output=True,
         text=True,
         timeout=120,
@@ -64,10 +67,9 @@ def test_mcp_stdio_contract(tmp_path):
         CAIRN_EMBEDDER="fake",
     )
     params = StdioServerParameters(
-        command="uv",
-        args=["run", "agentcairn"],
+        command=_console_script("agentcairn"),
+        args=[],
         env=server_env,
-        cwd=str(REPO),
     )
 
     async def _run():

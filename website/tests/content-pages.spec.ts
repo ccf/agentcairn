@@ -39,7 +39,10 @@ test("Hermes guide uses the installable repository subdirectory and states compa
   await expect(
     page.locator("pre").filter({ hasText: "hermes plugins install ccf/agentcairn/integrations/hermes" }),
   ).toBeVisible();
-  await expect(page.getByText(/agentcairn currently requires Python 3\.12 or newer/)).toBeVisible();
+  const compatibility = page.locator("p").filter({ hasText: "Python compatibility:" });
+  await expect(compatibility).toContainText("agentcairn supports Python 3.11+");
+  await expect(compatibility).toContainText("standard managed Python 3.11 environment");
+  await expect(compatibility).toContainText("No replacement interpreter");
 });
 
 test("Claude importer documents best-effort indexing and the official memory source", async ({ page }) => {

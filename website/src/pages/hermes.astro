@@ -18,7 +18,7 @@ const faq = [
   },
   {
     q: "How do I install agentcairn into Hermes?",
-    a: "First ensure Hermes is running on Python 3.12 or newer. Then install the repository subdirectory with `hermes plugins install ccf/agentcairn/integrations/hermes` and run `hermes memory setup agentcairn`; setup installs the agentcairn package into that environment. All config keys are optional and default to a local, no-key setup.",
+    a: "Install the repository subdirectory with `hermes plugins install ccf/agentcairn/integrations/hermes` and run `hermes memory setup agentcairn`; setup installs the agentcairn package into Hermes's standard managed Python 3.11 environment. All config keys are optional and default to a local, no-key setup.",
   },
   {
     q: "Does the Hermes provider need a cloud API key?",
@@ -121,15 +121,12 @@ const faq = [
     ].join("\n")}</pre>
     <Prose>
       <p class="mt-6">
-        <strong>Python compatibility:</strong> agentcairn currently requires
-        Python 3.12 or newer. Hermes accepts Python 3.11+, and its managed CLI
-        installer currently provisions 3.11, so that default environment cannot
-        install this provider yet. Run Hermes in a 3.12+ environment before the
-        commands above. Check{" "}
-        <a href="https://github.com/NousResearch/hermes-agent/blob/main/website/docs/getting-started/installation.md" class="underline">Hermes&rsquo;s current installation documentation</a>{" "}
-        and the{" "}
+        <strong>Python compatibility:</strong> agentcairn supports Python 3.11+
+        and installs into Hermes&rsquo;s standard managed Python 3.11
+        environment. No replacement interpreter or second environment is
+        required. See the{" "}
         <a href="https://github.com/ccf/agentcairn/tree/main/integrations/hermes" class="underline">integration README</a>{" "}
-        before changing a managed environment.
+        for provider details.
       </p>
       <p class="mt-6">
         All config keys are optional. By default it uses{" "}

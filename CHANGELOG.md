@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.25.1] - 2026-07-17
+
 ### Added
 - **Agent-assisted setup through skills.sh.** The public `agentcairn-setup`
   skill discovers the current harness, previews one targeted native install,
@@ -20,6 +22,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
   Claude Code 0.4.1, Codex 0.1.3, and Antigravity 0.1.2.
 
 ### Fixed
+- Restore native installation in stock Hermes Agent environments by supporting
+  Python 3.11 and Hermes's pinned `mcp==1.26.0` dependency. Python 3.11 now has
+  full-suite coverage plus a built-wheel contract test against Hermes 0.18.2
+  and the MCP 1.26 lower bound.
 - Correct the Hermes index-rebuild example to pass the vault as the positional
   argument to `cairn reindex`.
 
@@ -392,7 +398,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Out-of-band capture from coding-agent transcripts (redacted, non-lossy `remember`).
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
-[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.25.0...HEAD
+[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.25.1...HEAD
+[0.25.1]: https://github.com/ccf/agentcairn/compare/v0.25.0...v0.25.1
 [0.25.0]: https://github.com/ccf/agentcairn/compare/v0.24.2...v0.25.0
 [0.24.2]: https://github.com/ccf/agentcairn/compare/v0.24.1...v0.24.2
 [0.24.1]: https://github.com/ccf/agentcairn/compare/v0.24.0...v0.24.1

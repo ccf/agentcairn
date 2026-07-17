@@ -3,7 +3,7 @@
 via manifest.toml; SHA256 recorded and verified on/after first fetch. LoCoMo is CC BY-NC 4.0
 and is NEVER vendored — only cached locally.
 
-Uses `tomllib` (stdlib 3.12) to read manifest.toml. `huggingface_hub` is imported
+Uses `tomllib` (stdlib 3.11) to read manifest.toml. `huggingface_hub` is imported
 lazily inside `fetch` so the base install (without the bench dependency group) can
 import this module without error — only the hf download branch needs it.
 

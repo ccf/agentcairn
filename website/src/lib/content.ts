@@ -142,7 +142,7 @@ export const agents = {
     { host: "Codex", support: "Plugin", setup: "cairn install codex", ambient: "full" },
     { host: "Cursor", support: "MCP server + skill + ingest", setup: "cairn install cursor", ambient: "partial" },
     { host: "OpenCode", support: "Plugin + MCP + ingest", setup: "cairn install opencode", ambient: "full" },
-    { host: "Hermes Agent", support: "MemoryProvider plugin (Python 3.12+)", setup: "see the Hermes guide", ambient: "full" },
+    { host: "Hermes Agent", support: "MemoryProvider plugin (Python 3.11+)", setup: "see the Hermes guide", ambient: "full" },
     { host: "Antigravity", support: "Plugin + ingest", setup: "cairn install antigravity --source <plugin dir>", ambient: "partial" },
     { host: "VS Code (Copilot)", support: "MCP server", setup: "cairn install vscode", ambient: "none" },
     { host: "Claude Desktop", support: "MCP server", setup: "cairn install claude-desktop", ambient: "none" },
@@ -166,8 +166,8 @@ export const agents = {
     "`state.vscdb` SQLite store (`cursorDiskKV` user bubbles); Cursor remains an MCP host (not a " +
     "plugin host), but `cairn install cursor` also installs the `using-agentcairn-memory` skill to " +
     "`~/.cursor/skills/` alongside writing `~/.cursor/mcp.json`. Hermes gets in-process recall and " +
-    "capture through its native MemoryProvider lifecycle, but the current agentcairn package " +
-    "requires a Hermes environment running Python 3.12 or newer; see the Hermes guide.",
+    "capture through its native MemoryProvider lifecycle in the standard managed Python 3.11 " +
+    "environment; see the Hermes guide.",
   obsidian: {
     body:
       "Because the vault is plain Markdown, you can read what every agent remembers in " +

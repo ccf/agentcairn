@@ -19,7 +19,7 @@ the judged cache is version-stamped (`_JUDGE_CACHE_VERSION`).
 
 ## Locked decisions
 - **Name:** package/org/repo `agentcairn`; **CLI command `cairn`**.
-- **Language:** Python 3.12+. Distribute via `uv`/`uvx`/`pipx`; MCP launched via `uvx agentcairn`.
+- **Language:** Python 3.11+. Distribute via `uv`/`uvx`/`pipx`; MCP launched via `uvx agentcairn`.
 - **Index is a disposable cache** — always rebuildable from Markdown (`cairn reindex`); never the source of truth.
 - **Default embedder:** FastEmbed `nomic-embed-text-v1.5` (768-d) — a 5-model sweep settled it (best quality-per-dim; beat the original `bge-small-en-v1.5` 384-d default). Pluggable interface (Ollama/cloud opt-in).
 - **Retrieval:** BM25 + vector + wikilink-graph-boost + recency/importance, fused with RRF (k=60); degradation ladder down to BM25-only ("never silently dead").

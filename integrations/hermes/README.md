@@ -21,11 +21,9 @@ Its design emphasizes:
 
 ## Install
 
-agentcairn requires Python 3.12 or newer. Hermes supports Python 3.11+, but its
-managed CLI installer currently provisions a Python 3.11 environment. Make sure
-the Hermes environment itself uses Python 3.12+ before installing this provider;
-do not replace a managed environment without first reviewing the
-[current Hermes installation documentation](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/getting-started/installation.md).
+agentcairn supports Python 3.11 and installs directly into the standard
+Hermes-managed environment. You do not need to replace Hermes's managed Python
+or create a second environment.
 
 ```bash
 # 1. Install the plugin directly from this repository subdirectory
