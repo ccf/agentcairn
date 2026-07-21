@@ -1,71 +1,201 @@
 ---
-import Section from "./Section.astro";
 import { agents } from "../lib/content";
-const obsidianWebp = agents.obsidian.image.replace(/\.png$/i, ".webp");
 
-// Render inline `code` spans and [label](href) markdown links into safe HTML.
-// Tokenize on code spans first, then apply the link regex ONLY to the
-// non-code segments — so markdown-link syntax inside a code span is left intact.
-function inline(s: string) {
-  return s
-    .split(/(`[^`]+`)/)
-    .map((seg) =>
-      seg.startsWith("`") && seg.endsWith("`")
-        ? `<code class="font-mono text-[0.85em]">${seg
-            .slice(1, -1)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")}</code>`
-        : seg.replace(
-            /\[(.+?)\]\((.+?)\)/g,
-            (_m, label, href) => `<a href="${href}" class="underline">${label}</a>`,
-          ),
-    )
-    .join("");
-}
+const full = agents.rows.filter((row) => row.ambient === "full");
+const partial = agents.rows.filter((row) => row.ambient === "partial");
+const explicit = agents.rows.filter((row) => row.ambient === "none");
 ---
-<Section id="hosts" eyebrow={agents.eyebrow} eyebrowHeading={false}>
-  <h2 class="section-title mb-5">{agents.h2}</h2>
-  <p
-    class="prose-measure font-serif text-[16px] leading-[1.55] text-[var(--color-ink-muted)]"
-    set:html={inline(agents.body)}
-  />
-  <p id="hosts-scroll-hint" class="table-scroll-hint table-scroll-hint--hosts mt-6">Swipe to compare every host →</p>
-  <div class="table-scroll hosts-table mt-2" tabindex="0" role="region" aria-label="Supported agents" aria-describedby="hosts-scroll-hint">
-    <table class="min-w-[760px] w-full border-collapse font-mono text-[13px]">
-      <caption class="sr-only">Supported coding-agent hosts, integration level, setup command, and ambient memory support</caption>
-      <thead><tr class="text-[var(--color-ink-muted)] text-left border-b border-[var(--color-border)]">
-        <th class="px-3 py-3 font-normal">host</th>
-        <th class="px-3 py-3 font-normal">support</th>
-        <th class="px-3 py-3 font-normal">set up with</th>
-        <th class="px-3 py-3 font-normal">ambient</th>
-      </tr></thead>
-      <tbody>
-        {agents.rows.map((r) => (
-          <tr class={"border-b border-[var(--color-border-faint)] " + (r.ambient !== "none" ? "text-[var(--color-ink)] font-medium" : "text-[var(--color-ink-muted)]")}>
-            <td class="px-3 py-3 whitespace-nowrap">{r.host}</td>
-            <td class="px-3 whitespace-nowrap">{r.support}</td>
-            <td class="px-3 whitespace-nowrap">{r.setup}</td>
-            <td class="px-3">{r.ambient === "full" ? "✓" : r.ambient === "partial" ? "◐" : "—"}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+<section id="hosts" class="agents-section mx-auto max-w-[var(--container-frame)] px-[var(--page-pad)]">
+  <div class="agents-section__header">
+    <h2>{agents.h2}</h2>
+    <p>{agents.body}</p>
   </div>
-  <pre class="prose-measure font-mono text-[13px] leading-[1.7] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 overflow-x-auto mt-6" tabindex="0">{agents.install.join("\n")}</pre>
-  <p class="prose-measure font-serif text-[14px] text-[var(--color-ink-faint)] mt-3">{agents.note}</p>
 
-  <p
-    class="prose-measure font-serif text-[16px] leading-[1.55] text-[var(--color-ink-muted)] mt-10"
-    set:html={inline(agents.obsidian.body)}
-  />
-  <figure class="obsidian-figure m-0 mt-6">
-    <picture>
-      <source srcset={obsidianWebp} type="image/webp" />
-      <img src={agents.obsidian.image} width="1280" height="752" loading="lazy" decoding="async"
-           class="w-full h-auto rounded-xl border border-[var(--color-border-faint)]"
-           alt={agents.obsidian.imageAlt} />
-    </picture>
-    <figcaption class="mt-3 font-serif text-[14px] text-[var(--color-ink-faint)]">{agents.obsidian.caption}</figcaption>
-  </figure>
-</Section>
+  <section class="ambient-map" aria-labelledby="ambient-map-title">
+    <h3 id="ambient-map-title" class="sr-only">AgentCairn automation levels by host</h3>
+    <div class="ambient-row ambient-row--full">
+      <div>
+        <p>Ambient</p>
+        <span>Recall and capture follow the host lifecycle.</span>
+      </div>
+      <ul>{full.map((row) => <li>{row.host}</li>)}</ul>
+    </div>
+    <div class="ambient-row ambient-row--partial">
+      <div>
+        <p>Sweep-backed</p>
+        <span>Tools are available; transcript capture runs out-of-band.</span>
+      </div>
+      <ul>{partial.map((row) => <li>{row.host}</li>)}</ul>
+    </div>
+    <div class="ambient-row ambient-row--explicit">
+      <div>
+        <p>Explicit MCP</p>
+        <span>The same memory tools, invoked when you choose.</span>
+      </div>
+      <ul>{explicit.map((row) => <li>{row.host}</li>)}</ul>
+    </div>
+  </section>
+
+  <details class="host-details">
+    <summary>Compare every host, integration, and setup command</summary>
+    <div class="host-details__body">
+      <p id="hosts-scroll-hint" class="table-scroll-hint table-scroll-hint--hosts">Swipe to compare every host →</p>
+      <div class="table-scroll hosts-table" tabindex="0" role="region" aria-label="Supported agents" aria-describedby="hosts-scroll-hint">
+        <table class="min-w-[760px] w-full border-collapse font-mono text-[13px]">
+          <caption class="sr-only">Supported coding-agent hosts, integration level, setup command, and ambient memory support</caption>
+          <thead><tr>
+            <th>host</th>
+            <th>support</th>
+            <th>set up with</th>
+            <th>ambient</th>
+          </tr></thead>
+          <tbody>
+            {agents.rows.map((row) => (
+              <tr class:list={[row.ambient !== "none" && "is-strong"]}>
+                <td>{row.host}</td>
+                <td>{row.support}</td>
+                <td>{row.setup}</td>
+                <td>{row.ambient === "full" ? "full" : row.ambient === "partial" ? "sweep" : "explicit"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="host-details__note">{agents.note}</p>
+    </div>
+  </details>
+</section>
+
+<style>
+  .agents-section { padding-top: var(--spacing-section); }
+
+  .agents-section__header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.68fr);
+    gap: clamp(2rem, 7vw, 7rem);
+    align-items: end;
+  }
+
+  .agents-section h2 {
+    max-width: 15ch;
+    margin: 0;
+    font-family: var(--font-serif);
+    font-size: clamp(2.2rem, 4.8vw, 3.6rem);
+    font-weight: 430;
+    letter-spacing: -0.035em;
+    line-height: 1.02;
+    text-wrap: balance;
+  }
+
+  .agents-section__header > p {
+    max-width: 38rem;
+    margin: 0;
+    color: var(--color-ink-muted);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.62;
+    text-wrap: pretty;
+  }
+
+  .ambient-map {
+    margin-top: clamp(2rem, 5vw, 3.5rem);
+    border-top: 1px solid var(--color-ink);
+  }
+
+  .ambient-row {
+    display: grid;
+    grid-template-columns: minmax(12rem, 0.5fr) minmax(0, 1fr);
+    gap: 2rem;
+    align-items: center;
+    padding: 1.1rem 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .ambient-row p,
+  .ambient-row span { margin: 0; }
+
+  .ambient-row p {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: 680;
+  }
+
+  .ambient-row--full p { color: var(--color-accent-text); }
+  .ambient-row--partial p { color: #98600d; }
+  .ambient-row--explicit p { color: var(--color-ink); }
+
+  .ambient-row span {
+    display: block;
+    margin-top: 0.2rem;
+    color: var(--color-ink-faint);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .ambient-row ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .ambient-row li {
+    padding: 0.35rem 0.6rem;
+    border-radius: 999px;
+    background: var(--color-surface);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 560;
+  }
+
+  .ambient-row--full li { background: var(--color-surface-blue); color: #174ea6; }
+
+  .host-details {
+    margin-top: 1rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .host-details summary {
+    display: flex;
+    min-height: 48px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 650;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .host-details summary::-webkit-details-marker { display: none; }
+  .host-details summary::after { color: var(--color-accent-text); content: "+"; font-size: 20px; font-weight: 400; }
+  .host-details[open] summary::after { content: "−"; }
+
+  .host-details__body { padding: 0.75rem 0 2rem; }
+  .host-details th,
+  .host-details td { padding: 0.65rem 0.55rem; border-bottom: 1px solid var(--color-border-faint); text-align: left; white-space: nowrap; }
+  .host-details th { color: var(--color-ink-muted); font-weight: 450; }
+  .host-details tbody { color: var(--color-ink-muted); }
+  .host-details tr.is-strong { color: var(--color-ink); font-weight: 560; }
+
+  .host-details__note {
+    max-width: 72ch;
+    margin: 1rem 0 0;
+    color: var(--color-ink-faint);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  @media (max-width: 760px) {
+    .agents-section__header,
+    .ambient-row { grid-template-columns: minmax(0, 1fr); }
+    .ambient-row { gap: 0.75rem; align-items: start; }
+  }
+</style>

@@ -1,0 +1,362 @@
+---
+import CommandBox from "./CommandBox.astro";
+import { installPaths, otherInstallHosts } from "../lib/content";
+---
+<section id="install" class="install-section mx-auto max-w-[var(--container-frame)] px-[var(--page-pad)]">
+  <div class="install-section__header">
+    <h2>Choose your agent. Get one exact path.</h2>
+    <p>
+      Every route uses the same Markdown vault, but each host has different integration boundaries.
+      Start with the recommended setup for the agent in front of you.
+    </p>
+  </div>
+
+  <fieldset class="install-chooser" data-install-chooser>
+    <legend class="sr-only">Choose an AgentCairn installation route</legend>
+    <div class="install-route-options">
+      {installPaths.map((path, index) => (
+        <div class="install-route-choice">
+          <input
+            class="install-route-radio"
+            type="radio"
+            name="install-route"
+            id={`install-route-${path.id}`}
+            value={path.id}
+            checked={index === 0}
+          />
+          <label for={`install-route-${path.id}`}>{path.label}</label>
+        </div>
+      ))}
+    </div>
+
+    <div class="install-panel-stack">
+      {installPaths.map((path) => (
+        <article
+          class="install-panel"
+          data-install-panel={path.id}
+          data-install-label={path.label}
+          data-install-command={path.command}
+        >
+          <div class="install-panel__intro">
+            <h3>{path.title}</h3>
+            <p>{path.summary}</p>
+          </div>
+
+          {path.id === "other" ? (
+            <div class="other-installs">
+              <div class="other-installs__select">
+                <label for="other-install-host">Which host are you setting up?</label>
+                <select id="other-install-host" data-other-install-host>
+                  {otherInstallHosts.map((host) => <option value={host.id}>{host.label}</option>)}
+                </select>
+              </div>
+
+              {otherInstallHosts.map((host, index) => (
+                <div
+                  class="other-install-panel"
+                  data-other-install-panel={host.id}
+                  data-install-label={host.label}
+                  data-install-command={host.command}
+                  hidden={index !== 0}
+                >
+                  <CommandBox command={host.command} label={`Copy ${host.label} setup command`} />
+                  <dl class="install-facts">
+                    <div><dt>Before you run it</dt><dd>{host.prerequisite}</dd></div>
+                    <div><dt>What it adds</dt><dd>{host.installs}</dd></div>
+                    <div><dt>Finish and verify</dt><dd>{host.restart} {host.verify}</dd></div>
+                  </dl>
+                </div>
+              ))}
+              <noscript><p class="install-noscript">The default Cursor route is shown. Compare the complete host matrix below for another agent.</p></noscript>
+            </div>
+          ) : (
+            <>
+              <CommandBox command={path.command} label={`Copy ${path.label} install command`} />
+              <dl class="install-facts">
+                <div><dt>Before you run it</dt><dd>{path.prerequisite}</dd></div>
+                <div><dt>What happens next</dt><dd>{path.restart}</dd></div>
+                <div><dt>Success check</dt><dd>{path.verify}</dd></div>
+              </dl>
+            </>
+          )}
+
+          <a class="install-panel__link" href={path.href}>{path.hrefLabel}<span aria-hidden="true"> →</span></a>
+        </article>
+      ))}
+    </div>
+  </fieldset>
+</section>
+
+<script>
+  document.querySelectorAll<HTMLElement>("[data-install-chooser]").forEach((chooser) => {
+    if (chooser.dataset.enhanced === "true") return;
+    chooser.dataset.enhanced = "true";
+
+    const routeRadios = [...chooser.querySelectorAll<HTMLInputElement>(".install-route-radio")];
+    const otherSelect = chooser.querySelector<HTMLSelectElement>("[data-other-install-host]");
+    const otherPanels = [...chooser.querySelectorAll<HTMLElement>("[data-other-install-panel]")];
+
+    const selectedRoutePanel = () => {
+      const selected = routeRadios.find((radio) => radio.checked)?.value;
+      return selected ? chooser.querySelector<HTMLElement>(`[data-install-panel="${selected}"]`) : null;
+    };
+
+    const selectedOtherPanel = () => {
+      const selected = otherSelect?.value;
+      return selected ? chooser.querySelector<HTMLElement>(`[data-other-install-panel="${selected}"]`) : null;
+    };
+
+    const announceSelection = () => {
+      const routePanel = selectedRoutePanel();
+      const source = routePanel?.dataset.installPanel === "other" ? selectedOtherPanel() : routePanel;
+      if (!source) return;
+      window.dispatchEvent(new CustomEvent("agentcairn:install-change", {
+        detail: {
+          label: source.dataset.installLabel,
+          command: source.dataset.installCommand,
+        },
+      }));
+    };
+
+    routeRadios.forEach((radio) => radio.addEventListener("change", announceSelection));
+    otherSelect?.addEventListener("change", () => {
+      otherPanels.forEach((panel) => {
+        panel.hidden = panel.dataset.otherInstallPanel !== otherSelect.value;
+      });
+      const routePanel = chooser.querySelector<HTMLElement>('[data-install-panel="other"]');
+      const active = selectedOtherPanel();
+      if (routePanel && active) {
+        routePanel.dataset.installLabel = active.dataset.installLabel;
+        routePanel.dataset.installCommand = active.dataset.installCommand;
+      }
+      announceSelection();
+    });
+  });
+</script>
+
+<style>
+  .install-section { padding-top: var(--spacing-section); }
+
+  .install-section__header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.65fr);
+    gap: clamp(2rem, 7vw, 7rem);
+    align-items: end;
+    margin-bottom: clamp(2rem, 4vw, 3rem);
+  }
+
+  .install-section h2 {
+    max-width: 16ch;
+    margin: 0;
+    font-family: var(--font-serif);
+    font-size: clamp(2.2rem, 4.8vw, 3.6rem);
+    font-weight: 430;
+    letter-spacing: -0.035em;
+    line-height: 1.02;
+    text-wrap: balance;
+  }
+
+  .install-section__header > p {
+    max-width: 37rem;
+    margin: 0;
+    color: var(--color-ink-muted);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.62;
+    text-wrap: pretty;
+  }
+
+  .install-chooser {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: 16px;
+  }
+
+  .install-route-options {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    padding: 0.45rem;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+  }
+
+  .install-route-choice { position: relative; }
+
+  .install-route-radio {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .install-route-choice label {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    padding: 0.55rem 0.85rem;
+    border-radius: 8px;
+    color: var(--color-ink-muted);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 620;
+    cursor: pointer;
+  }
+
+  .install-route-choice:has(input:checked) label {
+    background: var(--color-ink);
+    color: white;
+  }
+
+  .install-route-radio:focus-visible + label {
+    outline: 3px solid color-mix(in srgb, var(--color-accent) 72%, white);
+    outline-offset: 2px;
+  }
+
+  .install-panel-stack { min-width: 0; }
+
+  .install-panel {
+    display: none;
+    min-width: 0;
+    padding: clamp(1.25rem, 4vw, 2.5rem);
+  }
+
+  .install-chooser:has(input[value="claude-code"]:checked) [data-install-panel="claude-code"],
+  .install-chooser:has(input[value="codex"]:checked) [data-install-panel="codex"],
+  .install-chooser:has(input[value="other"]:checked) [data-install-panel="other"],
+  .install-chooser:has(input[value="standalone"]:checked) [data-install-panel="standalone"] {
+    display: block;
+  }
+
+  .install-panel__intro {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(18rem, 1fr);
+    gap: clamp(1.5rem, 5vw, 4rem);
+    align-items: start;
+    margin-bottom: 1.5rem;
+  }
+
+  .install-panel h3 {
+    max-width: 24ch;
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: clamp(1.35rem, 2.6vw, 1.75rem);
+    font-weight: 680;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+    text-wrap: balance;
+  }
+
+  .install-panel__intro p {
+    margin: 0;
+    color: var(--color-ink-muted);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.58;
+    text-wrap: pretty;
+  }
+
+  .install-panel :global(.command-shell) { width: 100%; }
+
+  .install-facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.25rem;
+    margin: 1.6rem 0 0;
+  }
+
+  .install-facts > div {
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .install-facts dt {
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 680;
+  }
+
+  .install-facts dd {
+    margin: 0.4rem 0 0;
+    color: var(--color-ink-muted);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    line-height: 1.52;
+  }
+
+  .install-panel__link {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    margin-top: 1.1rem;
+    color: var(--color-accent-text);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 630;
+  }
+
+  .other-installs__select {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .other-installs__select label {
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 650;
+  }
+
+  .other-installs__select select {
+    min-height: 44px;
+    max-width: 100%;
+    padding: 0.55rem 2.4rem 0.55rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: white;
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 14px;
+  }
+
+  .install-noscript {
+    margin: 0.75rem 0 0;
+    color: var(--color-ink-muted);
+    font-family: var(--font-sans);
+    font-size: 12px;
+  }
+
+  @media (max-width: 760px) {
+    .install-section__header,
+    .install-panel__intro { grid-template-columns: minmax(0, 1fr); }
+    .install-facts { grid-template-columns: minmax(0, 1fr); gap: 0; }
+    .install-facts > div + div { margin-top: 0.9rem; }
+  }
+
+  @media (max-width: 520px) {
+    .install-route-options {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .install-route-choice label { width: 100%; }
+    .other-installs__select { align-items: stretch; flex-direction: column; gap: 0.45rem; }
+    .other-installs__select select { width: 100%; }
+    .install-panel :global(.command-scroll) { overflow-x: visible; }
+    .install-panel :global(.command-scroll code) {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .install-panel :global(.command-scroll-hint) { display: none; }
+  }
+</style>

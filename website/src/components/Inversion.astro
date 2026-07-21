@@ -1,9 +1,225 @@
 ---
-import Section from "./Section.astro";
-import Prose from "./Prose.astro";
-import { inversion } from "../lib/content";
+import { contractPoints, inversion, vaultProof } from "../lib/content";
 ---
-<Section id="inversion" eyebrow={inversion.eyebrow} eyebrowHeading={false}>
-  <h2 class="section-title section-title--narrow mb-5">{inversion.h2}</h2>
-  <Prose>{inversion.body.map((p) => <p class="mb-6" set:html={p.replace(/\*(.+?)\*/g, "<em>$1</em>")} />)}</Prose>
-</Section>
+<section id="how" class="contract-section mx-auto max-w-[var(--container-frame)] px-[var(--page-pad)]">
+  <div class="contract-section__header">
+    <div>
+      <p class="contract-section__signal">{inversion.eyebrow}</p>
+      <h2>{inversion.h2}</h2>
+    </div>
+    <div class="contract-section__body">
+      {inversion.body.map((p) => <p>{p}</p>)}
+    </div>
+  </div>
+
+  <div class="contract-proof">
+    <figure class="vault-proof">
+      <a
+        class="vault-proof__media"
+        href={vaultProof.image}
+        target="_blank"
+        rel="noreferrer"
+        aria-label="Open the full-size AgentCairn vault screenshot"
+      >
+        <picture>
+          <source srcset={vaultProof.imageWebp} type="image/webp" />
+          <img
+            src={vaultProof.image}
+            width="1280"
+            height="752"
+            loading="lazy"
+            decoding="async"
+            alt={vaultProof.imageAlt}
+          />
+        </picture>
+        <span aria-hidden="true">Open full size ↗</span>
+      </a>
+      <figcaption>{vaultProof.caption}</figcaption>
+    </figure>
+
+    <ol class="contract-points">
+      {contractPoints.map((point, index) => (
+        <li>
+          <span aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+          <div>
+            <p>{point.key}</p>
+            <h3>{point.title}</h3>
+            <p>{point.body}</p>
+          </div>
+        </li>
+      ))}
+    </ol>
+  </div>
+</section>
+
+<style>
+  .contract-section {
+    padding-top: var(--spacing-section);
+  }
+
+  .contract-section__header {
+    display: grid;
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 0.72fr);
+    gap: clamp(2rem, 7vw, 7rem);
+    align-items: end;
+  }
+
+  .contract-section__signal {
+    margin: 0 0 1rem;
+    color: var(--color-accent-text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  h2 {
+    max-width: 17ch;
+    margin: 0;
+    font-family: var(--font-serif);
+    font-size: clamp(2.2rem, 4.8vw, 3.6rem);
+    font-weight: 430;
+    letter-spacing: -0.035em;
+    line-height: 1.02;
+    text-wrap: balance;
+  }
+
+  .contract-section__body {
+    max-width: 38rem;
+    color: var(--color-ink-muted);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.62;
+  }
+
+  .contract-section__body p { margin: 0; text-wrap: pretty; }
+  .contract-section__body p + p { margin-top: 1rem; }
+
+  .contract-proof {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(16rem, 0.7fr);
+    gap: clamp(1.5rem, 4vw, 3rem);
+    align-items: start;
+    margin-top: clamp(2.5rem, 6vw, 4.5rem);
+  }
+
+  .vault-proof {
+    min-width: 0;
+    margin: 0;
+  }
+
+  .vault-proof__media {
+    position: relative;
+    display: block;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+  }
+
+  .vault-proof img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .vault-proof__media > span {
+    position: absolute;
+    right: 0.65rem;
+    bottom: 0.65rem;
+    padding: 0.35rem 0.55rem;
+    border-radius: 7px;
+    background: rgb(25 25 25 / 0.9);
+    color: white;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 650;
+  }
+
+  .vault-proof figcaption {
+    max-width: 60ch;
+    margin-top: 0.75rem;
+    color: var(--color-ink-faint);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .contract-points {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .contract-points li {
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr);
+    gap: 0.7rem;
+    padding: 1rem 0;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .contract-points li:first-child { padding-top: 0; border-top: 0; }
+
+  .contract-points li > span {
+    padding-top: 0.15rem;
+    color: var(--color-accent-text);
+    font-family: var(--font-mono);
+    font-size: 10px;
+  }
+
+  .contract-points p,
+  .contract-points h3 { margin: 0; }
+
+  .contract-points div > p:first-child {
+    color: var(--color-accent-text);
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+
+  .contract-points h3 {
+    margin-top: 0.2rem;
+    font-family: var(--font-sans);
+    font-size: 17px;
+    font-weight: 660;
+    letter-spacing: -0.015em;
+  }
+
+  .contract-points div > p:last-child {
+    margin-top: 0.35rem;
+    color: var(--color-ink-muted);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  @media (max-width: 800px) {
+    .contract-section__header,
+    .contract-proof { grid-template-columns: minmax(0, 1fr); }
+    .contract-section__header { align-items: start; }
+    .contract-proof { gap: 2rem; }
+    .contract-points {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1rem;
+    }
+    .contract-points li {
+      display: block;
+      padding: 0.85rem 0 0;
+      border-top: 1px solid var(--color-border);
+    }
+    .contract-points li:first-child { padding-top: 0.85rem; border-top: 1px solid var(--color-border); }
+    .contract-points li > span { display: block; margin-bottom: 0.45rem; }
+  }
+
+  @media (max-width: 560px) {
+    .contract-points { grid-template-columns: minmax(0, 1fr); gap: 0; }
+    .contract-points li > span { display: none; }
+    .vault-proof__media { aspect-ratio: 1; }
+    .vault-proof__media picture { display: contents; }
+    .vault-proof__media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: 53% center;
+    }
+  }
+</style>

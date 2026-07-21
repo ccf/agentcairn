@@ -1,44 +1,121 @@
 ---
-import Section from "./Section.astro";
-import Prose from "./Prose.astro";
-
 const stages = [
   {
-    cmd: "rm -f /tmp/cairn-rebuild-demo.duckdb",
+    cmd: "rm -f /tmp/cairn-demo.duckdb",
     out: "demo index deleted.",
   },
   {
-    cmd: "cairn reindex ~/vault --index /tmp/cairn-rebuild-demo.duckdb",
+    cmd: "cairn reindex ~/vault --index /tmp/cairn-demo.duckdb",
     out: "rebuilding from Markdown… 128 notes indexed.",
   },
   {
-    cmd: 'cairn recall "auth fix" --index /tmp/cairn-rebuild-demo.duckdb',
-    out: "restored — 0 facts lost. The vault was the truth.",
+    cmd: 'cairn recall "auth fix" --index /tmp/cairn-demo.duckdb',
+    out: "same fact recalled from the rebuilt index. The vault was the truth.",
   },
 ];
 ---
-<Section id="survives" eyebrow="Survives uninstall" eyebrowHeading={false}>
-  <h2 class="section-title section-title--narrow mb-5">Delete the index. Reindex. Everything's back.</h2>
-  <div class="prose-measure mb-7"><Prose><p>The index is a cache. The proof is destructive: remove it, rebuild it, lose nothing — because the truth was never in the database.</p></Prose></div>
-  <div class="prose-measure uninstall-demo" data-testid="uninstall-demo">
-    <ol class="uninstall-demo__stages" id="uninstall-demo-stages">
-      {stages.map((stage, index) => (
-        <li class="uninstall-stage" data-stage={index}>
-          <div><span class="uninstall-prompt" aria-hidden="true">$</span> {stage.cmd}</div>
-          <div class="uninstall-output">{stage.out}</div>
-        </li>
-      ))}
-    </ol>
-    <button
-      type="button"
-      class="uninstall-next"
-      data-next-stage
-      aria-controls="uninstall-demo-stages"
-      hidden
-    >Reindex →</button>
-    <noscript><p class="uninstall-noscript">The complete rebuild proof is shown because JavaScript is off.</p></noscript>
+<section id="survives" class="rebuild-section mx-auto max-w-[var(--container-frame)] px-[var(--page-pad)]">
+  <div class="rebuild-section__stage">
+    <div class="rebuild-section__copy">
+      <p class="rebuild-section__lead">Try the failure mode that matters.</p>
+      <h2>Delete the index. The memory stays.</h2>
+      <p>This illustrative sequence removes the derived cache, rebuilds it from Markdown, and recalls the same fact. The valuable part was never trapped in the database.</p>
+    </div>
+    <div class="uninstall-demo" data-testid="uninstall-demo">
+      <p class="uninstall-demo__title">Illustrative disposable-index sequence</p>
+      <ol class="uninstall-demo__stages" id="uninstall-demo-stages">
+        {stages.map((stage, index) => (
+          <li class="uninstall-stage" data-stage={index}>
+            <div><span class="uninstall-prompt" aria-hidden="true">$</span> {stage.cmd}</div>
+            <div class="uninstall-output">{stage.out}</div>
+          </li>
+        ))}
+      </ol>
+      <button
+        type="button"
+        class="uninstall-next"
+        data-next-stage
+        aria-controls="uninstall-demo-stages"
+        hidden
+      >Reindex →</button>
+      <noscript><p class="uninstall-noscript">The complete rebuild proof is shown because JavaScript is off.</p></noscript>
+    </div>
   </div>
-</Section>
+</section>
+
+<style>
+  .rebuild-section { padding-top: var(--spacing-section); }
+
+  .rebuild-section__stage {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(24rem, 1.2fr);
+    gap: clamp(2rem, 6vw, 5rem);
+    align-items: center;
+    padding: clamp(1.6rem, 5vw, 3.5rem);
+    border-radius: 16px;
+    background: var(--color-ink);
+    color: white;
+  }
+
+  .rebuild-section__lead {
+    margin: 0 0 0.85rem;
+    color: #9abeff;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 620;
+  }
+
+  .rebuild-section h2 {
+    max-width: 13ch;
+    margin: 0;
+    font-family: var(--font-serif);
+    font-size: clamp(2.2rem, 4.6vw, 3.4rem);
+    font-weight: 430;
+    letter-spacing: -0.035em;
+    line-height: 1.02;
+    text-wrap: balance;
+  }
+
+  .rebuild-section__copy > p:last-child {
+    max-width: 37rem;
+    margin: 1.25rem 0 0;
+    color: #c8c8c3;
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.62;
+    text-wrap: pretty;
+  }
+
+  .uninstall-demo {
+    max-width: none;
+    border-color: rgb(255 255 255 / 0.2);
+    background: rgb(255 255 255 / 0.055);
+    color: white;
+  }
+
+  .uninstall-demo__title {
+    margin: 0 0 1rem;
+    color: #9abeff;
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 650;
+  }
+
+  .uninstall-prompt { color: #9abeff; }
+  .uninstall-output { color: #c8c8c3; }
+  .uninstall-next {
+    border-color: rgb(255 255 255 / 0.24);
+    background: rgb(255 255 255 / 0.07);
+    color: white;
+  }
+  .uninstall-next:disabled { color: #c8c8c3; }
+  .uninstall-noscript { color: #c8c8c3; }
+
+  @media (max-width: 860px) {
+    .rebuild-section__stage { grid-template-columns: minmax(0, 1fr); }
+    .rebuild-section h2 { max-width: 16ch; }
+  }
+</style>
 
 <script>
   document.querySelectorAll<HTMLElement>("[data-testid='uninstall-demo']").forEach((demo) => {

@@ -1,11 +1,11 @@
 ---
-const { text } = Astro.props;
+const { text, label = `Copy command: ${text}` } = Astro.props;
 ---
 <button
   type="button"
   class="copy-button font-mono text-[12px] text-[var(--color-ink-faint)] hover:text-[var(--color-ink)]"
   data-copy={text}
-  aria-label={`Copy command: ${text}`}
+  aria-label={label}
 >
   <span data-copy-label>copy</span>
   <span class="sr-only" data-copy-status aria-live="polite"></span>

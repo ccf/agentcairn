@@ -2,22 +2,22 @@ export const site = {
   name: "agentcairn",
   title: "Shared Memory for AI Coding Agents — agentcairn",
   description:
-    "One durable memory across your coding agents. Your Markdown vault is canonical; a rebuildable DuckDB cache provides fast, local-first recall.",
+    "One durable memory across supported coding agents. Your Markdown vault is canonical; a rebuildable local index provides fast, cited recall.",
   url: "https://agentcairn.dev",
   repo: "https://github.com/ccf/agentcairn",
   pypi: "https://pypi.org/project/agentcairn/",
   obsidian: "https://community.obsidian.md/plugins/agentcairn",
-  ogImageAlt: "agentcairn — one memory across your coding agents",
-  themeColor: "#ffffff",
+  ogImageAlt: "agentcairn — one memory trail across connected coding agents",
+  themeColor: "#2563eb",
 };
 
 // Homepage section anchors. Prefixed with "/" so they also resolve from
 // sub-pages (e.g. /hermes → /#how), not only from the homepage.
 export const nav = [
   { label: "How it works", href: "/#how" },
-  { label: "Benchmarks", href: "/#measured" },
-  { label: "Quickstart", href: "/#quickstart" },
-  { label: "Supported agents", href: "/#hosts" },
+  { label: "Install", href: "/#install" },
+  { label: "Evidence", href: "/#measured" },
+  { label: "Agents", href: "/#hosts" },
 ];
 
 // Guide / niche pages surfaced in the top nav (and footer). Helps users find
@@ -25,19 +25,17 @@ export const nav = [
 export const navGuides = [
   { label: "Claude import", href: "/claude-code-memory/" },
   { label: "Obsidian", href: "/obsidian-ai-memory/" },
-  { label: "Alternatives", href: "/alternatives/" },
   { label: "GitHub", href: site.repo },
 ];
 
 export const hero = {
-  eyebrow: "Shared, local-first memory for coding agents",
-  h1: "One memory across your coding agents. Plain Markdown under your control.",
+  signal: "Local-first · open source · plain Markdown",
+  h1: "One memory trail across your connected coding agents.",
   subhead:
-    "agentcairn captures durable context across Claude Code, Codex, Cursor, OpenCode, and more into an Obsidian-compatible vault. A rebuildable DuckDB index gives fast hybrid recall; hand-edit a fact and the agents honor it.",
-  install: [
-    "claude plugin marketplace add ccf/agentcairn",
-    "claude plugin install agentcairn@agentcairn",
-  ],
+    "AgentCairn keeps durable context in Markdown you can inspect, edit, and carry between Claude Code, Codex, Cursor, OpenCode, and other MCP hosts. A rebuildable local index gives each connected agent fast, cited recall from the same vault.",
+  primaryCta: { label: "Choose your agent", href: "#install" },
+  secondaryCta: { label: "See the index disappear", href: "#survives" },
+  proof: "No hosted account · no external database · Apache-2.0",
 };
 
 export const footer = {
@@ -58,27 +56,154 @@ export const inversion = {
   eyebrow: "The contract",
   h2: "The files are canonical. The index is replaceable.",
   body: [
-    "Some memory systems center a managed database; other local-first tools also use editable files. agentcairn's contract is specific: your Markdown vault is canonical, DuckDB is a disposable retrieval cache, and every supported coding agent shares the same memory.",
-    "It is purpose-built for coding workflows: ambient multi-harness capture, project and harness provenance, secret-aware ingestion, temporal supersession, and reproducible retrieval benchmarks.",
+    "Every durable fact lives in an ordinary Markdown file. Open it in your editor or Obsidian, correct it by hand, sync it however you choose, and the next reconciled read honors the change.",
+    "DuckDB is only the fast retrieval layer. Delete it and rebuild it from the vault without sacrificing the memory trail your agents share.",
   ],
 };
 
-export const differentiators = [
-  { title: "Plain Markdown is the source of truth", body: "Human-readable files with frontmatter and [[wikilinks]]. Edit them by hand or open them as an Obsidian vault; the index honors your edits." },
-  { title: "The index is disposable", body: "DuckDB is a rebuildable cache. `cairn reindex` restores it from the canonical Markdown without deleting the vault." },
-  { title: "History stays inspectable", body: "Derived notes do not silently erase stored notes. Superseded and expired facts remain visible in the vault." },
-  { title: "Secret-aware automated writes", body: "Recognized credentials are redacted before automated body, title, or tag writes. Unknown patterns and hand edits remain your responsibility." },
-  { title: "A free, deterministic graph", body: "Your [[wikilinks]] are the graph — no LLM extraction, no hallucinated entities." },
-  { title: "Daemonless, zero external DB", body: "One embedded DuckDB does vector + BM25 + graph. No server, no Neo4j/Postgres/Qdrant." },
+export const contractPoints = [
+  { key: "Keep", title: "Readable files", body: "Notes, frontmatter, and [[wikilinks]] remain the durable record." },
+  { key: "Rebuild", title: "Disposable index", body: "BM25, vectors, graph signals, and reranking can be regenerated from Markdown." },
+  { key: "Recall", title: "Cited context", body: "Project, currency, and a permalink travel with each retrieved memory." },
 ];
 
-export const howItWorks = {
-  body: "Capture uses host hooks and native lifecycles where available, plus out-of-band transcript sweeps, then redacts → dedups → importance-gates → distills into the vault. Retrieval fuses BM25 + vectors with RRF, with an optional cross-encoder reranker. The disposable index reconciles before the first MCP read, and remember writes through immediately; the server exposes remember · recall · search · build_context · recent.",
+export const vaultProof = {
+  image: "/obsidian-list.png",
+  imageWebp: "/obsidian-list.webp",
+  imageAlt:
+    "AgentCairn's Memory view in Obsidian showing Markdown memories with project, harness, date, importance, and supersession metadata.",
+  caption: "A real AgentCairn vault in Obsidian. The list is a view over the files—not a second memory store.",
 };
 
+export const installPaths = [
+  {
+    id: "claude-code",
+    label: "Claude Code",
+    title: "Install the first-class Claude Code plugin",
+    summary: "The plugin bundles the MCP server, memory skill, ambient recall and capture hooks, and AgentCairn slash commands.",
+    prerequisite: "uvx and the Claude Code CLI",
+    command: "uvx --from agentcairn cairn install claude-code",
+    restart: "Restart Claude Code completely after installation.",
+    verify: "In a fresh session, confirm that remember, recall, search, build_context, and recent are available—then remember a fact and recall it.",
+    href: "/claude-code-memory/",
+    hrefLabel: "Bring Claude Code's existing auto-memory too",
+  },
+  {
+    id: "codex",
+    label: "Codex",
+    title: "Install the first-class Codex plugin",
+    summary: "The plugin bundles the MCP server, memory skill, verified SessionStart recall, SessionEnd capture, and the sweep backstop.",
+    prerequisite: "uvx and the Codex CLI",
+    command: "uvx --from agentcairn cairn install codex",
+    restart: "Restart Codex completely after installation.",
+    verify: "In a fresh session, confirm that remember, recall, search, build_context, and recent are available—then remember a fact and recall it.",
+    href: `${site.repo}#install`,
+    hrefLabel: "Read the complete Codex integration notes",
+  },
+  {
+    id: "other",
+    label: "Other agents",
+    title: "Connect another coding agent",
+    summary: "Pick a host to get its exact setup path. AgentCairn preserves unrelated MCP servers and backs up supported configuration files before writing.",
+    prerequisite: "Choose a host below",
+    command: "uvx --from agentcairn cairn install cursor",
+    restart: "Restart the selected host after installation.",
+    verify: "Open a fresh session and confirm that the five AgentCairn memory tools are available.",
+    href: "#hosts",
+    hrefLabel: "Compare integration and ambient-memory support",
+  },
+  {
+    id: "standalone",
+    label: "Standalone",
+    title: "Install the CLI and MCP server directly",
+    summary: "Use AgentCairn from your shell, run the MCP server on demand, or wire it into a host manually.",
+    prerequisite: "uv and Python 3.11+",
+    command: "uv tool install agentcairn\ncairn init ~/agentcairn\ncairn reindex ~/agentcairn\ncairn doctor --vault ~/agentcairn",
+    restart: "No restart is required. The first reindex may download and warm the configured local embedding and reranking models.",
+    verify: "Run cairn --version; after initializing and indexing the vault, cairn doctor should report status: OK.",
+    href: `${site.repo}#using-it-directly`,
+    hrefLabel: "See standalone ingestion and maintenance commands",
+  },
+];
+
+export const otherInstallHosts = [
+  {
+    id: "cursor",
+    label: "Cursor",
+    command: "uvx --from agentcairn cairn install cursor",
+    prerequisite: "uvx and Cursor",
+    installs: "MCP tools plus the AgentCairn memory skill. Transcript capture is out-of-band.",
+    restart: "Restart Cursor.",
+    verify: "Start a new chat and confirm the five AgentCairn memory tools and skill are available.",
+  },
+  {
+    id: "opencode",
+    label: "OpenCode",
+    command: "uv tool install agentcairn\ncairn install opencode",
+    prerequisite: "uv and OpenCode",
+    installs: "Persistent CLI, MCP configuration, ambient plugin, and the working `/recall` slash command. Save facts through the MCP `remember` tool.",
+    restart: "Restart OpenCode.",
+    verify: "Run cairn --version, then start a new session and confirm the AgentCairn MCP tools are available.",
+  },
+  {
+    id: "vscode",
+    label: "VS Code (Copilot)",
+    command: "uvx --from agentcairn cairn install vscode",
+    prerequisite: "uvx and VS Code",
+    installs: "The portable MCP server configuration. Memory use is explicit rather than ambient.",
+    restart: "Restart VS Code.",
+    verify: "Open a fresh Copilot session and confirm the five AgentCairn memory tools are available.",
+  },
+  {
+    id: "claude-desktop",
+    label: "Claude Desktop",
+    command: "uvx --from agentcairn cairn install claude-desktop",
+    prerequisite: "uvx and Claude Desktop",
+    installs: "The portable MCP server configuration. Memory use is explicit rather than ambient.",
+    restart: "Restart Claude Desktop.",
+    verify: "Open a fresh chat and confirm the five AgentCairn memory tools are available.",
+  },
+  {
+    id: "gemini",
+    label: "Gemini CLI",
+    command: "uvx --from agentcairn cairn install gemini",
+    prerequisite: "uvx and Gemini CLI",
+    installs: "The portable MCP server configuration. Memory use is explicit rather than ambient.",
+    restart: "Restart Gemini CLI.",
+    verify: "Start a fresh session and confirm the five AgentCairn memory tools are available.",
+  },
+  {
+    id: "hermes",
+    label: "Hermes Agent",
+    command: "hermes plugins install ccf/agentcairn/integrations/hermes\nhermes memory setup agentcairn",
+    prerequisite: "Hermes Agent",
+    installs: "The native AgentCairn MemoryProvider in Hermes' managed Python environment.",
+    restart: "Start a new Hermes session.",
+    verify: "Save a memory, inspect the resulting Markdown, then recall it in the new session.",
+  },
+  {
+    id: "antigravity",
+    label: "Antigravity",
+    command: "uvx --from agentcairn cairn install antigravity --source /path/to/agentcairn/plugin",
+    prerequisite: "uvx, the agy CLI, and a local AgentCairn checkout",
+    installs: "Replace `/path/to/agentcairn/plugin` with your checkout's plugin directory. Capture remains sweep-based because Antigravity has no recognized plugin hooks.",
+    restart: "Restart Antigravity.",
+    verify: "Confirm the plugin is present and the AgentCairn memory tools are loaded.",
+  },
+  {
+    id: "mcp",
+    label: "Manual MCP setup",
+    command: "uvx agentcairn",
+    prerequisite: "uvx and a host that supports custom stdio MCP servers",
+    installs: "This launches AgentCairn as a stdio MCP server. Add it to the host's MCP configuration; the command alone does not install a host integration or ambient hooks.",
+    restart: "Restart the host after adding the server.",
+    verify: "Confirm that remember, recall, search, build_context, and recent appear as MCP tools.",
+  },
+];
+
 export const benchmark = {
-  // Numbers mirror the README "Benchmarks measured" tables (source of truth:
-  // benchmarks/ harness). Keep them in sync with the README — do not edit here alone.
+  // Numbers mirror the benchmarks/README.md tables (source of truth: the
+  // benchmarks/ harness). Keep them in sync — do not edit here alone.
   locomoCaption:
     "LoCoMo retrieval, turn-level macro-avg, FastEmbed nomic-embed-text-v1.5 (the default).",
   rows: [
@@ -87,7 +212,7 @@ export const benchmark = {
     { arm: "hybrid (RRF)", r5: "0.562", r10: "0.648", mrr: "0.477", strong: false },
     { arm: "hybrid + reranker", r5: "0.662", r10: "0.735", mrr: "0.608", strong: true },
   ],
-  longmemevalCaption: "LongMemEval-S, full 500-instance set. Full turn r@10/MRR in the README.",
+  longmemevalCaption: "LongMemEval-S, full 500-instance set. Full turn r@10/MRR in benchmarks/README.md.",
   longmemevalRows: [
     { arm: "BM25 only", sessionR5: "0.920", sessionMrr: "0.918", turnR5: "0.680", strong: false },
     { arm: "vector only", sessionR5: "0.936", sessionMrr: "0.916", turnR5: "0.507", strong: false },
@@ -106,52 +231,20 @@ export const benchmark = {
   ],
 };
 
-export const cli = [
-  "# Claude Code plugin (recommended)",
-  "claude plugin marketplace add ccf/agentcairn",
-  "claude plugin install agentcairn@agentcairn",
-  "",
-  "# Codex plugin",
-  "codex plugin marketplace add ccf/agentcairn",
-  "codex plugin add agentcairn@agentcairn",
-  "",
-  "# ...or use it directly — standalone CLI + MCP server",
-  "uv tool install agentcairn          # installs the cairn + agentcairn commands",
-  "uvx agentcairn                      # ...or run the MCP server ephemerally",
-  "cairn install cursor                # wire the server into another host",
-  "cairn recall \"how did we fix auth?\"  # hybrid recall",
-  "cairn savings                       # context recall has saved you",
-  "cairn doctor                        # health-check the index",
-];
-
 export const agents = {
-  eyebrow: "Use it in any MCP host",
-  h2: "First-class in Claude Code, Codex, OpenCode, Hermes, and Antigravity. Portable everywhere else.",
+  h2: "One vault, different levels of automation.",
   body:
-    "Claude Code, Codex, and Antigravity get a first-class plugin — a bundled MCP server, " +
-    "a memory skill, and (on Claude Code and Codex) ambient session hooks (recall at session " +
-    "start, capture at session end). Antigravity has no plugin hooks, so capture runs out-of-band " +
-    "via `cairn sweep`. Every other MCP host gets the same recall/search/`remember` tools via the " +
-    "portable server; `cairn install` wires it in non-destructively (your other servers are " +
-    "preserved, the original backed up to `<config>.bak`). [Hermes Agent](/hermes/) gets a native " +
-    "agentcairn `MemoryProvider`, and the [agentcairn-obsidian](https://github.com/ccf/agentcairn-obsidian) " +
-    "plugin lets you read and navigate that memory inside Obsidian. Every host resolves the same " +
-    "configured vault (default `~/agentcairn`).",
+    "Every supported host resolves the same configured Markdown vault. What varies is how much of the host lifecycle AgentCairn can automate: some recall and capture ambiently, some capture out-of-band, and MCP-only hosts expose explicit memory tools.",
   rows: [
     { host: "Claude Code", support: "Plugin", setup: "cairn install claude-code", ambient: "full" },
     { host: "Codex", support: "Plugin", setup: "cairn install codex", ambient: "full" },
     { host: "Cursor", support: "MCP server + skill + ingest", setup: "cairn install cursor", ambient: "partial" },
     { host: "OpenCode", support: "Plugin + MCP + ingest", setup: "cairn install opencode", ambient: "full" },
     { host: "Hermes Agent", support: "MemoryProvider plugin (Python 3.11+)", setup: "see the Hermes guide", ambient: "full" },
-    { host: "Antigravity", support: "Plugin + ingest", setup: "cairn install antigravity --source <plugin dir>", ambient: "partial" },
+    { host: "Antigravity", support: "Plugin + ingest", setup: "cairn install antigravity --source /path/to/agentcairn/plugin", ambient: "partial" },
     { host: "VS Code (Copilot)", support: "MCP server", setup: "cairn install vscode", ambient: "none" },
     { host: "Claude Desktop", support: "MCP server", setup: "cairn install claude-desktop", ambient: "none" },
-  ],
-  install: [
-    "cairn install                 # detect installed agents + preview (writes nothing)",
-    "cairn install codex           # install the Codex plugin (shells to `codex plugin …`)",
-    "cairn install cursor          # write MCP config for an MCP host",
-    "cairn install --all           # configure every detected agent",
+    { host: "Gemini CLI", support: "MCP server", setup: "cairn install gemini", ambient: "none" },
   ],
   note:
     "Plugin hosts (Claude Code, Codex, Antigravity) install via the host's own CLI — the MCP " +
@@ -161,30 +254,17 @@ export const agents = {
     "live, and capture also runs out-of-band via `cairn sweep`. Antigravity has " +
     "no recognized plugin hooks — capture runs out-of-band via `cairn sweep` (◐). `agy plugin " +
     "install` takes a local directory (not a git repo), so install with `cairn install antigravity " +
-    "--source <plugin dir>`; it also removes any stale mcp_config.json entry. Cursor has no " +
+    "--source /path/to/agentcairn/plugin` after replacing that path with your checkout's plugin directory; it also removes any stale mcp_config.json entry. Cursor has no " +
     "plugin hooks either — `cairn sweep` ingests sessions out-of-band from Cursor's global " +
     "`state.vscdb` SQLite store (`cursorDiskKV` user bubbles); Cursor remains an MCP host (not a " +
     "plugin host), but `cairn install cursor` also installs the `using-agentcairn-memory` skill to " +
     "`~/.cursor/skills/` alongside writing `~/.cursor/mcp.json`. Hermes gets in-process recall and " +
     "capture through its native MemoryProvider lifecycle in the standard managed Python 3.11 " +
     "environment; see the Hermes guide.",
-  obsidian: {
-    body:
-      "Because the vault is plain Markdown, you can read what every agent remembers in " +
-      "[Obsidian](https://obsidian.md): the [agentcairn-obsidian](https://github.com/ccf/agentcairn-obsidian) " +
-      "plugin (on the community store) adds a vault-native Memory view — a filterable list with provenance " +
-      "and currency, plus a d3-force memory graph of `related:` links, colored by project and sized by " +
-      "importance.",
-    image: "/obsidian-graph.png",
-    imageAlt:
-      "agentcairn Memory view in Obsidian: a memory graph with nodes colored by project, connected by related links, with a legend and a provenance panel.",
-    caption:
-      "The agentcairn-obsidian Memory view — your agents' memory as a navigable graph, colored by project.",
-  },
 };
 export const trust = [
   { k: "Plaintext by design", v: "readable Markdown, not encrypted storage" },
-  { k: "Secret-aware writes", v: "recognized credentials redacted before automated writes" },
+  { k: "Secret-aware writes", v: "recognized patterns redacted; review unknown patterns and hand edits" },
   { k: "Local by default", v: "stdio MCP; no required daemon or external database" },
-  { k: "No product telemetry", v: "cloud embedders and judges are explicit opt-ins" },
+  { k: "Cloud only by opt-in", v: "enabled cloud features may send redacted text or queries off-device" },
 ];

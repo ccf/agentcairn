@@ -1,65 +1,246 @@
 ---
-import Section from "./Section.astro";
-import { benchmark } from "../lib/content";
+import { benchmark, site } from "../lib/content";
 ---
-<Section id="measured" eyebrow="Benchmarks measured">
-  <div class="prose-measure">
-    <h3 class="font-sans text-[13px] text-[var(--color-ink-muted)] mb-2">Retrieval — LoCoMo</h3>
-    <p id="locomo-scroll-hint" class="table-scroll-hint table-scroll-hint--compact mb-2">Swipe to see every metric →</p>
-    <div class="table-scroll" tabindex="0" role="region" aria-label="LoCoMo retrieval benchmark results" aria-describedby="locomo-scroll-hint">
-    <table class="min-w-[520px] w-full table-fixed border-collapse font-mono text-[13px]">
-      <thead><tr class="text-[var(--color-ink-muted)] text-left border-b border-[var(--color-border)]">
-        <th class="py-2 font-normal w-2/5">arm</th><th class="py-2 font-normal">r@5</th><th class="py-2 font-normal">r@10</th><th class="py-2 font-normal">MRR</th>
-      </tr></thead>
-      <tbody>
-        {benchmark.rows.map((r) => (
-          <tr class={"border-b border-[var(--color-border-faint)] " + (r.strong ? "text-[var(--color-ink)] font-medium" : "text-[var(--color-ink-muted)]")}>
-            <td class="py-2">{r.arm}</td><td>{r.r5}</td><td>{r.r10}</td><td>{r.mrr}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-    </div>
-    <p class="font-serif text-[14px] text-[var(--color-ink-faint)] mt-3">{benchmark.locomoCaption}</p>
-
-    <h3 class="font-sans text-[13px] text-[var(--color-ink-muted)] mb-2 mt-8">Retrieval — LongMemEval-S</h3>
-    <p id="longmemeval-scroll-hint" class="table-scroll-hint table-scroll-hint--compact mb-2">Swipe to see every metric →</p>
-    <div class="table-scroll" tabindex="0" role="region" aria-label="LongMemEval-S retrieval benchmark results" aria-describedby="longmemeval-scroll-hint">
-    <table class="min-w-[620px] w-full table-fixed border-collapse font-mono text-[13px]">
-      <thead><tr class="text-[var(--color-ink-muted)] text-left border-b border-[var(--color-border)]">
-        <th class="py-2 font-normal w-2/5">arm</th><th class="py-2 font-normal">session r@5</th><th class="py-2 font-normal">session MRR</th><th class="py-2 font-normal">turn r@5</th>
-      </tr></thead>
-      <tbody>
-        {benchmark.longmemevalRows.map((r) => (
-          <tr class={"border-b border-[var(--color-border-faint)] " + (r.strong ? "text-[var(--color-ink)] font-medium" : "text-[var(--color-ink-muted)]")}>
-            <td class="py-2">{r.arm}</td><td>{r.sessionR5}</td><td>{r.sessionMrr}</td><td>{r.turnR5}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-    </div>
-    <p class="font-serif text-[14px] text-[var(--color-ink-faint)] mt-3">{benchmark.longmemevalCaption}</p>
-
-    <h3 class="font-sans text-[13px] text-[var(--color-ink-muted)] mb-2 mt-8">Context efficiency</h3>
-    <p id="context-scroll-hint" class="table-scroll-hint table-scroll-hint--compact mb-2">Swipe to see every metric →</p>
-    <div class="table-scroll" tabindex="0" role="region" aria-label="Context efficiency benchmark results" aria-describedby="context-scroll-hint">
-    <table class="min-w-[500px] w-full table-fixed border-collapse font-mono text-[13px]">
-      <thead><tr class="text-[var(--color-ink-muted)] text-left border-b border-[var(--color-border)]">
-        <th class="py-2 font-normal w-2/5">dataset</th><th class="py-2 font-normal">haystack</th><th class="py-2 font-normal">recalled</th><th class="py-2 font-normal">reduction</th>
-      </tr></thead>
-      <tbody>
-        {benchmark.contextRows.map((r) => (
-          <tr class="border-b border-[var(--color-border-faint)] text-[var(--color-ink-muted)]">
-            <td class="py-2">{r.dataset}</td><td>{r.haystack}</td><td>{r.recalled}</td><td class="text-[var(--color-ink)] font-medium">{r.reduction}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-    </div>
-    <p class="font-serif text-[14px] text-[var(--color-ink-faint)] mt-3">{benchmark.contextCaption}</p>
-
-    <ul class="font-serif text-[14px] text-[var(--color-ink-muted)] mt-6 list-disc pl-5 space-y-1">
-      {benchmark.caveats.map((c) => <li>{c}</li>)}
-    </ul>
+<section id="measured" class="evidence-section mx-auto max-w-[var(--container-frame)] px-[var(--page-pad)]">
+  <div class="evidence-section__header">
+    <h2>Measured retrieval, explained plainly.</h2>
+    <p>
+      The benchmark harness and raw results are public. The useful conclusion is simpler:
+      hybrid retrieval finds more relevant memory while returning a small fraction of the full history.
+    </p>
   </div>
-</Section>
+
+  <ul class="evidence-ledger" aria-label="Benchmark takeaways">
+    <li class="evidence-finding">
+      <p class="evidence-finding__label">Find the useful turn</p>
+      <p><strong>66.2% of answer-bearing turns found in the first five results</strong> on LoCoMo with hybrid retrieval and the reranker, macro-averaged across queries, compared with 52.7% for BM25 alone.</p>
+    </li>
+    <li class="evidence-finding">
+      <p class="evidence-finding__label">Carry less history</p>
+      <p><strong>About 51–65× less recalled context at k=10</strong> across the measured samples (three LoCoMo conversations and the LongMemEval-S 500-instance set). This uses a ~4-characters-per-token estimate and is not billed-cost savings.</p>
+    </li>
+  </ul>
+
+  <details class="evidence-details" data-testid="benchmark-details">
+    <summary>Open full benchmark tables, metric definitions, and caveats</summary>
+    <div class="evidence-details__body">
+      <p class="evidence-definitions">
+        <strong>Recall@5</strong> is the fraction of all answer-bearing turns retrieved in the first five results, macro-averaged across queries.
+        <strong>MRR</strong> rewards placing the first matching turn closer to the top.
+      </p>
+
+      <h3>Retrieval — LoCoMo</h3>
+      <p id="locomo-scroll-hint" class="table-scroll-hint table-scroll-hint--compact">Swipe to see every metric →</p>
+      <div class="table-scroll" tabindex="0" role="region" aria-label="LoCoMo retrieval benchmark results" aria-describedby="locomo-scroll-hint">
+        <table class="min-w-[520px] w-full table-fixed border-collapse font-mono text-[13px]">
+          <thead><tr>
+            <th class="w-2/5">arm</th><th>r@5</th><th>r@10</th><th>MRR</th>
+          </tr></thead>
+          <tbody>
+            {benchmark.rows.map((r) => (
+              <tr class:list={[r.strong && "is-strong"]}>
+                <td>{r.arm}</td><td>{r.r5}</td><td>{r.r10}</td><td>{r.mrr}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="evidence-caption">{benchmark.locomoCaption}</p>
+
+      <h3>Retrieval — LongMemEval-S</h3>
+      <p id="longmemeval-scroll-hint" class="table-scroll-hint table-scroll-hint--compact">Swipe to see every metric →</p>
+      <div class="table-scroll" tabindex="0" role="region" aria-label="LongMemEval-S retrieval benchmark results" aria-describedby="longmemeval-scroll-hint">
+        <table class="min-w-[620px] w-full table-fixed border-collapse font-mono text-[13px]">
+          <thead><tr>
+            <th class="w-2/5">arm</th><th>session r@5</th><th>session MRR</th><th>turn r@5</th>
+          </tr></thead>
+          <tbody>
+            {benchmark.longmemevalRows.map((r) => (
+              <tr class:list={[r.strong && "is-strong"]}>
+                <td>{r.arm}</td><td>{r.sessionR5}</td><td>{r.sessionMrr}</td><td>{r.turnR5}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="evidence-caption">{benchmark.longmemevalCaption}</p>
+
+      <h3>Context efficiency</h3>
+      <p id="context-scroll-hint" class="table-scroll-hint table-scroll-hint--compact">Swipe to see every metric →</p>
+      <div class="table-scroll" tabindex="0" role="region" aria-label="Context efficiency benchmark results" aria-describedby="context-scroll-hint">
+        <table class="min-w-[500px] w-full table-fixed border-collapse font-mono text-[13px]">
+          <thead><tr>
+            <th class="w-2/5">dataset</th><th>haystack</th><th>recalled</th><th>reduction</th>
+          </tr></thead>
+          <tbody>
+            {benchmark.contextRows.map((r) => (
+              <tr>
+                <td>{r.dataset}</td><td>{r.haystack}</td><td>{r.recalled}</td><td class="is-strong">{r.reduction}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="evidence-caption">{benchmark.contextCaption}</p>
+
+      <ul class="evidence-caveats">
+        {benchmark.caveats.map((c) => <li>{c}</li>)}
+      </ul>
+      <a class="evidence-source" href={`${site.repo}/blob/main/benchmarks/README.md`}>Read full metrics, sweeps, latency, commands, licenses, and caveats<span aria-hidden="true"> →</span></a>
+    </div>
+  </details>
+</section>
+
+<style>
+  .evidence-section { padding-top: var(--spacing-section); }
+
+  .evidence-section__header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.68fr);
+    gap: clamp(2rem, 7vw, 7rem);
+    align-items: end;
+  }
+
+  .evidence-section h2 {
+    max-width: 16ch;
+    margin: 0;
+    font-family: var(--font-serif);
+    font-size: clamp(2.2rem, 4.8vw, 3.6rem);
+    font-weight: 430;
+    letter-spacing: -0.035em;
+    line-height: 1.02;
+    text-wrap: balance;
+  }
+
+  .evidence-section__header > p {
+    max-width: 38rem;
+    margin: 0;
+    color: var(--color-ink-muted);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.62;
+    text-wrap: pretty;
+  }
+
+  .evidence-ledger {
+    margin-top: clamp(2rem, 5vw, 3.5rem);
+    padding: 0;
+    border-top: 1px solid var(--color-ink);
+    list-style: none;
+  }
+
+  .evidence-finding {
+    display: grid;
+    grid-template-columns: minmax(10rem, 0.38fr) minmax(0, 1fr);
+    gap: 2rem;
+    padding: 1.35rem 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .evidence-finding p { margin: 0; }
+
+  .evidence-finding__label {
+    color: var(--color-accent-text);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 660;
+  }
+
+  .evidence-finding > p:last-child {
+    max-width: 48rem;
+    font-family: var(--font-sans);
+    font-size: clamp(1.05rem, 2vw, 1.3rem);
+    line-height: 1.45;
+    text-wrap: pretty;
+  }
+
+  .evidence-finding strong { color: var(--color-ink); font-weight: 720; }
+
+  .evidence-details {
+    margin-top: 1rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .evidence-details summary {
+    display: flex;
+    min-height: 48px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 650;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .evidence-details summary::-webkit-details-marker { display: none; }
+  .evidence-details summary::after { color: var(--color-accent-text); content: "+"; font-size: 20px; font-weight: 400; }
+  .evidence-details[open] summary::after { content: "−"; }
+
+  .evidence-details__body {
+    max-width: 52rem;
+    padding: 0.8rem 0 2rem;
+  }
+
+  .evidence-definitions {
+    margin: 0 0 2rem;
+    padding: 1rem;
+    border-radius: 10px;
+    background: var(--color-surface-blue);
+    color: var(--color-ink-muted);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .evidence-definitions strong { color: var(--color-ink); }
+
+  .evidence-details h3 {
+    margin: 2rem 0 0.45rem;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: 680;
+  }
+
+  .evidence-details table { color: var(--color-ink-muted); }
+  .evidence-details th,
+  .evidence-details td { padding: 0.55rem 0.35rem; border-bottom: 1px solid var(--color-border-faint); text-align: left; }
+  .evidence-details th { font-weight: 450; }
+  .evidence-details .is-strong { color: var(--color-ink); font-weight: 650; }
+
+  .evidence-caption {
+    margin: 0.65rem 0 0;
+    color: var(--color-ink-faint);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .evidence-caveats {
+    margin: 1.5rem 0 0;
+    padding-left: 1.2rem;
+    color: var(--color-ink-muted);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  .evidence-source {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    margin-top: 0.65rem;
+    color: var(--color-accent-text);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 630;
+  }
+
+  @media (max-width: 760px) {
+    .evidence-section__header,
+    .evidence-finding { grid-template-columns: minmax(0, 1fr); }
+    .evidence-finding { gap: 0.45rem; }
+  }
+</style>

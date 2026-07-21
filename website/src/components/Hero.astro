@@ -1,25 +1,141 @@
 ---
 import { hero } from "../lib/content";
-import CopyButton from "./CopyButton.astro";
-import HeroDiagram from "./HeroDiagram.astro";
-
-const sentenceBreak = hero.h1.indexOf(". ");
-const primary = sentenceBreak >= 0 ? hero.h1.slice(0, sentenceBreak + 1) : hero.h1;
-const secondary = sentenceBreak >= 0 ? hero.h1.slice(sentenceBreak + 2) : "";
+import MemoryTrail from "./MemoryTrail.astro";
 ---
-<header class="mx-auto max-w-[var(--container-frame)] px-[var(--page-pad)] pt-[clamp(4rem,9vw,6.5rem)] pb-[clamp(2.5rem,5vw,3.5rem)]">
-  <p class="eyebrow mb-6">{hero.eyebrow}</p>
-  <h1 class="hero-title mb-7">
-    <span class="hero-title__primary">{primary}</span>{" "}
-    {secondary && <span class="hero-title__secondary">{secondary}</span>}
-  </h1>
-  <p class="prose-measure font-serif text-[clamp(1.125rem,2.3vw,1.3rem)] leading-[1.55] text-[var(--color-ink-muted)] mb-9">{hero.subhead}</p>
-  <div class="command-shell hero-command font-mono text-[14px]" role="group" aria-label="Claude Code plugin installation commands">
-    <div class="command-scroll" tabindex="0">
-      <code class="whitespace-pre leading-[1.7]">{hero.install.map((c) => `$ ${c}`).join("\n")}</code>
+<header class="home-hero mx-auto max-w-[var(--container-frame)] px-[var(--page-pad)]">
+  <div class="home-hero__layout">
+    <div class="home-hero__copy">
+      <div class="home-hero__signal">
+        <img src="/cairn-mark.svg" width="36" height="30" alt="" aria-hidden="true" />
+        <span>{hero.signal}</span>
+      </div>
+      <h1>{hero.h1}</h1>
+      <p class="home-hero__subhead">{hero.subhead}</p>
+      <div class="home-hero__actions">
+        <a class="button-primary" href={hero.primaryCta.href}>{hero.primaryCta.label}</a>
+        <a class="button-secondary" href={hero.secondaryCta.href}>{hero.secondaryCta.label}<span aria-hidden="true"> ↓</span></a>
+      </div>
+      <p class="home-hero__proof">{hero.proof}</p>
     </div>
-      <CopyButton text={hero.install.join("\n")} />
+    <MemoryTrail />
   </div>
-  <p class="command-scroll-hint">Swipe to view the full commands →</p>
-  <HeroDiagram />
 </header>
+
+<style>
+  .home-hero {
+    padding-top: clamp(3.5rem, 7vw, 6.5rem);
+    padding-bottom: clamp(3.5rem, 7vw, 5.5rem);
+  }
+
+  .home-hero__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.08fr) minmax(26rem, 0.92fr);
+    gap: clamp(2.5rem, 4vw, 4rem);
+    align-items: center;
+  }
+
+  .home-hero__copy { min-width: 0; }
+
+  .home-hero__signal {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin-bottom: 1.5rem;
+    color: var(--color-ink-muted);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 560;
+    line-height: 1.3;
+  }
+
+  .home-hero__signal img {
+    width: 2rem;
+    height: auto;
+    flex: 0 0 auto;
+  }
+
+  h1 {
+    max-width: 13ch;
+    margin: 0;
+    font-family: var(--font-serif);
+    font-size: clamp(3rem, 5.8vw, 4.65rem);
+    font-weight: 430;
+    letter-spacing: -0.04em;
+    line-height: 0.96;
+    text-wrap: balance;
+  }
+
+  .home-hero__subhead {
+    max-width: 34rem;
+    margin: 1.65rem 0 0;
+    color: var(--color-ink-muted);
+    font-family: var(--font-sans);
+    font-size: clamp(1rem, 1.8vw, 1.16rem);
+    line-height: 1.58;
+    text-wrap: pretty;
+  }
+
+  .home-hero__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.8rem 1.1rem;
+    margin-top: 1.9rem;
+  }
+
+  .button-primary,
+  .button-secondary {
+    display: inline-flex;
+    min-height: 46px;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: 650;
+    text-decoration: none;
+  }
+
+  .button-primary {
+    padding: 0.7rem 1rem;
+    border: 1px solid var(--color-accent-text);
+    border-radius: 9px;
+    background: var(--color-accent-text);
+    color: white;
+  }
+
+  .button-primary:hover { background: #174fc4; }
+
+  .button-secondary {
+    color: var(--color-ink);
+    text-decoration: underline;
+    text-decoration-color: var(--color-border);
+    text-underline-offset: 0.25em;
+  }
+
+  .button-secondary:hover { text-decoration-color: currentColor; }
+
+  .home-hero__proof {
+    margin: 1.15rem 0 0;
+    color: var(--color-ink-faint);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    line-height: 1.5;
+  }
+
+  @media (max-width: 980px) {
+    .home-hero__layout {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 2.5rem;
+    }
+
+    h1 { max-width: 13ch; }
+    .home-hero__subhead { max-width: 42rem; }
+  }
+
+  @media (max-width: 460px) {
+    h1 { font-size: clamp(2.75rem, 14vw, 3.6rem); }
+    .home-hero__actions { align-items: stretch; flex-direction: column; }
+    .button-primary,
+    .button-secondary { width: 100%; }
+  }
+</style>

@@ -2,12 +2,12 @@
 // A copy/paste command box matching the home hero's style.
 // `command` may contain multiple lines (joined with "\n").
 import CopyButton from "./CopyButton.astro";
-const { command } = Astro.props;
+const { command, label } = Astro.props;
 ---
 <div class="command-shell font-mono text-[14px]" role="group" aria-label="Copyable command">
   <div class="command-scroll" tabindex="0">
     <code class="whitespace-pre leading-[1.7]">{command}</code>
   </div>
-  <CopyButton text={command} />
+  <CopyButton text={command} label={label} />
 </div>
 <p class="command-scroll-hint">Swipe to view the full command →</p>
