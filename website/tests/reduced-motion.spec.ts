@@ -1,16 +1,16 @@
 import { test, expect } from "@playwright/test";
-test("hero diagram renders its final state under reduced motion", async ({ browser }) => {
-  const ctx = await browser.newContext({ reducedMotion: "reduce" });
-  const page = await ctx.newPage();
-  await page.goto("/");
-  const diagram = page.getByTestId("hero-diagram");
-  await expect(diagram).toBeVisible();
-  await expect(diagram.getByText("auth-fix.md")).toBeVisible();
-});
 
-test("uninstall demo shows final stage under reduced motion", async ({ browser }) => {
-  const ctx = await browser.newContext({ reducedMotion: "reduce" });
-  const page = await ctx.newPage();
+test("uninstall demo shows the complete proof without staged controls under reduced motion", async ({ browser }) => {
+  const context = await browser.newContext({ reducedMotion: "reduce" });
+  const page = await context.newPage();
   await page.goto("/");
-  await expect(page.getByTestId("uninstall-demo").getByText(/0 facts lost/)).toBeVisible();
+  const demo = page.getByTestId("uninstall-demo");
+  const stages = demo.locator("[data-stage]");
+  await expect(stages).toHaveCount(3);
+  for (let index = 0; index < 3; index += 1) {
+    await expect(stages.nth(index)).toBeVisible();
+  }
+  await expect(demo.locator("[data-next-stage]")).toBeHidden();
+  await expect(demo.getByText(/same fact recalled/)).toBeVisible();
+  await context.close();
 });

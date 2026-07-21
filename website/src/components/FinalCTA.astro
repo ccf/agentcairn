@@ -1,0 +1,227 @@
+---
+import CopyButton from "./CopyButton.astro";
+import { installPaths, site, trust } from "../lib/content";
+
+const defaultInstall = installPaths[0];
+---
+<section class="final-section mx-auto max-w-[var(--container-frame)] px-[var(--page-pad)]" aria-labelledby="final-cta-title">
+  <div class="final-section__stage">
+    <div class="final-section__copy">
+      <img src="/cairn-mark.svg" width="48" height="40" alt="" aria-hidden="true" />
+      <h2 id="final-cta-title">Leave a trail your next agent can follow.</h2>
+      <p>Start with the agent you use now. The same readable vault will be there when you open the next one.</p>
+      <div class="final-section__links">
+        <a href="#install">Change agent</a>
+        <a href={site.repo}>View on GitHub</a>
+      </div>
+    </div>
+
+    <div class="final-install" data-final-install>
+      <p>Install for <strong data-final-install-label>{defaultInstall.label}</strong></p>
+      <div class="final-install__command" role="group" aria-label="Selected AgentCairn installation command">
+        <div tabindex="0"><code data-final-install-command>{defaultInstall.command}</code></div>
+        <CopyButton text={defaultInstall.command} label={`Copy ${defaultInstall.label} install command`} />
+      </div>
+      <ul>
+        {trust.map((item) => <li><strong>{item.k}</strong><span>{item.v}</span></li>)}
+      </ul>
+    </div>
+  </div>
+</section>
+
+<script>
+  document.querySelectorAll<HTMLElement>("[data-final-install]").forEach((finalInstall) => {
+    const label = finalInstall.querySelector<HTMLElement>("[data-final-install-label]");
+    const command = finalInstall.querySelector<HTMLElement>("[data-final-install-command]");
+    const copy = finalInstall.querySelector<HTMLButtonElement>("[data-copy]");
+
+    const update = (nextLabel?: string, nextCommand?: string) => {
+      if (!nextLabel || !nextCommand) return;
+      if (label) label.textContent = nextLabel;
+      if (command) command.textContent = nextCommand;
+      if (copy) {
+        copy.dataset.copy = nextCommand;
+        copy.setAttribute("aria-label", `Copy ${nextLabel} install command`);
+      }
+    };
+
+    window.addEventListener("agentcairn:install-change", ((event: CustomEvent) => {
+      update(event.detail?.label, event.detail?.command);
+    }) as EventListener);
+
+    const chooser = document.querySelector<HTMLElement>("[data-install-chooser]");
+    const selected = chooser?.querySelector<HTMLInputElement>(".install-route-radio:checked")?.value;
+    if (!chooser || !selected) return;
+    const routePanel = chooser.querySelector<HTMLElement>(`[data-install-panel="${selected}"]`);
+    if (selected === "other") {
+      const host = chooser.querySelector<HTMLSelectElement>("[data-other-install-host]")?.value;
+      const hostPanel = host ? chooser.querySelector<HTMLElement>(`[data-other-install-panel="${host}"]`) : null;
+      update(hostPanel?.dataset.installLabel, hostPanel?.dataset.installCommand);
+    } else {
+      update(routePanel?.dataset.installLabel, routePanel?.dataset.installCommand);
+    }
+  });
+</script>
+
+<style>
+  .final-section {
+    padding-top: var(--spacing-section);
+  }
+
+  .final-section__stage {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(24rem, 1.2fr);
+    gap: clamp(2rem, 5vw, 4rem);
+    align-items: center;
+    padding: clamp(1.6rem, 5vw, 3.6rem);
+    border-radius: 16px;
+    background: var(--color-accent-text);
+    color: white;
+  }
+
+  .final-section__copy img {
+    width: 2.6rem;
+    height: auto;
+    filter: brightness(0) invert(1);
+    opacity: 0.92;
+  }
+
+  .final-section h2 {
+    max-width: 12ch;
+    margin: 1.1rem 0 0;
+    font-family: var(--font-serif);
+    font-size: clamp(2.3rem, 4.9vw, 3.7rem);
+    font-weight: 430;
+    letter-spacing: -0.035em;
+    line-height: 1;
+    text-wrap: balance;
+  }
+
+  .final-section__copy > p {
+    max-width: 35rem;
+    margin: 1.2rem 0 0;
+    color: white;
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.6;
+    text-wrap: pretty;
+  }
+
+  .final-section__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    margin-top: 1.2rem;
+  }
+
+  .final-section__links a {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    color: white;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 650;
+    text-underline-offset: 0.25em;
+  }
+
+  .final-install {
+    min-width: 0;
+    padding: clamp(1rem, 3vw, 1.5rem);
+    border-radius: 12px;
+    background: white;
+    color: var(--color-ink);
+  }
+
+  .final-install > p {
+    margin: 0 0 0.75rem;
+    color: var(--color-ink-muted);
+    font-family: var(--font-sans);
+    font-size: 12px;
+  }
+
+  .final-install > p strong { color: var(--color-ink); }
+
+  .final-install__command {
+    display: flex;
+    min-width: 0;
+    align-items: stretch;
+    overflow: hidden;
+    border-radius: 9px;
+    background: var(--color-ink);
+    color: white;
+  }
+
+  .final-install__command > div {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow-x: visible;
+    padding: 0.75rem 0.9rem;
+  }
+
+  .final-install__command code {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-variant-ligatures: none;
+    line-height: 1.6;
+    white-space: pre;
+  }
+
+  .final-install__command :global(.copy-button) {
+    border-left-color: rgb(255 255 255 / 0.2);
+    color: #c8c8c3;
+  }
+
+  .final-install ul {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0;
+    margin: 1rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .final-install li {
+    padding: 0.75rem 0;
+    border-top: 1px solid var(--color-border-faint);
+  }
+
+  .final-install li:nth-child(odd) { padding-right: 0.75rem; }
+  .final-install li:nth-child(even) { padding-left: 0.75rem; }
+
+  .final-install li strong,
+  .final-install li span { display: block; }
+
+  .final-install li strong {
+    font-family: var(--font-sans);
+    font-size: 11.5px;
+    font-weight: 680;
+  }
+
+  .final-install li span {
+    margin-top: 0.2rem;
+    color: var(--color-ink-muted);
+    font-family: var(--font-sans);
+    font-size: 11.5px;
+    line-height: 1.45;
+  }
+
+  @media (max-width: 860px) {
+    .final-section__stage { grid-template-columns: minmax(0, 1fr); }
+    .final-section h2 { max-width: 15ch; }
+  }
+
+  @media (max-width: 1024px) {
+    .final-install__command code {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  @media (max-width: 320px) {
+    .final-install ul { grid-template-columns: minmax(0, 1fr); }
+    .final-install li:nth-child(odd),
+    .final-install li:nth-child(even) { padding-left: 0; padding-right: 0; }
+  }
+</style>

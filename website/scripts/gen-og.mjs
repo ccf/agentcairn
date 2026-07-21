@@ -17,16 +17,16 @@ const svg = String.raw`<svg xmlns="http://www.w3.org/2000/svg" width="1200" heig
     <path d="M19 8c2-5 8-7 14-5 5 1 7 5 4 9-3 4-16 4-18 0-1-1-1-3 0-4Z" fill="#8B8B85"/>
   </g>
   <text x="118" y="80" fill="#191919" font-family="Arial, sans-serif" font-size="28" font-weight="700" letter-spacing="-0.7">agentcairn</text>
-  <text x="58" y="137" fill="#5F5F5A" font-family="monospace" font-size="17" letter-spacing="1.4">ONE VAULT · EVERY SUPPORTED AGENT · LOCAL-FIRST</text>
+  <text x="58" y="137" fill="#5F5F5A" font-family="monospace" font-size="17" letter-spacing="1.15">LOCAL-FIRST · OPEN SOURCE · PLAIN MARKDOWN</text>
 
-  <text x="58" y="229" fill="#191919" font-family="Georgia, serif" font-size="64" letter-spacing="-1.8">One memory across</text>
-  <text x="58" y="299" fill="#191919" font-family="Georgia, serif" font-size="64" letter-spacing="-1.8">your coding agents.</text>
-  <text x="58" y="354" fill="#191919" font-family="Arial, sans-serif" font-size="29" font-weight="700" letter-spacing="-0.5">Plain Markdown under your control.</text>
-  <text x="58" y="402" fill="#5F5F5A" font-family="Arial, sans-serif" font-size="20">Capture once. Inspect the files. Recall anywhere.</text>
+  <text x="58" y="229" fill="#191919" font-family="Georgia, serif" font-size="55" letter-spacing="-1.8">One memory trail across</text>
+  <text x="58" y="299" fill="#191919" font-family="Georgia, serif" font-size="55" letter-spacing="-1.8">connected coding agents.</text>
+  <text x="58" y="354" fill="#191919" font-family="Arial, sans-serif" font-size="29" font-weight="700" letter-spacing="-0.5">Files survive. Indexes rebuild.</text>
+  <text x="58" y="402" fill="#5F5F5A" font-family="Arial, sans-serif" font-size="20">Leave durable context for whichever agent comes next.</text>
 
   <g transform="translate(58 470)">
-    <rect width="310" height="52" rx="13" fill="#FFFFFF" stroke="#D6D6D0" stroke-width="2"/>
-    <text x="20" y="33" fill="#2563EB" font-family="monospace" font-size="17">MARKDOWN · DUCKDB · MCP</text>
+    <rect width="468" height="52" rx="13" fill="#FFFFFF" stroke="#D6D6D0" stroke-width="2"/>
+    <text x="20" y="33" fill="#2563EB" font-family="monospace" font-size="16">NO HOSTED ACCOUNT · NO EXTERNAL DATABASE</text>
   </g>
   <text x="58" y="572" fill="#70706A" font-family="monospace" font-size="16">agentcairn.dev</text>
 
@@ -36,25 +36,26 @@ const svg = String.raw`<svg xmlns="http://www.w3.org/2000/svg" width="1200" heig
   <circle cx="961" cy="394" r="5" fill="#317CFF"/>
 
   <g transform="rotate(-1 969 136)">
-    <rect x="796" y="74" width="346" height="126" rx="22" fill="#191919"/>
-    <text x="824" y="108" fill="#9ABEFF" font-family="monospace" font-size="16" letter-spacing="1">MCP · CITED RECALL</text>
-    <text x="824" y="148" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="21" font-weight="700">Current context</text>
-    <text x="824" y="177" fill="#C8C8C3" font-family="monospace" font-size="15">↳ auth-fix.md · api</text>
+    <rect x="796" y="74" width="346" height="126" rx="15" fill="#2563EB"/>
+    <text x="824" y="108" fill="#FFFFFF" font-family="monospace" font-size="16" letter-spacing="1">CLAUDE CODE · REMEMBER</text>
+    <text x="824" y="148" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="20" font-weight="700">Staging deploys use blue-green.</text>
+    <text x="824" y="177" fill="#FFFFFF" font-family="monospace" font-size="15">written and indexed</text>
   </g>
 
   <g transform="rotate(0.8 942 305)">
-    <rect x="748" y="230" width="394" height="146" rx="23" fill="#FFFFFF" stroke="#D6D6D0" stroke-width="2"/>
-    <text x="777" y="267" fill="#5F5F5A" font-family="monospace" font-size="16" letter-spacing="1">INDEX · REBUILDABLE CACHE</text>
-    <text x="777" y="314" fill="#191919" font-family="Arial, sans-serif" font-size="30" font-weight="700">DuckDB</text>
-    <text x="777" y="346" fill="#5F5F5A" font-family="monospace" font-size="15">BM25 + vectors + rerank</text>
+    <rect x="690" y="230" width="452" height="146" rx="15" fill="#FFFFFF" stroke="#D6D6D0" stroke-width="2"/>
+    <text x="719" y="263" fill="#2563EB" font-family="monospace" font-size="15" letter-spacing="1">MARKDOWN · CANONICAL</text>
+    <text x="719" y="298" fill="#191919" font-family="monospace" font-size="12">memories/staging-deploys-use-blue-green-5b9d7c60.md</text>
+    <text x="719" y="328" fill="#5F5F5A" font-family="monospace" font-size="14">project: checkout-service · harness: mcp</text>
+    <text x="719" y="354" fill="#5F5F5A" font-family="monospace" font-size="11">- [context] Staging deploys use blue-green. #remembered</text>
     <circle cx="1098" cy="340" r="8" fill="#E89B3C"/>
   </g>
 
   <g transform="rotate(-0.6 916 494)">
-    <rect x="690" y="414" width="452" height="158" rx="24" fill="#EAF1FF" stroke="#317CFF" stroke-width="2.5"/>
-    <text x="720" y="452" fill="#2563EB" font-family="monospace" font-size="16" letter-spacing="1">VAULT · SOURCE OF TRUTH</text>
-    <text x="720" y="498" fill="#191919" font-family="Arial, sans-serif" font-size="27" font-weight="700">Markdown you control</text>
-    <text x="720" y="534" fill="#4F4F4A" font-family="monospace" font-size="15">inspect · edit · sync</text>
+    <rect x="690" y="414" width="452" height="158" rx="15" fill="#191919"/>
+    <text x="720" y="452" fill="#9ABEFF" font-family="monospace" font-size="16" letter-spacing="1">CODEX · RECALL</text>
+    <text x="720" y="498" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="25" font-weight="700">Use the blue-green strategy.</text>
+    <text x="720" y="534" fill="#C8C8C3" font-family="monospace" font-size="13">↳ staging-deploys-use-blue-green-5b9d7c60</text>
   </g>
 </svg>`;
 

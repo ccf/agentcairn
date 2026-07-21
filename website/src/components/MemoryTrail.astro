@@ -1,0 +1,276 @@
+---
+// A real first-use loop, rendered as the product's signature trail: one agent
+// leaves a durable file and another follows it back with a citation.
+---
+<figure
+  class="memory-trail"
+  data-testid="memory-trail"
+  aria-labelledby="memory-trail-caption"
+>
+  <figcaption id="memory-trail-caption" class="memory-trail__caption">
+    One durable fact, followed across agents
+  </figcaption>
+
+  <div class="memory-trail__route" aria-hidden="true">
+    <span>Claude Code</span>
+    <i></i>
+    <span>Markdown vault</span>
+    <i></i>
+    <span>Codex</span>
+  </div>
+
+  <ol class="memory-trail__events">
+    <li class="memory-event memory-event--capture">
+      <span class="memory-event__marker" aria-hidden="true">1</span>
+      <div>
+        <p class="memory-event__meta">Claude Code · remember</p>
+        <blockquote>“Staging deploys use blue-green.”</blockquote>
+        <p class="memory-event__status">↳ written and indexed</p>
+      </div>
+    </li>
+
+    <li class="memory-event memory-event--file">
+      <span class="memory-event__marker" aria-hidden="true">2</span>
+      <div class="memory-file">
+        <div class="memory-file__bar">
+          <span>memories/staging-deploys-use-blue-green-5b9d7c60.md</span>
+          <span>canonical excerpt</span>
+        </div>
+        <pre tabindex="0" role="region" aria-label="Representative AgentCairn Markdown memory"><code>---
+type: memory
+permalink: staging-deploys-use-blue-green-5b9d7c60
+source: memory://agent/remember
+project: checkout-service
+harness: mcp
+---
+
+- [context] Staging deploys use blue-green. #remembered</code></pre>
+      </div>
+    </li>
+
+    <li class="memory-event memory-event--recall">
+      <span class="memory-event__marker" aria-hidden="true">3</span>
+      <div>
+        <p class="memory-event__meta">Codex · recall</p>
+        <p class="memory-event__answer">Use the blue-green deployment strategy.</p>
+        <p class="memory-event__citation">↳ staging-deploys-use-blue-green-5b9d7c60 · current · checkout-service</p>
+      </div>
+    </li>
+  </ol>
+
+  <p class="memory-trail__index">
+    <span aria-hidden="true"></span>
+    DuckDB index: derived locally · safe to delete and rebuild
+  </p>
+</figure>
+
+<style>
+  .memory-trail {
+    position: relative;
+    min-width: 0;
+    margin: 0;
+    padding: clamp(1.1rem, 3vw, 1.6rem);
+    overflow: hidden;
+    border-radius: 16px;
+    background: var(--color-accent-text);
+    color: white;
+  }
+
+  .memory-trail::after {
+    position: absolute;
+    right: -4.5rem;
+    bottom: -5.5rem;
+    width: 13rem;
+    height: 13rem;
+    border: 1px solid rgb(255 255 255 / 0.22);
+    border-radius: 50%;
+    content: "";
+    pointer-events: none;
+  }
+
+  .memory-trail__caption {
+    max-width: 24ch;
+    font-family: var(--font-sans);
+    font-size: clamp(1.1rem, 2.1vw, 1.35rem);
+    font-weight: 680;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+  }
+
+  .memory-trail__route {
+    display: grid;
+    grid-template-columns: auto minmax(1.5rem, 1fr) auto minmax(1.5rem, 1fr) auto;
+    align-items: center;
+    gap: 0.55rem;
+    margin-top: 1.15rem;
+    color: white;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+  }
+
+  .memory-trail__route i {
+    height: 1px;
+    background: rgb(255 255 255 / 0.38);
+  }
+
+  .memory-trail__events {
+    position: relative;
+    display: grid;
+    gap: 0.7rem;
+    margin: 1.2rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .memory-event {
+    position: relative;
+    display: grid;
+    min-width: 0;
+    grid-template-columns: 1.75rem minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: start;
+  }
+
+  .memory-event__marker {
+    display: grid;
+    width: 1.75rem;
+    height: 1.75rem;
+    place-items: center;
+    border: 1px solid rgb(255 255 255 / 0.55);
+    border-radius: 50%;
+    color: white;
+    font-family: var(--font-mono);
+    font-size: 10px;
+  }
+
+  .memory-event:not(:last-child)::after {
+    position: absolute;
+    top: 1.75rem;
+    bottom: -0.7rem;
+    left: calc(0.875rem - 0.5px);
+    width: 1px;
+    background: rgb(255 255 255 / 0.36);
+    content: "";
+  }
+
+  .memory-event--capture > div,
+  .memory-event--recall > div {
+    padding: 0.75rem 0.85rem;
+    border-radius: 12px;
+  }
+
+  .memory-event--capture > div {
+    background: #174fc4;
+  }
+
+  .memory-event--capture blockquote {
+    margin: 0.3rem 0 0;
+    font-family: var(--font-serif);
+    font-size: 16px;
+    line-height: 1.35;
+  }
+
+  .memory-event__meta,
+  .memory-event__status,
+  .memory-event__citation {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    line-height: 1.4;
+  }
+
+  .memory-event__meta { color: white; }
+
+  .memory-event__status {
+    margin: 0.45rem 0 0;
+    color: white;
+  }
+
+  .memory-file {
+    min-width: 0;
+    overflow: hidden;
+    border-radius: 12px;
+    background: white;
+    color: var(--color-ink);
+  }
+
+  .memory-file__bar {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--color-border-faint);
+    color: var(--color-ink-muted);
+    font-family: var(--font-mono);
+    font-size: 10px;
+  }
+
+  .memory-file__bar span:first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .memory-file__bar span:last-child {
+    flex: 0 0 auto;
+    color: var(--color-accent-text);
+  }
+
+  .memory-file pre {
+    margin: 0;
+    padding: 0.8rem 0.85rem 0.9rem;
+    overflow-x: visible;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .memory-event--recall > div {
+    background: var(--color-ink);
+  }
+
+  .memory-event__answer {
+    margin: 0.35rem 0 0;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  .memory-event__citation {
+    margin-top: 0.45rem;
+    color: #9abeff;
+    overflow-wrap: anywhere;
+  }
+
+  .memory-trail__index {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 1rem 0 0 2.5rem;
+    color: white;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 1.4;
+  }
+
+  .memory-trail__index span {
+    width: 0.5rem;
+    height: 0.5rem;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: white;
+    box-shadow: 0 0 0 4px rgb(255 255 255 / 0.15);
+  }
+
+  @media (max-width: 460px) {
+    .memory-trail__route { display: none; }
+    .memory-trail__events { margin-top: 1rem; }
+    .memory-trail__index { margin-left: 0; }
+  }
+</style>
