@@ -59,6 +59,10 @@ testpaths = ["tests"]
 line-length = 100
 target-version = "py311"
 src = ["src", "tests"]
+# ruff 0.16 formats Python code blocks inside Markdown. docs/plans and docs/specs
+# are dated historical records whose snippets are illustrative, not compiled — keep
+# them byte-stable instead of rewriting history on every formatter release.
+extend-exclude = ["*.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
