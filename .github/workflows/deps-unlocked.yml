@@ -1,0 +1,88 @@
+name: deps (unlocked)
+
+# What users actually get, not what the lockfile says.
+#
+# The rest of CI runs `uv run --locked`, which pins every dependency. Real
+# installs (`uvx agentcairn`, both plugins) resolve fresh against PyPI, so an
+# upstream release can break every new install while CI stays green. That is
+# exactly how #152 happened: mcp published 2.0.0, which removed
+# `mcp.server.fastmcp`, and the unbounded pin let uv resolve it — CI never saw it
+# because uv.lock still held mcp 1.28.1.
+#
+# This job resolves with NO lockfile at the HIGHEST versions our constraints
+# allow, then asserts the MCP server still imports and its contract tests pass.
+# It is deliberately NOT a required PR check: it fails when *upstream* ships a
+# breaking release, which is not the fault of whatever PR happens to run next.
+# The schedule is the point — it catches the break within a day of publication.
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    # Dependency constraints changed — re-check the unlocked resolution now
+    # rather than waiting for the next scheduled run.
+    paths:
+      - "pyproject.toml"
+      - ".github/workflows/deps-unlocked.yml"
+
+jobs:
+  unlocked:
+    name: fresh install · highest allowed versions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv (+ Python 3.11)
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install without the lockfile, at the highest allowed versions
+        run: |
+          uv venv --python 3.11 "$RUNNER_TEMP/unlocked"
+          # No `--locked` / `uv sync`: this must mirror a user's fresh resolve.
+          uv pip install --python "$RUNNER_TEMP/unlocked/bin/python" \
+            --resolution highest \
+            pytest \
+            .
+
+      - name: Report the resolved direct dependencies
+        # Printed unconditionally so a failure below is diagnosable from the log
+        # alone (which upstream release moved, and to what).
+        run: |
+          "$RUNNER_TEMP/unlocked/bin/python" - <<'PY'
+          from importlib.metadata import version
+          for dist in ("agentcairn", "mcp", "typer", "duckdb", "fastembed",
+                       "python-frontmatter", "markdown-it-py", "tomlkit"):
+              try:
+                  print(f"{dist:20} {version(dist)}")
+              except Exception as exc:  # not installed / renamed upstream
+                  print(f"{dist:20} MISSING ({exc})")
+          PY
+
+      - name: The MCP server must import and expose its entry point
+        # `from mcp.server.fastmcp import FastMCP` is the exact import that #152
+        # broke; assert the console script's target resolves too, since that is
+        # what `uvx agentcairn` executes.
+        run: |
+          "$RUNNER_TEMP/unlocked/bin/python" -c "
+          from mcp.server.fastmcp import FastMCP
+          from cairn.mcp.server import main
+          assert callable(main)
+          import cairn; print('ok:', cairn.__version__)
+          "
+
+      - name: The installed console scripts must run
+        run: |
+          "$RUNNER_TEMP/unlocked/bin/cairn" --version
+
+      - name: MCP contract tests against the unlocked resolution
+        run: |
+          "$RUNNER_TEMP/unlocked/bin/python" -m pytest \
+            -c /dev/null \
+            --rootdir="$GITHUB_WORKSPACE" \
+            -p no:cacheprovider \
+            tests/mcp/ \
+            -q
