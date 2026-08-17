@@ -5,6 +5,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.25.2] - 2026-08-17
+
+### Fixed
+- **The MCP server no longer fails to start on a fresh install** ([#152](https://github.com/ccf/agentcairn/issues/152)).
+  `mcp` was pinned as `>=1.26.0` with no upper bound, so once the SDK published
+  `2.0.0` — which removed `mcp.server.fastmcp` (renamed to `mcp.server.mcpserver`) —
+  `uvx`/`uv` resolved the new major and `cairn.mcp.server` died on import with
+  `ModuleNotFoundError: No module named 'mcp.server.fastmcp'`. This broke every
+  fresh `uvx agentcairn` run and both the Claude Code and Codex plugins, while
+  existing installs with a warm cache kept working. The dependency is now bounded
+  to `>=1.26.0,<2.0.0`. Migrating to the 2.x API (and widening the bound) is
+  tracked separately. Thanks to @fernandomartineztax-pixel for the precise report
+  and the confirmed `--with 'mcp<2.0.0'` workaround.
+
 ## [0.25.1] - 2026-07-17
 
 ### Added
