@@ -52,7 +52,7 @@ jobs:
             pytest \
             dist/agentcairn-*.whl
           uv pip check --python "$compat/bin/python"
-          "$compat/bin/python" -c "import cairn, importlib.metadata as m, pathlib, sys; assert m.metadata('agentcairn')['Requires-Python'] == '>=3.11'; assert 'mcp>=1.26.0' in (m.requires('agentcairn') or []); assert m.version('hermes-agent') == '0.18.2'; assert m.version('mcp') == '1.26.0'; assert pathlib.Path(cairn.__file__).resolve().is_relative_to(pathlib.Path(sys.prefix).resolve())"
+          "$compat/bin/python" -c "import cairn, importlib.metadata as m, pathlib, sys; assert m.metadata('agentcairn')['Requires-Python'] == '>=3.11'; assert 'mcp<2.0.0,>=1.26.0' in (m.requires('agentcairn') or []); assert m.version('hermes-agent') == '0.18.2'; assert m.version('mcp') == '1.26.0'; assert pathlib.Path(cairn.__file__).resolve().is_relative_to(pathlib.Path(sys.prefix).resolve())"
           "$compat/bin/python" -m pytest \
             -c /dev/null \
             --rootdir="$GITHUB_WORKSPACE" \
