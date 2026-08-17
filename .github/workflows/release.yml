@@ -38,7 +38,7 @@ jobs:
             "hermes-agent[all]==0.18.2" \
             dist/agentcairn-*.whl
           uv pip check --python "$compat/bin/python"
-          "$compat/bin/python" -c "import cairn, importlib.metadata as m, pathlib, sys; from agent.memory_provider import MemoryProvider; from integrations.hermes import CairnMemoryProvider; assert m.metadata('agentcairn')['Requires-Python'] == '>=3.11'; assert 'mcp>=1.26.0' in (m.requires('agentcairn') or []); assert m.version('hermes-agent') == '0.18.2'; assert m.version('mcp') == '1.26.0'; assert pathlib.Path(cairn.__file__).resolve().is_relative_to(pathlib.Path(sys.prefix).resolve()); assert issubclass(CairnMemoryProvider, MemoryProvider)"
+          "$compat/bin/python" -c "import cairn, importlib.metadata as m, pathlib, sys; from agent.memory_provider import MemoryProvider; from integrations.hermes import CairnMemoryProvider; assert m.metadata('agentcairn')['Requires-Python'] == '>=3.11'; assert 'mcp<2.0.0,>=1.26.0' in (m.requires('agentcairn') or []); assert m.version('hermes-agent') == '0.18.2'; assert m.version('mcp') == '1.26.0'; assert pathlib.Path(cairn.__file__).resolve().is_relative_to(pathlib.Path(sys.prefix).resolve()); assert issubclass(CairnMemoryProvider, MemoryProvider)"
           if [ "$GITHUB_EVENT_NAME" = "push" ]; then
             "$compat/bin/python" -c "import importlib.metadata as m, os; assert f\"v{m.version('agentcairn')}\" == os.environ['GITHUB_REF_NAME']"
           fi
