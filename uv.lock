@@ -37,7 +37,7 @@ requires-dist = [
     { name = "duckdb", specifier = ">=1.1" },
     { name = "fastembed", specifier = ">=0.4" },
     { name = "markdown-it-py", specifier = ">=3.0" },
-    { name = "mcp", specifier = ">=1.26.0" },
+    { name = "mcp", specifier = ">=1.26.0,<2.0.0" },
     { name = "python-frontmatter", specifier = ">=1.1" },
     { name = "tomlkit", specifier = ">=0.15.0" },
     { name = "typer", specifier = ">=0.12" },

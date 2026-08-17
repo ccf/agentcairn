@@ -24,7 +24,11 @@ dependencies = [
     "markdown-it-py>=3.0",
     "fastembed>=0.4",
     "duckdb>=1.1",
-    "mcp>=1.26.0",
+    # Upper bound is load-bearing: mcp 2.0.0 removed `mcp.server.fastmcp`
+    # (renamed to `mcp.server.mcpserver`), which cairn.mcp.server imports. Without
+    # the bound, uvx/uv resolve 2.0.0 and the MCP server dies on import (#152).
+    # Widen only together with migrating cairn/mcp/server.py to the 2.x API.
+    "mcp>=1.26.0,<2.0.0",
     "tomlkit>=0.15.0",
 ]
 
