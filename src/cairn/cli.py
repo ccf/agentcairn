@@ -1098,6 +1098,22 @@ def doctor(
         problems.append(f"chunk/embedding mismatch: {chunks} chunks vs {embs} embeddings")
     if notes > 0 and chunks == 0:
         problems.append("notes present but no chunks indexed")
+    # The embedder is not implied by a healthy index: the index is a static file,
+    # while the model is a cache that can rot (purged/partial download) long after
+    # it was built. When it does, `cairn sweep` crashes outright and recall quietly
+    # falls back to BM25 — both silent. A green doctor must not hide that.
+    embedder_name = cairn_env().get("CAIRN_EMBEDDER") or "fastembed"
+    if embedder_name != "none":
+        try:
+            get_embedder(embedder_name).embed(["probe"])
+            typer.echo(f"embedder: {embedder_name} OK (models: {paths.models_root()})")
+        except Exception as exc:
+            typer.echo(f"embedder: {embedder_name} FAILED — {type(exc).__name__}: {exc}")
+            problems.append(
+                f"embedder '{embedder_name}' cannot load, so capture will fail and recall "
+                f"silently degrades to keyword-only. If the model cache is corrupt, delete "
+                f"{paths.models_root()} and re-run `cairn warm`."
+            )
     if problems:
         for p in problems:
             typer.echo(f"PROBLEM: {p}")

@@ -17,9 +17,19 @@ INPUT=$(cat 2>/dev/null || true)
 CWD=$(printf '%s' "$INPUT" | sed -n 's/.*"cwd"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 
 [ -d "$VAULT" ] || $CAIRN init "$VAULT" >/dev/null 2>&1 || true
+
+# Capture runs detached and silent, so a crashing sweep used to leave no trace at
+# all — one user lost three weeks of capture to a purged model cache and only
+# noticed because the vault stopped growing. Keep the output instead of sending
+# it to /dev/null: `cairn doctor` points here, and the log is truncated each run
+# so it stays a "last capture" record rather than growing without bound.
+LOG_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/agentcairn/logs"
+mkdir -p "$LOG_DIR" 2>/dev/null || true
+LOG="$LOG_DIR/capture.log"
+
 # Detach: the sweep (and any LLM judge call inside it) must never block session
 # teardown. nohup + & detaches fine without an inner `sh -c` — which would
 # re-parse the `>=0.2` pin as a redirection and make $CWD/$VAULT an injection
 # surface. $CAIRN stays unquoted on purpose (word-splits into argv, no re-parse).
-nohup $CAIRN sweep --vault "$VAULT" ${CWD:+--project "$CWD"} >/dev/null 2>&1 &
+nohup $CAIRN sweep --vault "$VAULT" ${CWD:+--project "$CWD"} >"$LOG" 2>&1 &
 exit 0

@@ -17,6 +17,26 @@ def cache_root() -> Path:
     return Path.home() / ".cache" / "agentcairn"
 
 
+def models_root() -> Path:
+    """Where downloaded ONNX models live. Must be a PERSISTENT directory.
+
+    fastembed defaults its cache to `tempfile.gettempdir()`, which macOS purges
+    on a timer. The purge takes the small config/tokenizer blobs first and leaves
+    the snapshot's symlinks dangling, so every embedder load then dies with
+    `Could not find config.json` — silently killing capture (`cairn sweep`
+    crashes) and quietly degrading recall to BM25 through its fail-open
+    fallback. Keep models beside the index instead, under our own cache root.
+
+    An explicit FASTEMBED_CACHE_PATH still wins: if the user pointed fastembed
+    somewhere deliberately, respect it rather than silently re-homing (and
+    re-downloading) their models.
+    """
+    explicit = cairn_env().get("FASTEMBED_CACHE_PATH")
+    if explicit:
+        return Path(explicit).expanduser()
+    return cache_root() / "models"
+
+
 def resolve_vault(explicit: Path | str | None = None, env: Mapping[str, str] | None = None) -> Path:
     """--vault arg → CAIRN_VAULT → ~/agentcairn (matches the `vault` knob default)."""
     if explicit is not None:
