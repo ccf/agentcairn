@@ -16,7 +16,13 @@ def _get_reranker():
     if _RERANKER is None:
         from fastembed.rerank.cross_encoder import TextCrossEncoder
 
-        _RERANKER = TextCrossEncoder(model_name=_RERANKER_NAME)
+        from cairn.paths import models_root
+
+        # Same persistent-cache requirement as the embedder (see models_root):
+        # fastembed's OS-temp default gets purged and breaks model loads.
+        cache_dir = models_root()
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        _RERANKER = TextCrossEncoder(model_name=_RERANKER_NAME, cache_dir=str(cache_dir))
     return _RERANKER
 
 

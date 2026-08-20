@@ -10,8 +10,14 @@ class FastEmbedEmbedder:
     def __init__(self, model_name: str = "nomic-ai/nomic-embed-text-v1.5") -> None:
         from fastembed import TextEmbedding
 
+        from cairn.paths import models_root
+
         self._name = model_name
-        self._model = TextEmbedding(model_name=model_name)
+        # Pin the cache to a persistent dir; fastembed's default is the OS temp
+        # dir, which macOS purges out from under us (see paths.models_root).
+        cache_dir = models_root()
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        self._model = TextEmbedding(model_name=model_name, cache_dir=str(cache_dir))
         # Probe one embedding to learn the dimension rather than hardcoding it.
         self._dim = len(next(iter(self._model.embed(["probe"]))).tolist())
 

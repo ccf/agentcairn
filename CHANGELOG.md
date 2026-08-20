@@ -5,6 +5,32 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.25.3] - 2026-08-20
+
+### Fixed
+- **Capture no longer dies silently when the OS purges the model cache.** fastembed
+  defaults its ONNX cache to `tempfile.gettempdir()`; on macOS that directory is
+  purged on a timer. The purge removes the small config/tokenizer blobs first and
+  leaves the snapshot's symlinks dangling, so every model load then fails with
+  `Could not find config.json`. The damage was invisible in two different ways:
+  `cairn sweep` crashed outright — and the plugin's capture hook sent its output to
+  `/dev/null`, so weeks of sessions could go uncaptured with no error anywhere —
+  while recall *appeared* to keep working because it silently fell back to
+  BM25-only, quietly losing semantic retrieval. agentcairn now pins the cache to a
+  persistent directory it owns (`~/.cache/agentcairn/models`, beside the index) for
+  both the embedder and the cross-encoder reranker. An explicit
+  `FASTEMBED_CACHE_PATH` still wins.
+
+### Changed
+- **`cairn doctor` now verifies the embedder actually loads**, and fails with a
+  `PROBLEM` when it does not. A healthy index does not imply a healthy model: the
+  index is a static file, the model is a cache that can rot long after the index was
+  built. Doctor previously reported `status: OK` while capture was dead and recall
+  was degraded.
+- **The capture hook keeps its output** (`~/.cache/agentcairn/logs/capture.log`,
+  truncated per run) instead of discarding it, so a failing sweep leaves a trace.
+  Claude Code plugin `0.4.2`, Codex plugin `0.1.4`.
+
 ## [0.25.2] - 2026-08-17
 
 ### Fixed
