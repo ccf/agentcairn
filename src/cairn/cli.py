@@ -31,7 +31,12 @@ from cairn.ingest.pipeline import ingest_transcripts
 from cairn.locking import VaultBusyError, vault_writer_lock
 from cairn.search import open_search, resolve_current_project, search
 from cairn.search.engine import semantic_neighbors
-from cairn.storage import atomic_write_text, ensure_private_dir
+from cairn.storage import (
+    atomic_write_text,
+    atomic_write_vault_text,
+    ensure_private_dir,
+    ensure_vault_dir,
+)
 from cairn.vault import parse_note, write_note
 
 
@@ -212,13 +217,13 @@ def _relink_note(path: Path, desired: list[str], *, dry_run: bool = False) -> st
             return "unchanged"
         note.frontmatter["related"] = desired
         if not dry_run:
-            atomic_write_text(path, write_note(note))
+            atomic_write_vault_text(path, write_note(note))
         return "linked"
     # desired is empty
     if "related" in note.frontmatter:
         if not dry_run:
             del note.frontmatter["related"]
-            atomic_write_text(path, write_note(note))
+            atomic_write_vault_text(path, write_note(note))
         return "cleared"
     return "unchanged"
 
@@ -471,16 +476,16 @@ def init(
     target = target.expanduser()
     try:
         with vault_writer_lock(target, operation="cli-init"):
-            ensure_private_dir(target)
+            ensure_vault_dir(target)
             obs = target / ".obsidian"
-            ensure_private_dir(obs)
+            ensure_vault_dir(obs)
             app_json = obs / "app.json"
             if not app_json.exists():
-                atomic_write_text(app_json, "{}\n")
+                atomic_write_vault_text(app_json, "{}\n")
             welcome = target / "welcome.md"
             existed = welcome.exists()
             if not existed:
-                atomic_write_text(welcome, _WELCOME)
+                atomic_write_vault_text(welcome, _WELCOME)
     except VaultBusyError as exc:
         _exit_vault_busy(exc)
     suffix = "" if not existed else " (existing — left intact)"

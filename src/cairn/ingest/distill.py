@@ -16,7 +16,7 @@ from typing import Protocol
 from cairn.ingest.dedup import content_hash
 from cairn.ingest.importance import score
 from cairn.ingest.models import Candidate
-from cairn.storage import atomic_write_text
+from cairn.storage import atomic_write_vault_text
 from cairn.vault import Note, parse_note, write_note
 
 _SLUG_STOP = re.compile(r"[^a-z0-9]+")
@@ -115,7 +115,7 @@ def mark_superseded(path: Path, by_permalink: str) -> None:
     if note.frontmatter.get("superseded_by") == by_permalink:
         return
     note.frontmatter["superseded_by"] = by_permalink
-    atomic_write_text(path, write_note(note))
+    atomic_write_vault_text(path, write_note(note))
 
 
 def supersede_prior_session_summaries(
@@ -179,5 +179,5 @@ def write_derived_note(note: Note, vault_root: Path, *, subdir: str = "memories"
     target = (vault_root / subdir / f"{note.permalink}.md").resolve()
     if vault_root not in target.parents:
         raise ValueError(f"refusing to write outside vault root: {target}")
-    atomic_write_text(target, write_note(note))
+    atomic_write_vault_text(target, write_note(note))
     return target

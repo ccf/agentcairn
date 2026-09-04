@@ -17,7 +17,7 @@ from cairn.native_memory.models import (
     NativeMemoryPlan,
     NativeMemoryReport,
 )
-from cairn.storage import atomic_write_text
+from cairn.storage import atomic_write_vault_text
 from cairn.vault import Note, parse_note, write_note
 
 _MANIFEST_VERSION = 1
@@ -412,7 +412,7 @@ def _write_new_note(vault_root: Path, action: NativeMemoryAction) -> Path:
         # A recovered note should have made this action unchanged. Preserve any
         # human edits instead of silently replacing them.
         raise ValueError(f"import destination already exists outside source state: {target}")
-    atomic_write_text(target, write_note(action.note))
+    atomic_write_vault_text(target, write_note(action.note))
     return target
 
 
@@ -427,7 +427,7 @@ def _mark_superseded(path: Path, *, source_id: str, by_permalink: str) -> None:
         )
     note.frontmatter["superseded_by"] = by_permalink
     note.frontmatter["source_status"] = "superseded"
-    atomic_write_text(path, write_note(note))
+    atomic_write_vault_text(path, write_note(note))
 
 
 def _mark_missing(path: Path, *, missing_at: str, source_id: str) -> None:
@@ -442,7 +442,7 @@ def _mark_missing(path: Path, *, missing_at: str, source_id: str) -> None:
     note.frontmatter["valid_until"] = missing_at
     note.frontmatter["source_missing_at"] = missing_at
     note.frontmatter["source_status"] = "missing"
-    atomic_write_text(path, write_note(note))
+    atomic_write_vault_text(path, write_note(note))
 
 
 def apply_import_plan(plan: NativeMemoryPlan, *, vault_root: Path) -> NativeMemoryReport:
@@ -493,5 +493,5 @@ def apply_import_plan(plan: NativeMemoryPlan, *, vault_root: Path) -> NativeMemo
         except FileNotFoundError:
             pass
         if current != rendered:
-            atomic_write_text(state_path, rendered)
+            atomic_write_vault_text(state_path, rendered)
     return report

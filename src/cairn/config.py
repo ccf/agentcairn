@@ -78,6 +78,12 @@ KNOBS: tuple[Knob, ...] = (
         "true",
         "Cross-encoder reranker on recall (biggest quality lever).",
     ),
+    Knob(
+        "vault_group_writable",
+        "CAIRN_VAULT_GROUP_WRITABLE",
+        "0",
+        "Vault notes/dirs group-readable+writable (0660/0770) for shared-GID setups.",
+    ),
     Knob("usage", "CAIRN_USAGE", "1", "Token-savings ledger (local, no telemetry)."),
     Knob(
         "usage_path", "CAIRN_USAGE_PATH", "~/.cache/agentcairn/usage.jsonl", "Savings ledger path."
@@ -291,6 +297,30 @@ def resolve_auto_recall(env: Mapping[str, str] | None = None) -> bool:
         return parse_bool(raw)
     except ValueError:
         return True
+
+
+def resolve_vault_group_writable(env: Mapping[str, str] | None = None) -> bool:
+    """Whether NEW vault notes/dirs are group-readable+writable (0660/0770).
+
+    Default False. This deliberately opts in rather than shipping group access:
+    on macOS every local user's primary group is `staff`, and shared groups like
+    `users` are common on NAS/Docker hosts, so a group-readable default would
+    expose the vault to other accounts on those systems without anyone granting
+    anything. The vault is plaintext with best-effort redaction, so its file mode
+    is effectively its only access control (see #159).
+
+    An unparseable value falls back to the default rather than raising — a typo
+    must never silently widen permissions.
+    """
+    if env is None:
+        env = cairn_env()
+    raw = env.get("CAIRN_VAULT_GROUP_WRITABLE")
+    if raw is None:
+        return False
+    try:
+        return parse_bool(raw)
+    except ValueError:
+        return False
 
 
 def resolve_auto_recall_k(env: Mapping[str, str] | None = None) -> int:
