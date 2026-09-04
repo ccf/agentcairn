@@ -5,6 +5,25 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+### Added
+- **`vault_group_writable` — opt-in group access for shared-GID setups**
+  ([#159](https://github.com/ccf/agentcairn/issues/159)). New vault notes and
+  directories are created `0600`/`0700`, which breaks setups where a second
+  container shares the group but not the UID (e.g. an Obsidian LiveSync sidecar
+  on a NAS): it cannot even list the notes, so sync silently replicates nothing.
+  Setting `vault_group_writable = true` (or `CAIRN_VAULT_GROUP_WRITABLE=1`)
+  creates new vault notes/dirs `0660`/`0770` instead.
+
+  Opt-in rather than a new default: on macOS every local user's primary group is
+  `staff`, and shared groups like `users` are common on NAS hosts, so a
+  group-readable default would expose the vault to other accounts on those
+  systems without anyone granting it. The knob is scoped to the vault — the
+  DuckDB index, dedup/judge/usage ledgers, lock files, host configs, and
+  `~/.agentcairn/config.toml` (which can hold API keys) stay owner-only
+  regardless. Existing files keep whatever mode they already have.
+
+  Reported with a precise root-cause analysis by @stegmajo.
+
 ## [0.25.3] - 2026-08-20
 
 ### Fixed

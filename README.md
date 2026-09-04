@@ -228,6 +228,7 @@ Full metrics, embedding sweeps, latency measurements, licenses, commands, and ca
 ## Privacy and limits
 
 - **The vault is plaintext by design, not encrypted storage.** AgentCairn redacts recognized credential patterns before its automated body/title/tag writes; unknown patterns and hand edits remain your responsibility.
+- **Vault files are owner-only (`0600`/`0700`).** Because the vault is plaintext and redaction is best-effort, the file mode is effectively its only access control. Shared-GID setups (e.g. two Docker containers on the same group but different UIDs) need group access, so `vault_group_writable = true` widens **new** vault notes and directories to `0660`/`0770`. It is opt-in on purpose: on macOS every local user's primary group is `staff`, so a group-readable default would expose your memories to other accounts on the machine. The knob never widens anything outside the vault — the index, ledgers, lock files, and `~/.agentcairn/config.toml` stay private.
 - **Cloud features are explicit egress.** The default stays local. Opting into a cloud embedder or LLM judge sends the remaining redacted text to that provider.
 - **The project is beta.** Standalone use requires Python 3.11+, and the first local model load can take time. The published retrieval evidence is strongest for conversational memory, not a universal code-search claim.
 - **Ambient behavior varies by host.** The matrix above is intentional: Cursor and Antigravity rely on sweep capture; generic MCP hosts may expose tools without lifecycle hooks.
