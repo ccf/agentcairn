@@ -740,6 +740,9 @@ def config(
 
     file_vals = config_file_values()
     typer.echo(f"config file: {path}{'' if path.exists() else ' (not present)'}")
+    # Derive the key column from the knobs themselves: a hardcoded width silently
+    # breaks the alignment of every row the moment a longer knob name is added.
+    key_width = max(len(k.key) for k in KNOBS)
     for k in KNOBS:
         if k.env in os.environ:
             value, source = os.environ[k.env], "env"
@@ -749,7 +752,7 @@ def config(
             value, source = k.default, "default"
         if k.secret and value:
             value = f"{value[:7]}…{value[-4:]}" if len(value) > 20 else "…set…"
-        typer.echo(f"  {k.key:18} = {value:42} [{source}]")
+        typer.echo(f"  {k.key:{key_width}} = {value:42} [{source}]")
 
 
 @app.command()
