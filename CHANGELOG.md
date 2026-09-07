@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-09-07
+
 ### Added
 - **`vault_group_writable` — opt-in group access for shared-GID setups**
   ([#159](https://github.com/ccf/agentcairn/issues/159)). New vault notes and
@@ -23,6 +25,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
   regardless. Existing files keep whatever mode they already have.
 
   Reported with a precise root-cause analysis by @stegmajo.
+
+### Fixed
+- `cairn config` aligned its key column to a hardcoded width, so the longer
+  `vault_group_writable` name pushed that row's `=` and `[source]` out of line.
+  The width now derives from the knob list.
 
 ## [0.25.3] - 2026-08-20
 
