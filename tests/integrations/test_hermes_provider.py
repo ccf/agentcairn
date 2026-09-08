@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import os
 from pathlib import Path
 
@@ -82,18 +83,19 @@ def test_tool_schemas_declare_three_tools(provider):
 
 
 def test_memory_save_then_recall_finds_it(provider):
-    out = provider.handle_tool_call(
-        "memory_save", {"text": "Prefer tabs in Go.", "tags": ["style"]}
+    out = json.loads(
+        provider.handle_tool_call("memory_save", {"text": "Prefer tabs in Go.", "tags": ["style"]})
     )
     assert out.get("permalink") or out.get("path")
-    rec = provider.handle_tool_call("memory_recall", {"query": "Go formatting"})
+    rec = json.loads(provider.handle_tool_call("memory_recall", {"query": "Go formatting"}))
     assert any("Go" in str(n.get("text", "")) for n in rec.get("notes", []))
 
 
 def test_memory_search_returns_without_error(provider):
     provider.handle_tool_call("memory_save", {"text": "Deploy with make ship."})
-    res = provider.handle_tool_call("memory_search", {"query": "deploy"})
-    # search_tool returns {"query": ..., "as_of": ..., "hits": [...]}
+    # Parsed, not a substring check: `"hits" in res` passes accidentally on a
+    # JSON string, which would hide a regression back to raw dicts.
+    res = json.loads(provider.handle_tool_call("memory_search", {"query": "deploy"}))
     assert "hits" in res
 
 
@@ -245,3 +247,66 @@ def test_on_session_end_none_is_failsafe(provider):
     # Hermes may hand us None; list(None) would raise outside the capture wrapper.
     provider.on_session_end(None)  # must NOT raise
     provider.shutdown()
+
+
+# --- MemoryProvider ABC contract: handle_tool_call returns a JSON string (#163) ---
+#
+# Hermes' MemoryManager passes the provider's return value through with no
+# coercion, so a raw dict becomes the tool message's `content`, is persisted with
+# the core's `\x00json:` marker, and makes strict OpenAI-compatible providers
+# (DeepSeek) reject the whole request body — non-retryable, and it poisons the
+# saved history so replays die too.
+
+
+@pytest.mark.parametrize(
+    "tool,args",
+    [
+        ("memory_save", {"text": "Contract check."}),
+        ("memory_recall", {"query": "contract"}),
+        ("memory_search", {"query": "contract"}),
+        ("definitely_not_a_tool", {}),
+    ],
+)
+def test_every_tool_call_returns_a_json_string(provider, tool, args):
+    out = provider.handle_tool_call(tool, args)
+    assert isinstance(out, str), f"{tool} returned {type(out).__name__}, not str"
+    json.loads(out)  # must be valid JSON, not just any string
+
+
+def test_error_paths_return_a_json_string(provider):
+    """A failing tool must not return a dict — that is what killed the session."""
+    out = provider.handle_tool_call("memory_save", {})  # missing required "text"
+    assert isinstance(out, str)
+    assert "error" in json.loads(out)
+
+
+def test_unknown_tool_returns_a_json_string(provider):
+    out = provider.handle_tool_call("nope", {})
+    assert isinstance(out, str)
+    assert "error" in json.loads(out)
+
+
+def test_json_out_passes_strings_through_unchanged():
+    mod = load_plugin()
+    assert mod._json_out('{"already":"json"}') == '{"already":"json"}'
+
+
+def test_json_out_never_raises_on_unserializable_values():
+    """Serializing must not turn a recoverable tool error into a dead session."""
+    mod = load_plugin()
+
+    class Weird:
+        def __repr__(self) -> str:
+            return "<weird>"
+
+    assert json.loads(mod._json_out({"v": Weird()}))["v"] == "<weird>"
+
+
+def test_handle_tool_call_declares_the_str_return_type():
+    """The annotation is what makes the contract locally visible; without it the
+    provider silently drifted back to dicts."""
+    import typing
+
+    mod = load_plugin()
+    hints = typing.get_type_hints(mod.CairnMemoryProvider.handle_tool_call)
+    assert hints.get("return") is str

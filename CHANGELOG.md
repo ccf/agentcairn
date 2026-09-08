@@ -5,6 +5,27 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+### Fixed
+- **Hermes: memory tool calls no longer kill sessions on strict providers**
+  ([#163](https://github.com/ccf/agentcairn/issues/163)). `handle_tool_call`
+  returned raw dicts, but the `MemoryProvider` ABC is declared `-> str` ("Must
+  return a JSON string") and Hermes' `MemoryManager` passes the provider's return
+  value straight through without coercion. The dict became the tool message's
+  `content` and was persisted with the core's `\x00json:` marker, so when the
+  request was rebuilt, strict OpenAI-compatible providers (DeepSeek confirmed)
+  rejected the entire body with `content should be a string or a list`. The
+  failure is non-retryable and poisons the saved history, so later sessions
+  replaying it died too. Anthropic's converter tolerates dict content, which is
+  why this stayed latent for most users. All tool results — including both error
+  paths — are now serialized, and the method carries the `-> str` annotation so
+  the contract is locally visible.
+
+  Note: this fixes new sessions. Conversations already poisoned need the
+  `\x00json:` marker stripped from the affected `state.db` rows to become
+  replayable again.
+
+  Reported, root-caused, and verified by @thevibestack.
+
 ## [0.26.0] - 2026-09-07
 
 ### Added
