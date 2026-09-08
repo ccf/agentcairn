@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.26.1] - 2026-09-07
+
 ### Fixed
 - **Hermes: memory tool calls no longer kill sessions on strict providers**
   ([#163](https://github.com/ccf/agentcairn/issues/163)). `handle_tool_call`
