@@ -16,6 +16,29 @@ _TRUST_BOUNDARY = (
 )
 
 
+def _json_out(value) -> str:
+    """Coerce a tool result to the JSON string the MemoryProvider ABC requires.
+
+    `MemoryProvider.handle_tool_call` is declared `-> str` ("Must return a JSON
+    string"), and Hermes' MemoryManager passes the provider's return value
+    straight through with no coercion. A raw dict therefore becomes the tool
+    message's `content` and is persisted with the core's `\\x00json:` marker; when
+    the request is rebuilt, strict OpenAI-compatible providers (DeepSeek) reject
+    the entire body with `content should be a string or a list`. That failure is
+    non-retryable and poisons the saved history, so later sessions replaying it
+    die too. Anthropic's converter tolerates dict content, which is why this
+    stayed latent for most users. See #163.
+
+    `default=str` keeps this total: serializing a tool result must never raise
+    here and turn a recoverable error into a dead session.
+    """
+    if isinstance(value, str):
+        return value
+    import json
+
+    return json.dumps(value, ensure_ascii=False, default=str)
+
+
 def _format_untrusted_memories(notes: list[dict]) -> str:
     """Render note-controlled text inside a Markdown quotation boundary."""
     import json
@@ -267,7 +290,7 @@ class CairnMemoryProvider(_base()):
             },
         ]
 
-    def handle_tool_call(self, tool_name: str, args: dict, **kwargs):
+    def handle_tool_call(self, tool_name: str, args: dict, **kwargs) -> str:
         from cairn.mcp.tools import recall_tool, remember_tool, search_tool
 
         try:
@@ -286,29 +309,33 @@ class CairnMemoryProvider(_base()):
                         harness="hermes",
                     )
                     self._index_current = out["index"].get("status") == "current"
-                return out
+                return _json_out(out)
             if tool_name == "memory_recall":
                 self._ensure_current()
-                return recall_tool(
-                    self._index,
-                    args["query"],
-                    embedder=self._embedder,
-                    k=int(args.get("k", getattr(self, "_k", 5))),
-                    rerank=self._rerank,
+                return _json_out(
+                    recall_tool(
+                        self._index,
+                        args["query"],
+                        embedder=self._embedder,
+                        k=int(args.get("k", getattr(self, "_k", 5))),
+                        rerank=self._rerank,
+                    )
                 )
             if tool_name == "memory_search":
                 self._ensure_current()
-                return search_tool(
-                    self._index,
-                    args["query"],
-                    embedder=self._embedder,
-                    k=int(args.get("k", 10)),
-                    rerank=self._rerank,
+                return _json_out(
+                    search_tool(
+                        self._index,
+                        args["query"],
+                        embedder=self._embedder,
+                        k=int(args.get("k", 10)),
+                        rerank=self._rerank,
+                    )
                 )
         except Exception as e:
             _log(f"tool {tool_name} failed: {e}")
-            return {"error": str(e)}
-        return {"error": f"unknown tool {tool_name}"}
+            return _json_out({"error": str(e)})
+        return _json_out({"error": f"unknown tool {tool_name}"})
 
     def sync_turn(self, user: str, assistant: str, *, session_id: str = "") -> None:
         buf = self._buffers.setdefault(session_id or getattr(self, "_session_id", ""), [])
