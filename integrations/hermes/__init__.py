@@ -81,7 +81,7 @@ def _log(msg: str) -> None:
 def _resolve(cfg: dict):
     from cairn import paths
 
-    vault = paths.resolve_vault(cfg.get("vault_path"))
+    vault = paths.resolve_vault(cfg.get("vault_path") or None)
     index = str(paths.index_for(None, vault))
     embedder = cfg.get("embedder") or "fastembed"
     return vault, index, embedder
@@ -164,13 +164,19 @@ class CairnMemoryProvider(_base()):
 
         from cairn.storage import atomic_write_text
 
-        clean = {k: v for k, v in values.items() if v is not None}
+        clean = {
+            k: v
+            for k, v in values.items()
+            if v is not None and (not isinstance(v, str) or v.strip())
+        }
         p = self._config_path(hermes_home)
         atomic_write_text(p, json.dumps(clean))
         # Reflect the change in-memory AND re-resolve the cached vault/index/embedder,
         # so writes + recall (which use the cached paths, not _cfg) honor a mid-session
         # config change immediately — not just is_available().
-        self._cfg = {**self._cfg, **clean}
+        # Match the persisted replacement exactly: clearing a field must remove
+        # its old in-memory value too. False remains a valid rerank setting.
+        self._cfg = clean
         self._apply_cfg()
 
     def _apply_cfg(self) -> None:

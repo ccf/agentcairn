@@ -310,3 +310,41 @@ def test_handle_tool_call_declares_the_str_return_type():
     mod = load_plugin()
     hints = typing.get_type_hints(mod.CairnMemoryProvider.handle_tool_call)
     assert hints.get("return") is str
+
+
+@pytest.mark.parametrize("blank", ["", " ", "\t\n"])
+@pytest.mark.parametrize("use_env", [False, True])
+def test_legacy_blank_vault_config_uses_fallback(blank, use_env, tmp_path, monkeypatch):
+    from cairn import paths
+
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    monkeypatch.delenv("CAIRN_VAULT", raising=False)
+    expected = tmp_path / "agentcairn"
+    if use_env:
+        expected = tmp_path / "env_vault"
+        monkeypatch.setenv("CAIRN_VAULT", str(expected))
+    hhome = tmp_path / "hermes"
+    config = hhome / "agentcairn" / "config.json"
+    config.parent.mkdir(parents=True)
+    config.write_text(json.dumps({"vault_path": blank}))
+    monkeypatch.chdir(hhome)
+    p = load_plugin().CairnMemoryProvider()
+    p.initialize("blank-config", hermes_home=str(hhome))
+    assert p._vault == expected
+    assert p._index == str(paths.default_index(expected))
+    assert p._vault != Path.cwd()
+
+
+@pytest.mark.parametrize("blank", ["", " ", "\t\n", None])
+def test_clear_config_matches_reloaded_provider(provider, blank, tmp_path):
+    hhome = str(tmp_path / "hhome")
+    provider.save_config({"vault_path": str(tmp_path / "custom"), "rerank": True}, hhome)
+    provider.save_config({"vault_path": blank, "embedder": blank, "rerank": False}, hhome)
+    saved = json.loads(provider._config_path(hhome).read_text())
+    assert saved == {"rerank": False}
+    reloaded = load_plugin().CairnMemoryProvider()
+    reloaded.initialize("reload", hermes_home=hhome)
+    assert provider._cfg == reloaded._cfg == saved
+    assert provider._vault == reloaded._vault == tmp_path / "vault"
+    assert provider._index == reloaded._index
+    assert provider._rerank is False

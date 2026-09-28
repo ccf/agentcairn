@@ -3,6 +3,7 @@ import stat
 from pathlib import Path
 
 import duckdb
+import pytest
 
 from cairn import paths
 
@@ -89,3 +90,17 @@ def test_index_for_triggers_migration(monkeypatch, tmp_path):
     _make_index(legacy, f"{vault_root}/memories/a.md")
     got = paths.index_for(None, vault_root, env={})
     assert got == paths.default_index(vault_root) and got.exists()
+
+
+@pytest.mark.parametrize("blank", ["", " ", "\t\n"])
+def test_blank_vault_uses_env_then_default(blank, monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    expected = tmp_path / "configured"
+    assert paths.resolve_vault(blank, env={"CAIRN_VAULT": str(expected)}) == expected
+    assert paths.resolve_vault(blank, env={}) == Path.home() / "agentcairn"
+    assert paths.resolve_vault(None, env={"CAIRN_VAULT": blank}) == Path.home() / "agentcairn"
+
+
+@pytest.mark.parametrize("explicit", [".", Path("."), "relative vault", " vault "])
+def test_nonblank_relative_vault_remains_explicit(explicit):
+    assert paths.resolve_vault(explicit, env={"CAIRN_VAULT": "/other"}) == Path(explicit)

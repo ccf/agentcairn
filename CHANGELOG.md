@@ -5,6 +5,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+### Fixed
+- Blank or whitespace-only vault settings now fall back to `CAIRN_VAULT` and
+  then `~/agentcairn`, instead of selecting the working directory. Hermes drops
+  blank fields when saving configuration, and clearing a setting takes effect
+  immediately as well as after restart. Explicit `.` paths remain supported.
+  Reported by @yudontknowjack ([#173](https://github.com/ccf/agentcairn/issues/173)).
+
 ## [0.26.1] - 2026-09-07
 
 ### Fixed

@@ -38,13 +38,17 @@ def models_root() -> Path:
 
 
 def resolve_vault(explicit: Path | str | None = None, env: Mapping[str, str] | None = None) -> Path:
-    """--vault arg → CAIRN_VAULT → ~/agentcairn (matches the `vault` knob default)."""
-    if explicit is not None:
+    """--vault arg → CAIRN_VAULT → ~/agentcairn; blank strings are unset.
+
+    Nonblank paths are preserved, including relative paths and an intentional
+    ``.``. A ``Path('')`` is already ``Path('.')`` and means the same thing.
+    """
+    if explicit is not None and (not isinstance(explicit, str) or explicit.strip()):
         return Path(explicit).expanduser()
     if env is None:
         env = cairn_env()
     v = env.get("CAIRN_VAULT")
-    return Path(v).expanduser() if v else Path.home() / "agentcairn"
+    return Path(v).expanduser() if v and v.strip() else Path.home() / "agentcairn"
 
 
 def vault_key(vault: Path | str) -> str:
