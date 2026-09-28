@@ -1,0 +1,118 @@
+{
+ "source": "agentcairn 0.26.1 cairn import claude-memory 2026-09-08; before-tokens recovered by diffing untouched CC source vs imported notes; 14 sites across 6 notes",
+ "sites": [
+  {
+   "site": 1,
+   "note": "project_pi_judge_eval.md",
+   "class": 1,
+   "before": "piInfrastructureReadPaths",
+   "after": "[REDACTED:high_entropy]",
+   "context": "ternal_directory`.\n\n**Same evening: `\" <<< \": [\"~/.pi\"]` added** so read-only\ntoo"
+  },
+  {
+   "site": 2,
+   "note": "project_pi_judge_eval.md",
+   "class": 1,
+   "before": "piInfrastructureReadPaths",
+   "after": "[REDACTED:high_entropy]",
+   "context": "..:service`. Also confirmed working: ` <<< ` now logs\n`infrastructure_auto_allowe"
+  },
+  {
+   "site": 3,
+   "note": "project_nvme_transplant_2026_08.md",
+   "class": 3,
+   "before": "a2610tsVYXxB+1e0QEC3RkkBpsJ8",
+   "after": "[REDACTED:high_entropy]",
+   "context": "19 fingerprint `SHA256:vUz1U5S2DHxNkK/ <<< ` (root@nuntius). Hostname KEPT as `na"
+  },
+  {
+   "site": 4,
+   "note": "project_ninfer_nuntius.md",
+   "class": 3,
+   "before": "eec39564993d6e9c7d5e383382a760f093465c9d163ec9a1bd6b80199514bf3e",
+   "after": "[REDACTED:high_entropy]",
+   "context": "the 2026-08-25 ~/Models move) sha256 ` <<< ` = identical to the drive copy (also "
+  },
+  {
+   "site": 5,
+   "note": "project_pi_agent_local_models.md",
+   "class": 1,
+   "before": "setDefaultModelAndProvider",
+   "after": "[REDACTED:high_entropy]",
+   "context": " ONLY - `Ctrl+S` is what persists** (` <<< ()` -> settings.json). The picker prin"
+  },
+  {
+   "site": 6,
+   "note": "project_pi_agent_local_models.md",
+   "class": 1,
+   "before": "normalizeToolResultImages",
+   "after": "[REDACTED:high_entropy]",
+   "context": "der the SAME `model.input`\ngate, and ` <<< ` auto-shrinks oversized ones) instead"
+  },
+  {
+   "site": 7,
+   "note": "project_pi_agent_local_models.md",
+   "class": 1,
+   "before": "getAvailableProviderCount",
+   "after": "[REDACTED:high_entropy]",
+   "context": "tly getGitBranch/getExtensionStatuses/ <<< /onBranchChange),\nstrip the producers'"
+  },
+  {
+   "site": 8,
+   "note": "project_pi_agent_local_models.md",
+   "class": 1,
+   "before": "copySelectionToClipboard",
+   "after": "[REDACTED:high_entropy]",
+   "context": "neither). Cause: pi-tui `TuiAltScreen. <<< ` (dist/tui-alt-screen.js:894, bundled"
+  },
+  {
+   "site": 9,
+   "note": "project_pi_agent_local_models.md",
+   "class": 1,
+   "before": "copySelectionToClipboard",
+   "after": "[REDACTED:high_entropy]",
+   "context": "epo): patches `TuiAltScreen.prototype. <<< `, dedents the shared indent, and re-j"
+  },
+  {
+   "site": 10,
+   "note": "project_pi_agent_local_models.md",
+   "class": 1,
+   "before": "maxActiveAsyncRunsPerSession",
+   "after": "[REDACTED:high_entropy]",
+   "context": "nsions; cap\n`globalConcurrencyLimit`/` <<< ` at 2 for magnus; give agents an expl"
+  },
+  {
+   "site": 11,
+   "note": "project_pi_agent_local_models.md",
+   "class": 1,
+   "before": "maxActiveAsyncRunsPerSession",
+   "after": "[REDACTED:high_entropy]",
+   "context": "nfig.json` = globalConcurrencyLimit 2, <<< 2, forceTopLevelAsync true (extension "
+  },
+  {
+   "site": 12,
+   "note": "project_nuntius_llm_server.md",
+   "class": 1,
+   "before": "verifyAutoModeGateAccess",
+   "after": "[REDACTED:high_entropy]",
+   "context": "with claude-ds4 --debug + rg 'circuit| <<< ' ~/.claude-ds4/debug/latest. One more"
+  },
+  {
+   "site": 13,
+   "note": "project_magnus_big_lane.md",
+   "class": 1,
+   "before": "cudaErrorCompatNotSupportedOnDevice",
+   "after": "[REDACTED:high_entropy]",
+   "context": "every CUDA call dies at startup with ` <<< `. magnus is safe only because its dri"
+  },
+  {
+   "site": 14,
+   "note": "project_gx10_dual_cluster.md",
+   "class": 2,
+   "before": "TOKEN_BUDGET=32768)",
+   "after": "[REDACTED:secret_assignment]",
+   "context": " omit-field defaults DEFAULT_THINKING_ <<< caused a **~4.7x decode tok/s cliff at"
+  }
+ ],
+ "expected_redaction_for_fix": "class 1 and 2 must survive verbatim; class 3 is a policy question (currently redacted, arguably correctly)"
+}

@@ -1,6 +1,8 @@
 # tests/ingest/test_redact.py
 # SPDX-License-Identifier: Apache-2.0
+import json
 import re
+from pathlib import Path
 
 import pytest
 
@@ -355,3 +357,50 @@ def test_named_pattern_wins_over_entropy_kind():
     r = redact("token ghp_16C7e42F292c6912E7710c838347Ae178B4a end")
     assert "github_token" in r.kinds
     assert "high_entropy" not in r.kinds
+
+
+# Exact reported sites from #168; digest/fingerprint policy remains conservative.
+@pytest.mark.parametrize(
+    "site",
+    json.loads((Path(__file__).parent / "fixtures" / "issue_168.json").read_text())["sites"],
+    ids=lambda site: str(site["site"]),
+)
+def test_issue_168_corpus(site):
+    text = site["context"].replace("<<<", site["before"])
+    result = redact(text)
+    if site["class"] in (1, 2):
+        assert result.text == text
+        assert result.count == 0
+    else:
+        assert site["before"] not in result.text
+        assert "high_entropy" in result.kinds
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["token", "access_token", "TOKEN_KEY", "TOKEN_BUDGET_KEY", "password_budget", "signing_secret"],
+)
+def test_secret_assignments_still_caught(name):
+    value = "alphabeticCredentialValue"
+    result = redact(f"{name}={value}")
+    assert value not in result.text
+    assert "secret_assignment" in result.kinds
+
+
+@pytest.mark.parametrize("value", [_HEX64_LOWER, _HEX64_UPPER])
+def test_bare_long_hex_still_caught(value):
+    assert redact(f"value {value}").kinds == ["high_entropy"]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "DEFAULT_THINKING_TOKEN_BUDGET=32768)",
+        "DEFAULT_THINKING_TOKEN_BUDGET=32768",
+        "token-budget: 32768",
+        "TuiAltScreen.prototype.copySelectionToClipboard",
+        "(Ctrl+S persists `setDefaultModelAndProvider()` -> settings.json)",
+    ],
+)
+def test_reported_identifier_contexts_survive(text):
+    assert redact(text).text == text
