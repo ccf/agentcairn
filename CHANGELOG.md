@@ -5,7 +5,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 
 ## [Unreleased]
 
+## [0.26.2] - 2026-09-28
+
 ### Fixed
+- Hermes plugin version is now `0.1.3`, including the blank-setting fix below.
 - Blank or whitespace-only vault settings now fall back to `CAIRN_VAULT` and
   then `~/agentcairn`, instead of selecting the working directory. Hermes drops
   blank fields when saving configuration, and clearing a setting takes effect
@@ -501,7 +504,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
 - Out-of-band capture from coding-agent transcripts (redacted, non-lossy `remember`).
 - Published to PyPI via GitHub Trusted Publishing (OIDC, no stored secrets).
 
-[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.25.1...HEAD
+[Unreleased]: https://github.com/ccf/agentcairn/compare/v0.26.2...HEAD
+[0.26.2]: https://github.com/ccf/agentcairn/compare/v0.26.1...v0.26.2
+[0.26.1]: https://github.com/ccf/agentcairn/compare/v0.26.0...v0.26.1
+[0.26.0]: https://github.com/ccf/agentcairn/compare/v0.25.1...v0.26.0
 [0.25.1]: https://github.com/ccf/agentcairn/compare/v0.25.0...v0.25.1
 [0.25.0]: https://github.com/ccf/agentcairn/compare/v0.24.2...v0.25.0
 [0.24.2]: https://github.com/ccf/agentcairn/compare/v0.24.1...v0.24.2
