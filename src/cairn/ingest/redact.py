@@ -47,11 +47,14 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     # like "secretary" (keyword followed by a letter) are not.
     # The optional (?:[_-][A-Za-z0-9]+)* suffix absorbs trailing segments
     # such as _KEY or _ACCESS_KEY before the assignment operator.
+    # TOKEN_BUDGET is a configuration quantity, not a credential name (#168).
+    # Keep longer names such as TOKEN_BUDGET_KEY eligible for redaction.
     (
         "secret_assignment",
         re.compile(
             r"(?i)(?<![A-Za-z])"
-            r"(?:aws_secret_access_key|secret_access_key|api[_-]?key|secret|token|password|passwd|pwd)"
+            r"(?:aws_secret_access_key|secret_access_key|api[_-]?key|secret|"
+            r"token(?![_-]budget(?![A-Za-z0-9_-]))|password|passwd|pwd)"
             r"(?:[_-][A-Za-z0-9]+)*"
             r'(?![A-Za-z0-9])\s*[:=]\s*(?:"[^"]{6,}"|\'[^\']{6,}\'|[^\s\'"]{6,})'
         ),
@@ -102,10 +105,13 @@ def _looks_secret(token: str) -> bool:
     has_upper = bool(re.search(r"[A-Z]", token))
     has_lower = bool(re.search(r"[a-z]", token))
     has_digit = bool(re.search(r"[0-9]", token))
+    # Letter-only code identifiers can have high Shannon entropy too (#168).
+    # Named patterns still catch alphabetic credentials in secret assignments.
+    if not has_digit:
+        return False
     if has_upper and has_lower and has_digit:
         return _shannon_entropy(token) >= _ENTROPY_BITS
-    # No mixed case: raise the bar so long hyphenated slugs (entropy ~3.77)
-    # survive while 64-hex signing secrets (entropy ~3.94) are caught.
+    # No mixed case: raise the bar while retaining 64-hex signing secrets.
     return _shannon_entropy(token) >= 3.8
 
 

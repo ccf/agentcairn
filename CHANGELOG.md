@@ -11,6 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
   blank fields when saving configuration, and clearing a setting takes effect
   immediately as well as after restart. Explicit `.` paths remain supported.
   Reported by @yudontknowjack ([#173](https://github.com/ccf/agentcairn/issues/173)).
+- Redaction preserves letter-only code identifiers such as
+  `setDefaultModelAndProvider` and configuration assignments such as
+  `DEFAULT_THINKING_TOKEN_BUDGET=32768`. The entropy heuristic now requires a
+  digit; named credential patterns still redact alphabetic secrets. Long hex
+  values and fingerprint fragments retain the existing conservative policy.
+  This prevents future over-redaction; it does not restore previously redacted
+  notes. Reported by @sergiuszm ([#168](https://github.com/ccf/agentcairn/issues/168)).
 
 ## [0.26.1] - 2026-09-07
 
